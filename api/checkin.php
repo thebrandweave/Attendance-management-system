@@ -136,7 +136,7 @@ h2 {
 
 #reader video {
   width: 100% !important;
-  height: 350px !important;
+  height: 416px !important;
   object-fit: cover;
   border-radius: 12px;
 }
