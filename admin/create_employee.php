@@ -386,7 +386,7 @@ setTimeout(() => {
         downloadBtn.click();
     }
 
-}, 1500);
+}, 1000);
 
 };
 
