@@ -1,8 +1,11 @@
+
+
+
 <?php
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db = "attendance";
+$host = "localhost"; // or your hosting MySQL host
+$user = "u232955123_attendance";
+$pass = "Brandweave@24";
+$db = "u232955123_attendance";
 
 $conn = new mysqli($host, $user, $pass, $db);
 
