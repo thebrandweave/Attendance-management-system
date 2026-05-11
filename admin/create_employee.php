@@ -247,43 +247,30 @@ button:hover {
 }
 
 </style>
-
 <script>
 
-async function downloadQR() {
+function downloadQR() {
 
     const img = document.querySelector("img[alt='QR Code']");
 
     if (!img) return;
 
-    try {
+    const link = document.createElement("a");
 
-        const response = await fetch(img.src);
-        const blob = await response.blob();
+    link.href = img.src;
 
-        const blobUrl = window.URL.createObjectURL(blob);
+    const employeeId = "<?= $_SESSION['success']['id'] ?? 'employee' ?>";
 
-        const link = document.createElement("a");
-        link.href = blobUrl;
+    link.download = employeeId + "_QR.png";
 
-        const employeeId = "<?= $_SESSION['success']['id'] ?? 'employee' ?>";
+    document.body.appendChild(link);
 
-        link.download = employeeId + "_QR.png";
+    link.click();
 
-        document.body.appendChild(link);
-        link.click();
-
-        document.body.removeChild(link);
-
-        window.URL.revokeObjectURL(blobUrl);
-
-    } catch (err) {
-        console.log(err);
-    }
+    document.body.removeChild(link);
 }
 
 </script>
-
 </head>
 
 <body>
@@ -393,7 +380,7 @@ window.onload = function () {
 
     setTimeout(() => {
         downloadQR();
-    }, 800);
+    }, 1500);
 
 };
 
