@@ -1,0 +1,169 @@
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Background */
+body {
+  height: 100vh;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Card */
+form {
+  background: #fff;
+  padding: 30px;
+  width: 350px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+/* Title */
+form h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+/* Inputs */
+form input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  transition: 0.3s;
+}
+
+/* Input focus */
+form input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 5px rgba(102, 126, 234, 0.5);
+}
+
+/* Button */
+form button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 15px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: 0.3s;
+}
+
+/* Button hover */
+form button:hover {
+  background: #5a67d8;
+}
+
+/* Error message */
+.error {
+  margin-top: 10px;
+  color: red;
+  font-size: 14px;
+}
+
+/* Dashboard Layout */
+.dashboard-container {
+  padding: 40px;
+  text-align: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+/* Title */
+.dashboard-container h1 {
+  margin-bottom: 30px;
+}
+
+/* Cards Layout */
+.card-container {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+/* Card Style */
+.card {
+  background: white;
+  color: #333;
+  text-decoration: none;
+  padding: 25px;
+  width: 220px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  transition: 0.3s;
+}
+
+/* Hover effect */
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.3);
+}
+
+/* Logout special */
+.card.logout {
+  background: #ff4d4d;
+  color: white;
+}
+
+.card.logout:hover {
+  background: #e60000;
+}
+
+/* Card text */
+.card h3 {
+  margin-bottom: 10px;
+}
+
+.card p {
+  font-size: 14px;
+  color: #666;
+}
+
+.card.logout p {
+  color: #fff;
+}
+
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: -300px;
+  padding: 15px 20px;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  transition: 0.4s;
+  z-index: 1000;
+}
+
+.toast.show {
+  right: 20px;
+}
+
+.toast.error {
+  background: #dc3545;
+}
+
+.toast.success {
+  background: #28a745;
+}
+
+#eyeIcon:hover {
+  color: #000;
+}

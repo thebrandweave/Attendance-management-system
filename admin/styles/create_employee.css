@@ -1,0 +1,122 @@
+/* Center layout */
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+/* Background */
+body {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+/* Main Card */
+.form-card {
+  width: 350px;
+  padding: 30px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+  text-align: center;
+}
+
+/* Heading */
+.form-card h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+/* Input */
+.form-card input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  transition: 0.3s;
+}
+
+.form-card input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 6px rgba(102,126,234,0.5);
+}
+
+/* Button */
+.form-card button {
+  width: 100%;
+  padding: 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.form-card button:hover {
+  background: #5a67d8;
+}
+
+/* Success text */
+.success {
+  margin-top: 15px;
+  color: green;
+  font-weight: bold;
+}
+
+/* Info text */
+.form-card p {
+  margin-top: 5px;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.card {
+  width: 350px;
+  padding: 25px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  text-align: center;
+}
+
+input, button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+button {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: gray;
+  cursor: not-allowed;
+}
+
+.success {
+  color: green;
+  font-weight: bold;
+}
+
+.back-btn {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: #111827;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+}
