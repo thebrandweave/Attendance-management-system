@@ -249,25 +249,42 @@ button:hover {
 </style>
 <script>
 
-function downloadQR() {
+async function downloadQR() {
 
     const img = document.querySelector("img[alt='QR Code']");
 
     if (!img) return;
 
-    const link = document.createElement("a");
+    try {
 
-    link.href = img.src;
+        const response = await fetch(img.src);
 
-    const employeeId = "<?= $_SESSION['success']['id'] ?? 'employee' ?>";
+        const blob = await response.blob();
 
-    link.download = employeeId + "_QR.png";
+        const blobUrl = window.URL.createObjectURL(blob);
 
-    document.body.appendChild(link);
+        const link = document.createElement("a");
 
-    link.click();
+        link.href = blobUrl;
 
-    document.body.removeChild(link);
+        const employeeId = "<?= $_SESSION['success']['id'] ?? 'employee' ?>";
+
+        link.download = employeeId + "_QR.png";
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        document.body.removeChild(link);
+
+        window.URL.revokeObjectURL(blobUrl);
+
+    } catch (error) {
+
+        console.log(error);
+
+    }
+
 }
 
 </script>
