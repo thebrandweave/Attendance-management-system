@@ -146,6 +146,27 @@ $employees = $conn->query("
 
     ORDER BY users.name ASC
 ");
+
+
+
+
+
+$search = $_GET['search'] ?? '';
+$status_filter = $_GET['status'] ?? '';
+
+$where = "attendance.date LIKE '$month%' 
+AND users.role='employee'";
+
+if (!empty($search)) {
+
+    $where .= " AND users.employee_id LIKE '%$search%'";
+}
+
+if (!empty($status_filter)) {
+
+    $where .= " AND attendance.status='$status_filter'";
+}
+
 $history = $conn->query("
     SELECT
         users.name,
@@ -482,32 +503,83 @@ $history = $conn->query("
 
         <!-- FILTER -->
 
-        <div class="filter-box">
+     <div class="filter-box">
 
-            <form method="GET">
+    <form method="GET" style="display:flex; gap:10px; flex-wrap:wrap;">
 
-                <input
-                    type="month"
-                    name="month"
-                    value="<?= $month ?>"
-                >
+        <!-- Month -->
 
-                <button type="submit">
-                    Filter
-                </button>
+        <input
+            type="month"
+            name="month"
+            value="<?= $month ?>"
+        >
 
-                <button
-                    type="button"
-                    onclick="window.print()"
-                >
-                    Print
-                </button>
+        <!-- Search Employee ID -->
 
-            </form>
+        <input
+            type="text"
+            name="search"
+            placeholder="Search Employee ID"
+            value="<?= $search ?>"
+        >
 
-        </div>
+        <!-- Status Filter -->
 
-        <!-- SUMMARY CARDS -->
+        <select name="status">
+
+            <option value="">
+                All Status
+            </option>
+
+            <option
+                value="Present"
+                <?= $status_filter == 'Present' ? 'selected' : '' ?>
+            >
+                Present
+            </option>
+
+            <option
+                value="Absent"
+                <?= $status_filter == 'Absent' ? 'selected' : '' ?>
+            >
+                Absent
+            </option>
+
+            <option
+                value="Half Day"
+                <?= $status_filter == 'Half Day' ? 'selected' : '' ?>
+            >
+                Half Day
+            </option>
+
+            <option
+                value="Late"
+                <?= $status_filter == 'Late' ? 'selected' : '' ?>
+            >
+                Late
+            </option>
+
+        </select>
+
+        <!-- Buttons -->
+
+        <button type="submit">
+            Filter
+        </button>
+
+        <button
+            type="button"
+            onclick="window.print()"
+        >
+            Print
+        </button>
+
+    </form>
+
+</div>
+
+        <!-- SUMMARY CARDS
 
         <div class="cards">
 
@@ -541,7 +613,7 @@ $history = $conn->query("
                 <p class="green"><?= $score ?>%</p>
             </div>
 
-        </div>
+        </div> -->
 
       <!-- EMPLOYEE REPORT -->
 
