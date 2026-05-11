@@ -363,9 +363,9 @@ async function downloadQR() {
 
         </div>
 
-        <button onclick="downloadQR()" type="button">
+        <!-- <button onclick="downloadQR()" type="button">
           ⬇ Download QR
-        </button>
+        </button> -->
 
       <?php } ?>
 
