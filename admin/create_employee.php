@@ -214,10 +214,7 @@ async function downloadQR() {
 
     const img = document.querySelector("img[alt='QR Code']");
 
-    if (!img) {
-        alert("QR not found ❌");
-        return;
-    }
+    if (!img) return;
 
     try {
 
@@ -228,8 +225,11 @@ async function downloadQR() {
 
         const link = document.createElement("a");
         link.href = blobUrl;
-const employeeId = "<?= $_SESSION['success']['id'] ?>";
-link.download = employeeId + ".png";  
+
+        const employeeId = "<?= $_SESSION['success']['id'] ?? 'employee' ?>";
+
+        link.download = employeeId + "_QR.png";
+
         document.body.appendChild(link);
         link.click();
 
@@ -238,10 +238,20 @@ link.download = employeeId + ".png";
         window.URL.revokeObjectURL(blobUrl);
 
     } catch (err) {
-        alert("Download failed ❌");
         console.log(err);
     }
 }
+
+window.onload = function () {
+
+    const successBox = document.querySelector(".success");
+
+    if (successBox) {
+        setTimeout(() => {
+            downloadQR();
+        }, 800);
+    }
+};
 </script>
 
 <body>
