@@ -31,13 +31,19 @@ if ($check->num_rows > 0) {
   exit("Already checked in ❌");
 }
 
-// status rules (same as yours)
-if ($now <= "09:30:00") {
-  $status = "Present";
-} elseif ($now <= "09:40:00") {
-  $status = "Late";
+$now = date("H:i:s");
+
+if ($now >= "09:30:00" && $now <= "09:40:00") {
+
+    $status = "Present";
+
+} elseif ($now > "09:40:00" && $now <= "10:00:00") {
+
+    $status = "Late";
+
 } else {
-  $status = "Half Day";
+
+    $status = "Half Day";
 }
 
 $conn->query("
