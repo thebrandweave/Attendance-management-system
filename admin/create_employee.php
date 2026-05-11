@@ -301,9 +301,8 @@ window.onload = function () {
           <!-- QR CODE -->
   <div style="margin-top:15px;">
     <p><b>Employee Check-in QR</b></p>
-
-   <img 
-  src="https://quickchart.io/qr?size=200&text=<?= urlencode("http://localhost/attendance/api/checkin.php?token=" . $_SESSION['success']['qr']) ?>"
+<img 
+  src="https://quickchart.io/qr?size=200&text=<?= urlencode($checkinLink) ?>"
   alt="QR Code"
   style="border:1px solid #ddd; border-radius:10px;"
 >
