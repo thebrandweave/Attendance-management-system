@@ -30,21 +30,20 @@ if (isset($_POST['create'])) {
   $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
   $token = bin2hex(random_bytes(32));
 
- $stmt = $conn->prepare("
-  INSERT INTO users (name, employee_id, password, role, qr_token)
-  VALUES (?, ?, ?, 'employee', ?)
-");
+  $stmt = $conn->prepare("
+    INSERT INTO users (name, employee_id, password, role, qr_token)
+    VALUES (?, ?, ?, 'employee', ?)
+  ");
+
   $stmt->bind_param("ssss", $name, $empId, $hashedPassword, $token);
   $stmt->execute();
 
-$checkinLink = "https://thebrandweave.com/attendance/api/checkin.php?token=" . $token;
-$_SESSION['success'] = [
-  "id" => $empId,
-  "pass" => $plainPassword,
-  "qr" => $token
-];
+  $_SESSION['success'] = [
+    "id" => $empId,
+    "pass" => $plainPassword,
+    "qr" => $token
+  ];
 
-  // 🔥 rotate token (IMPORTANT)
   $_SESSION['form_token'] = bin2hex(random_bytes(32));
 
   header("Location: create_employee.php");
@@ -55,10 +54,10 @@ $_SESSION['success'] = [
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Create Employee</title>
 
+  <title>Create Employee</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-</head>
 
 <style>
 
@@ -133,10 +132,15 @@ body {
   animation: fadeIn 0.4s ease-in-out;
 }
 
-/* animation */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
 }
 
 /* ===== INPUT ===== */
@@ -149,6 +153,7 @@ input {
   outline: none;
   transition: 0.3s;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 input:focus {
@@ -208,8 +213,43 @@ button:hover {
   color: #555;
 }
 
+/* ===== TOAST ===== */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #16a34a;
+  color: white;
+  padding: 7px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  transform: translateX(120%);
+  opacity: 0;
+  transition: all 0.4s ease;
+  z-index: 9999;
+}
+
+.toast.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toast-icon {
+  font-size: 18px;
+}
+
 </style>
+
 <script>
+
 async function downloadQR() {
 
     const img = document.querySelector("img[alt='QR Code']");
@@ -242,17 +282,9 @@ async function downloadQR() {
     }
 }
 
-window.onload = function () {
-
-    const successBox = document.querySelector(".success");
-
-    if (successBox) {
-        setTimeout(() => {
-            downloadQR();
-        }, 800);
-    }
-};
 </script>
+
+</head>
 
 <body>
 
@@ -264,8 +296,8 @@ window.onload = function () {
 
     <a href="dashboard.php">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
-       <a href="../api/checkin.php">🟢 Check In</a>
-  <a href="../api/checkout.php">🔴 Check Out</a>
+    <a href="../api/checkin.php">🟢 Check In</a>
+    <a href="../api/checkout.php">🔴 Check Out</a>
     <a href="leave_requests.php">📩 Manage Leaves</a>
     <a href="reports.php">📊 Reports</a>
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
@@ -281,14 +313,31 @@ window.onload = function () {
       <h2>Create Employee</h2>
 
       <form method="POST">
-        <input name="name" placeholder="Enter Employee Name" required>
 
-        <input type="hidden" name="token" value="<?= $_SESSION['form_token'] ?>">
+        <input 
+          name="name" 
+          placeholder="Enter Employee Name" 
+          required
+        >
 
-        <button name="create">Create Employee</button>
+        <input 
+          type="hidden" 
+          name="token" 
+          value="<?= $_SESSION['form_token'] ?>"
+        >
+
+        <button name="create">
+          Create Employee
+        </button>
+
       </form>
 
       <?php if (isset($_SESSION['success'])) { ?>
+
+        <?php
+        $qrLink = "https://thebrandweave.com/attendance/api/checkin.php?token=" . $_SESSION['success']['qr'];
+        ?>
+
         <div class="success">
           Employee Created Successfully ✅
         </div>
@@ -298,20 +347,23 @@ window.onload = function () {
           <b>Password:</b> <?= $_SESSION['success']['pass'] ?>
         </div>
 
-          <!-- QR CODE -->
-  <div style="margin-top:15px;">
-    <p><b>Employee Check-in QR</b></p>
-<img 
-  src="https://quickchart.io/qr?size=200&text=<?= urlencode($checkinLink) ?>"
-  alt="QR Code"
-  style="border:1px solid #ddd; border-radius:10px;"
->
-  </div>
-<button onclick="downloadQR()" type="button">
-  ⬇ Download QR
-</button>
+        <!-- QR CODE -->
+        <div style="margin-top:15px;">
 
-        <?php unset($_SESSION['success']); ?>
+          <p><b>Employee Check-in QR</b></p>
+
+          <img 
+            src="https://quickchart.io/qr?size=200&text=<?= urlencode($qrLink) ?>"
+            alt="QR Code"
+            style="border:1px solid #ddd; border-radius:10px;"
+          >
+
+        </div>
+
+        <button onclick="downloadQR()" type="button">
+          ⬇ Download QR
+        </button>
+
       <?php } ?>
 
     </div>
@@ -319,14 +371,37 @@ window.onload = function () {
   </div>
 
 </div>
+
 <?php if (isset($_SESSION['success'])) { ?>
+
+<div class="toast" id="toast">
+    <i class="fa-solid fa-circle-check toast-icon"></i>
+    <span>QR Downloaded</span>
+</div>
+
 <script>
+
 window.onload = function () {
+
+    const toast = document.getElementById("toast");
+
+    toast.classList.add("show");
+
+    setTimeout(() => {
+        toast.classList.remove("show");
+    }, 3000);
+
     setTimeout(() => {
         downloadQR();
-    }, 1000);
+    }, 800);
+
 };
+
 </script>
+
+<?php unset($_SESSION['success']); ?>
+
 <?php } ?>
+
 </body>
 </html>
