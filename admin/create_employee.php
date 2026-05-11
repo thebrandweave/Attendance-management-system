@@ -26,8 +26,8 @@ if (isset($_POST['create'])) {
   $name = $_POST['name'];
 
   $empId = "EMP" . rand(1000,9999);
-  $plainPassword = "1234";
-  $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
+  $plainPassword = "EMP@" . rand(1000,9999);
+$hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
   $token = bin2hex(random_bytes(32));
 
   $stmt = $conn->prepare("
@@ -346,10 +346,9 @@ async function downloadQR() {
           Employee Created Successfully ✅
         </div>
 
-        <div class="info">
-          <b>ID:</b> <?= $_SESSION['success']['id'] ?><br>
-          <b>Password:</b> <?= $_SESSION['success']['pass'] ?>
-        </div>
+     <div class="info">
+  <b>Password:</b> <?= $_SESSION['success']['pass'] ?>
+</div>
 
         <!-- QR CODE -->
         <div style="margin-top:15px;">
