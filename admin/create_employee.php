@@ -38,11 +38,12 @@ $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
   $stmt->bind_param("ssss", $name, $empId, $hashedPassword, $token);
   $stmt->execute();
 
-  $_SESSION['success'] = [
-    "id" => $empId,
-    "pass" => $plainPassword,
-    "qr" => $token
-  ];
+$_SESSION['success'] = [
+  "name" => $name,
+  "id" => $empId,
+  "pass" => $plainPassword,
+  "qr" => $token
+];
 
   $_SESSION['form_token'] = bin2hex(random_bytes(32));
 
@@ -248,26 +249,38 @@ button:hover {
 
 </style>
 <script>
-
 async function downloadQR() {
 
-    const img = document.querySelector("img[alt='QR Code']");
+    const qrContainer = document.getElementById("qrContainer");
 
-    if (!img) return;
+    const qrImage = document.getElementById("qrImage");
+
+    if (!qrContainer || !qrImage) return;
 
     try {
 
-        const response = await fetch(img.src);
+        // Wait until image fully loads
+        if (!qrImage.complete) {
 
-        const blob = await response.blob();
+            await new Promise((resolve) => {
 
-        const blobUrl = window.URL.createObjectURL(blob);
+                qrImage.onload = resolve;
+            });
+        }
+
+        const canvas = await html2canvas(qrContainer, {
+            useCORS: true,
+            scale: 3
+        });
+
+        const image = canvas.toDataURL("image/png");
 
         const link = document.createElement("a");
 
-        link.href = blobUrl;
+        const employeeId =
+            "<?= $_SESSION['success']['id'] ?? 'employee' ?>";
 
-        const employeeId = "<?= $_SESSION['success']['id'] ?? 'employee' ?>";
+        link.href = image;
 
         link.download = employeeId + "_QR.png";
 
@@ -277,16 +290,11 @@ async function downloadQR() {
 
         document.body.removeChild(link);
 
-        window.URL.revokeObjectURL(blobUrl);
-
     } catch (error) {
 
         console.log(error);
-
     }
-
 }
-
 </script>
 </head>
 
@@ -349,19 +357,52 @@ async function downloadQR() {
      <div class="info">
   <b>Password:</b> <?= $_SESSION['success']['pass'] ?>
 </div>
+<!-- QR CODE -->
+<div style="margin-top:15px; text-align:center;">
 
-        <!-- QR CODE -->
-        <div style="margin-top:15px;">
+  <p><b>Employee Check-in QR</b></p>
 
-          <p><b>Employee Check-in QR</b></p>
+  <div id="qrContainer" style="
+      background:white;
+      padding:15px;
+      border-radius:12px;
+      display:inline-block;
+      border:1px solid #ddd;
+  ">
 
-          <img 
-            src="https://quickchart.io/qr?size=200&text=<?= urlencode($qrLink) ?>"
-            alt="QR Code"
-            style="border:1px solid #ddd; border-radius:10px;"
-          >
+   <img 
+  id="qrImage"
+  crossorigin="anonymous"
+  src="https://quickchart.io/qr?size=200&text=<?= urlencode($qrLink) ?>"
+  alt="QR Code"
+  style="
+    display:block;
+    margin:auto;
+    width:200px;
+    height:200px;
+  "
+>
 
-        </div>
+    <div style="
+        margin-top:12px;
+        font-size:16px;
+        font-weight:600;
+        color:#111827;
+    ">
+      <?= $_SESSION['success']['name'] ?>
+    </div>
+
+    <div style="
+        margin-top:5px;
+        font-size:13px;
+        color:#666;
+    ">
+      ID: <?= $_SESSION['success']['id'] ?>
+    </div>
+
+  </div>
+
+</div>
 
         <!-- <button onclick="downloadQR()" type="button">
           ⬇ Download QR
@@ -405,6 +446,6 @@ window.onload = function () {
 <?php unset($_SESSION['success']); ?>
 
 <?php } ?>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </body>
 </html>
