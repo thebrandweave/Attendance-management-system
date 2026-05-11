@@ -37,7 +37,7 @@ if (isset($_POST['create'])) {
   $stmt->bind_param("ssss", $name, $empId, $hashedPassword, $token);
   $stmt->execute();
 
-$checkinLink = "http://localhost/attendance/api/checkin.php?token=" . $token;
+$checkinLink = "https://thebrandweave.com/attendance/api/checkin.php?token=" . $token;
 $_SESSION['success'] = [
   "id" => $empId,
   "pass" => $plainPassword,
