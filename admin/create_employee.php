@@ -347,9 +347,9 @@ function downloadQR() {
 
         </div>
 
-        <button onclick="downloadQR()" type="button">
-          ⬇ Download QR
-        </button>
+  <button id="downloadBtn" onclick="downloadQR()" type="button">
+  ⬇ Download QR
+</button>
 
       <?php } ?>
 
@@ -378,9 +378,15 @@ window.onload = function () {
         toast.classList.remove("show");
     }, 3000);
 
-    setTimeout(() => {
-        downloadQR();
-    }, 1500);
+setTimeout(() => {
+
+    const downloadBtn = document.getElementById("downloadBtn");
+
+    if (downloadBtn) {
+        downloadBtn.click();
+    }
+
+}, 1500);
 
 };
 
