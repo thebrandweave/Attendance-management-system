@@ -31,7 +31,7 @@ body {
 
 /* CARD */
 .card {
-  width: 400px;
+  width: 590px;
   background: rgba(255, 255, 255, 0.9);
   padding: 25px;
   border-radius: 18px;
@@ -124,7 +124,22 @@ h2 {
       border: none;
       border-radius: 8px;
     }
+#reader {
+  width: 95%;
+  min-height: 420px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px dashed #6366f1;
+  padding: 10px;
+  background: #f9fafb;
+}
 
+#reader video {
+  width: 100% !important;
+  height: 350px !important;
+  object-fit: cover;
+  border-radius: 12px;
+}
 </style>
 </head>
 
@@ -155,12 +170,41 @@ function onScanSuccess(decodedText) {
     document.getElementById("scanForm").submit();
 }
 
-let scanner = new Html5QrcodeScanner(
-    "reader",
-    { fps: 10, qrbox: 250 }
-);
+const html5QrCode = new Html5Qrcode("reader");
 
-scanner.render(onScanSuccess);
+Html5Qrcode.getCameras().then(devices => {
+
+    if (devices && devices.length) {
+
+        html5QrCode.start(
+            { facingMode: "environment" }, // back camera
+
+            {
+                fps: 15,
+
+                qrbox: {
+                    width: 280,
+                    height: 280
+                },
+
+                aspectRatio: 1.777,
+
+                disableFlip: false,
+
+                videoConstraints: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    focusMode: "continuous"
+                }
+            },
+
+            onScanSuccess
+        );
+    }
+
+}).catch(err => {
+    console.log(err);
+});
 </script>
 
 </body>
