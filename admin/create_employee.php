@@ -24,7 +24,7 @@ if (isset($_POST['create'])) {
   }
 
   $name = $_POST['name'];
-$phone = $_POST['phone'];
+$email = $_POST['email'];
 
   $empId = "EMP" . rand(1000,9999);
   $plainPassword = "EMP@" . rand(1000,9999);
@@ -32,11 +32,11 @@ $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
   $token = bin2hex(random_bytes(32));
 
   $stmt = $conn->prepare("
-    INSERT INTO users (name,phone, employee_id, password, role, qr_token)
+    INSERT INTO users (name,email, employee_id, password, role, qr_token)
     VALUES (?,?, ?, ?, 'employee', ?)
   ");
 
-  $stmt->bind_param("sssss", $name, $phone, $empId, $hashedPassword, $token);
+  $stmt->bind_param("sssss", $name, $email, $empId, $hashedPassword, $token);
   $stmt->execute();
 
 $_SESSION['success'] = [
@@ -332,10 +332,10 @@ async function downloadQR() {
           placeholder="Enter Employee Name" 
           required
         >
-        <input 
-  type="tel"
-  name="phone" 
-  placeholder="Enter Phone Number"
+  <input 
+  type="email"
+  name="email" 
+  placeholder="Enter Email Address"
   required
 >
 

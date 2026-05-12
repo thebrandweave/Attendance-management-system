@@ -75,7 +75,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     /* ===== MAIN ===== */
     .main {
       flex: 1;
-      padding: 25px;
+      padding: 2px;
     }
 
     .header {
@@ -430,20 +430,60 @@ if ($totalHours !== "-") {
   <td><?= $present ?></td>
   <td><?= $half ?></td>
   <td><?= $absent ?></td>
-    <td>
-  <a href="delete_employee.php?id=<?= $emp['id'] ?>"
-     onclick="return confirm('Are you sure you want to delete this employee?')"
-     style="
-        background:#ef4444;
-        color:white;
-        padding:8px 12px;
-        border-radius:6px;
-        text-decoration:none;
-        font-size:12px;
-        font-weight:600;
-     ">
-     Delete
-  </a>
+  <td style="display:flex; gap:7px; justify-content:center;">
+
+<a href="../mail/send_mail_function.php?id=<?= $emp['id'] ?>"
+   style="
+      background:#2563eb;
+      color:white;
+      padding:5px 5px;
+      border-radius:6px;
+      text-decoration:none;
+      font-size:12px;
+      font-weight:600;
+   ">
+   Send Mail
+</a>
+
+<a href="delete_employee.php?id=<?= $emp['id'] ?>"
+   onclick="return confirm('Are you sure you want to delete this employee?')"
+   style="
+      background:#ef4444;
+      color:white;
+      padding:5px 5px;
+      border-radius:6px;
+      text-decoration:none;
+      font-size:12px;
+      font-weight:600;
+   ">
+   Delete
+</a>
+<a href="send_report.php?id=<?= $emp['id'] ?>"
+   style="
+      background:#16a34a;
+      color:white;
+      padding:5px 5px;
+      border-radius:6px;
+      text-decoration:none;
+      font-size:12px;
+      font-weight:600;
+   ">
+   Report
+</a>
+
+<a href="send_salary.php?id=<?= $emp['id'] ?>"
+   style="
+      background:#7c3aed;
+      color:white;
+      padding:5px 5px;
+      border-radius:6px;
+      text-decoration:none;
+      font-size:12px;
+      font-weight:600;
+   ">
+   Salary
+</a>
+
 </td>
 </tr>
 
