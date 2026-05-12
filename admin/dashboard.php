@@ -145,6 +145,10 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   border-radius:8px;
   font-family:'Poppins',sans-serif;
 }
+.status-overtime {
+    color: #7c3aed;
+    font-weight: 600;
+}
   </style>
 </head>
 
@@ -226,11 +230,57 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     WHERE user_id=$empId AND date='$today'
   ")->fetch_assoc();
 
-  if ($isNewEmployee) {
-      $status = null;
-  } else {
-      $status = $todayAtt['status'] ?? "Pending";
-  }
+if ($isNewEmployee) {
+
+    $status = null;
+
+} else {
+
+    $status = $todayAtt['status'] ?? "Pending";
+
+    /*
+    ============================================
+    OVERTIME STATUS
+    IF WORKING HOURS > 7
+    ============================================
+    */
+
+    if (
+        !empty($todayAtt['check_in']) &&
+        !empty($todayAtt['check_out'])
+    ) {
+
+        $totalSeconds =
+            strtotime($todayAtt['check_out']) -
+            strtotime($todayAtt['check_in']);
+
+        $lunchSeconds = 0;
+
+        if (
+            !empty($todayAtt['lunch_out']) &&
+            !empty($todayAtt['lunch_in'])
+        ) {
+
+            $lunchSeconds =
+                strtotime($todayAtt['lunch_in']) -
+                strtotime($todayAtt['lunch_out']);
+        }
+
+        $workingHours =
+            ($totalSeconds - $lunchSeconds) / 3600;
+
+        if ($workingHours > 7) {
+
+            $status = "Overtime";
+
+            $conn->query("
+                UPDATE attendance
+                SET status='Overtime'
+                WHERE id='{$todayAtt['id']}'
+            ");
+        }
+    }
+}
 
   $present = 0;
   $half = 0;
