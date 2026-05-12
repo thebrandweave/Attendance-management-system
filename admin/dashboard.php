@@ -481,7 +481,7 @@ function openEditModal(emp, attendance) {
 
 
     document.getElementById('editStatus').value =
-        attendance?.status || 'Pending';
+        attendance?.status || 'Absent';
 
     document.getElementById('editCheckIn').value =
         formatDateTime(attendance?.check_in);
