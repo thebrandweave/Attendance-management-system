@@ -242,7 +242,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     while ($m = $monthly->fetch_assoc()) {
       if ($m['status'] == "Present") $present++;
       elseif ($m['status'] == "Half Day") $half++;
-      elseif ($m['status'] == "Pending") $absent++;
+      elseif ($m['status'] == "Absent") $absent++;
     }
   }
 
@@ -386,7 +386,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
           <option value="Present">Present</option>
           <option value="Late">Late</option>
           <option value="Half Day">Half Day</option>
-          <option value="Pending">Pending</option>
+          <option value="Absent">Absent</option>
 
       </select>
 
