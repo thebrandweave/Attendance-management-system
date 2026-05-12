@@ -101,82 +101,79 @@ if (isset($_POST['token'])) {
         exit();
     }
 
-    /*
-    ============================================
-    FINAL OFFICE CHECK-OUT
-    ============================================
-    */
+   /*
+============================================
+FINAL OFFICE CHECK-OUT
+============================================
+*/
 
-    if (
-        !empty($attendance['lunch_in']) &&
-        empty($attendance['check_out'])
-    ) {
+if (
+    !empty($attendance['lunch_out']) &&
+    !empty($attendance['lunch_in']) &&
+    empty($attendance['check_out'])
+) {
 
-        // CALCULATE MORNING HOURS
+    // MORNING SESSION
 
-        $morningSeconds =
-            strtotime($attendance['lunch_out']) -
-            strtotime($attendance['check_in']);
+    $morningSeconds =
+        strtotime($attendance['lunch_out']) -
+        strtotime($attendance['check_in']);
 
-        // CALCULATE EVENING HOURS
+    // EVENING SESSION
 
-        $eveningSeconds =
-            strtotime($currentTime) -
-            strtotime($attendance['lunch_in']);
+    $eveningSeconds =
+        strtotime($currentTime) -
+        strtotime($attendance['lunch_in']);
 
-        // TOTAL WORKING HOURS
+    // TOTAL
 
-        $totalSeconds = $morningSeconds + $eveningSeconds;
+    $totalSeconds = $morningSeconds + $eveningSeconds;
 
-        $totalHours = round($totalSeconds / 3600, 2);
+    $totalHours = round($totalSeconds / 3600, 2);
 
-        /*
-        ============================================
-        AUTO STATUS UPDATE
-        ============================================
-        */
+    // STATUS
 
-        if ($totalHours >= 8) {
+    if ($totalHours >= 8) {
 
-            $status = "Present";
+        $status = "Present";
 
-        } elseif ($totalHours >= 4) {
+    } elseif ($totalHours >= 4) {
 
-            $status = "Half Day";
+        $status = "Half Day";
 
-        } else {
+    } else {
 
-            $status = "Pending";
-        }
-
-        // UPDATE FINAL CHECKOUT
-
-        $stmt = $conn->prepare("
-            UPDATE attendance
-            SET
-                check_out = ?,
-                total_hours = ?,
-                status = ?
-            WHERE id = ?
-        ");
-
-        $stmt->bind_param(
-            "sdsi",
-            $currentTime,
-            $totalHours,
-            $status,
-            $attendance['id']
-        );
-
-        $stmt->execute();
-
-        echo "<script>
-            alert('Final Check-Out Successful ✅ Total Hours: $totalHours hrs');
-            window.location.href='../admin/dashboard.php';
-        </script>";
-
-        exit();
+        $status = "Absent";
     }
+
+    // UPDATE
+
+    $stmt = $conn->prepare("
+        UPDATE attendance
+        SET
+            check_out = ?,
+            total_hours = ?,
+            status = ?
+        WHERE id = ?
+    ");
+
+    $stmt->bind_param(
+        "sdsi",
+        $currentTime,
+        $totalHours,
+        $status,
+        $attendance['id']
+    );
+
+    $stmt->execute();
+
+    echo "<script>
+        alert('Final Check-Out Successful ✅');
+        window.location.href='../admin/dashboard.php';
+    </script>";
+
+    exit();
+}
 
     /*
     ============================================
