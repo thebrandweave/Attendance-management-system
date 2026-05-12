@@ -223,6 +223,8 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     WHERE user_id=$empId AND date='$today'
   ")->fetch_assoc();
 
+  $status = $todayAtt['status'] ?? "Absent";
+
   if ($isNewEmployee) {
       $status = null;
   } else {
@@ -284,7 +286,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
 
   <td>
     <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
-        <?= $status ?? 'Pending' ?>
+        <?= $status ?>
     </span>
 </td>
 
