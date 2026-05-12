@@ -19,7 +19,7 @@ function sendEmployeeMail($to, $subject, $message) {
 
         $mail->Username = 'wearebrandweave@gmail.com';
 
-        $mail->Password = 'phew qhrm dypd fefq';
+        $mail->Password = 'phewqhrmdypdfefq';
 
         $mail->SMTPSecure = 'tls';
 
