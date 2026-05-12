@@ -1,65 +1,87 @@
 <?php
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+require '../vendor/autoload.php';
+
 function sendEmployeeMail($to, $subject, $message) {
 
-    $headers = "MIME-Version: 1.0" . "\r\n";
+    $mail = new PHPMailer(true);
 
-    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+    try {
 
-    $headers .= "From: GD EDU TECH Attendance " . "\r\n";
+        $mail->isSMTP();
 
-    $headers .= "" . "\r\n";
+        $mail->Host = 'smtp.gmail.com';
 
-    $headers .= "X-Mailer: PHP/" . phpversion();
+        $mail->SMTPAuth = true;
 
-    $htmlMessage = "
-    <div style='
-        font-family:Poppins,Arial,sans-serif;
-        padding:20px;
-        background:#f4f6f9;
-    '>
+        $mail->Username = 'wearebrandweave@gmail.com';
 
+        $mail->Password = 'phew qhrm dypd fefq';
+
+        $mail->SMTPSecure = 'tls';
+
+        $mail->Port = 587;
+
+        $mail->setFrom(
+            'wearebrandweave@gmail.com',
+            'GD EDU TECH'
+        );
+
+        $mail->addAddress($to);
+
+        $mail->isHTML(true);
+
+        $mail->Subject = $subject;
+
+        $mail->Body = "
         <div style='
-            max-width:600px;
-            margin:auto;
-            background:white;
-            border-radius:12px;
-            overflow:hidden;
-            box-shadow:0 5px 15px rgba(0,0,0,0.1);
+            font-family:Poppins,sans-serif;
+            padding:20px;
+            background:#f3f4f6;
         '>
 
             <div style='
-                background:#111827;
-                color:white;
-                padding:18px;
-                text-align:center;
-                font-size:22px;
-                font-weight:600;
+                max-width:600px;
+                margin:auto;
+                background:white;
+                border-radius:12px;
+                overflow:hidden;
             '>
-                GD EDU TECH
-            </div>
 
-            <div style='padding:25px;'>
+                <div style='
+                    background:#111827;
+                    color:white;
+                    padding:18px;
+                    text-align:center;
+                    font-size:22px;
+                    font-weight:600;
+                '>
+                    GD EDU TECH
+                </div>
 
-                $message
+                <div style='padding:25px;'>
 
-            </div>
+                    $message
 
-            <div style='
-                background:#f3f4f6;
-                padding:15px;
-                text-align:center;
-                font-size:12px;
-                color:#6b7280;
-            '>
-                Attendance Management System
+                </div>
+
             </div>
 
         </div>
+        ";
 
-    </div>
-    ";
+        $mail->send();
 
-    return mail($to, $subject, $htmlMessage, $headers);
+        return true;
+
+    } catch (Exception $e) {
+
+        echo $mail->ErrorInfo;
+
+        return false;
+    }
 }
 ?>
