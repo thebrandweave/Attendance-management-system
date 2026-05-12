@@ -145,10 +145,6 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   border-radius:8px;
   font-family:'Poppins',sans-serif;
 }
-.status-late {
-    color: orange;
-    font-weight: 600;
-}
   </style>
 </head>
 
@@ -191,7 +187,6 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   <select id="statusFilter" onchange="filterTable()">
     <option value="">All Status</option>
     <option value="Present">Present</option>
-        <option value="Late">Late</option>
     <option value="Absent">Absent</option>
     <option value="Half Day">Half Day</option>
   </select>
@@ -228,14 +223,11 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     WHERE user_id=$empId AND date='$today'
   ")->fetch_assoc();
 
-if ($isNewEmployee && !$todayAtt) {
-
-    $status = "-";
-
-} else {
-
-    $status = $todayAtt['status'] ?? "Absent";
-}
+  if ($isNewEmployee) {
+      $status = null;
+  } else {
+      $status = $todayAtt['status'] ?? "Pending";
+  }
 
   $present = 0;
   $half = 0;
@@ -248,15 +240,9 @@ if ($isNewEmployee && !$todayAtt) {
     ");
 
     while ($m = $monthly->fetch_assoc()) {
- if ($m['status'] == "Present" || $m['status'] == "Late") {
-    $present++;
-}
-elseif ($m['status'] == "Half Day") {
-    $half++;
-}
-elseif ($m['status'] == "Absent") {
-    $absent++;
-}
+      if ($m['status'] == "Present") $present++;
+      elseif ($m['status'] == "Half Day") $half++;
+      elseif ($m['status'] == "Pending") $absent++;
     }
   }
 
@@ -297,10 +283,14 @@ elseif ($m['status'] == "Absent") {
   <td><?= $today ?></td>
 
   <td>
-   <span class="status-<?= strtolower(str_replace([' ', '-'], '', $status)) ?>">
+    <?php if ($isNewEmployee) { ?>
+      <span style="color:gray;">Not Started</span>
+    <?php } else { ?>
+      <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
         <?= $status ?>
-    </span>
-</td>
+      </span>
+    <?php } ?>
+  </td>
 
   <td>
     <?= !empty($todayAtt['check_in'])
@@ -396,7 +386,7 @@ elseif ($m['status'] == "Absent") {
           <option value="Present">Present</option>
           <option value="Late">Late</option>
           <option value="Half Day">Half Day</option>
-          <option value="Absent">Absent</option>
+          <option value="Pending">Pending</option>
 
       </select>
 
@@ -488,7 +478,7 @@ function openEditModal(emp, attendance) {
 
 
     document.getElementById('editStatus').value =
-        attendance?.status || 'Absent';
+        attendance?.status || 'Pending';
 
     document.getElementById('editCheckIn').value =
         formatDateTime(attendance?.check_in);

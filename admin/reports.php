@@ -14,13 +14,25 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
 }
 
 /* =========================
-   MONTH FILTER
+   FILTERS
 ========================= */
 
 $month = $_GET['month'] ?? date("Y-m");
+$search = $_GET['search'] ?? '';
+$status_filter = $_GET['status'] ?? '';
 
 /* =========================
-   OVERALL SUMMARY
+   TOTAL DAYS IN MONTH
+========================= */
+
+$totalDaysInMonth = cal_days_in_month(
+    CAL_GREGORIAN,
+    date('m', strtotime($month)),
+    date('Y', strtotime($month))
+);
+
+/* =========================
+   DASHBOARD SUMMARY
 ========================= */
 
 $summary = $conn->query("
@@ -54,23 +66,25 @@ while ($row = $summary->fetch_assoc()) {
     }
 }
 
-$total = $present + $half + $absent;
+$totalAttendance = $present + $absent + $half;
 
-$percent = $total
-    ? round((($present + ($half * 0.5)) / $total) * 100, 2)
-    : 0;
-
-$score = $total
-    ? round(($present / $total) * 100, 2)
+$attendancePercent = $totalAttendance
+    ? round((($present + ($half * 0.5)) / $totalAttendance) * 100, 2)
     : 0;
 
 /* =========================
-   EMPLOYEE REPORT
+   EMPLOYEE SUMMARY REPORT
 ========================= */
 
-/* =========================
-   EMPLOYEE REPORT
-========================= */
+$whereEmployee = "users.role='employee'";
+
+if (!empty($search)) {
+    $whereEmployee .= "
+    AND (
+        users.employee_id LIKE '%$search%'
+        OR users.name LIKE '%$search%'
+    )";
+}
 
 $employees = $conn->query("
     SELECT
@@ -80,7 +94,7 @@ $employees = $conn->query("
 
         SUM(
             CASE
-                WHEN attendance.status = 'Present'
+                WHEN attendance.status='Present'
                 THEN 1
                 ELSE 0
             END
@@ -88,7 +102,7 @@ $employees = $conn->query("
 
         SUM(
             CASE
-                WHEN attendance.status = 'Absent'
+                WHEN attendance.status='Absent'
                 THEN 1
                 ELSE 0
             END
@@ -96,7 +110,7 @@ $employees = $conn->query("
 
         SUM(
             CASE
-                WHEN attendance.status = 'Half Day'
+                WHEN attendance.status='Half Day'
                 THEN 1
                 ELSE 0
             END
@@ -104,35 +118,11 @@ $employees = $conn->query("
 
         SUM(
             CASE
-                WHEN attendance.status = 'Late'
+                WHEN attendance.status='Late'
                 THEN 1
                 ELSE 0
             END
-        ) as late_count,
-
-        GROUP_CONCAT(
-            DISTINCT CASE
-                WHEN attendance.status = 'Absent'
-                THEN DATE_FORMAT(attendance.date,'%d %b')
-            END
-            SEPARATOR ', '
-        ) as absent_dates,
-
-        GROUP_CONCAT(
-            DISTINCT CASE
-                WHEN attendance.status = 'Half Day'
-                THEN DATE_FORMAT(attendance.date,'%d %b')
-            END
-            SEPARATOR ', '
-        ) as halfday_dates,
-
-        GROUP_CONCAT(
-            DISTINCT CASE
-                WHEN attendance.status = 'Late'
-                THEN DATE_FORMAT(attendance.date,'%d %b')
-            END
-            SEPARATOR ', '
-        ) as late_dates
+        ) as late_count
 
     FROM users
 
@@ -140,31 +130,34 @@ $employees = $conn->query("
     ON users.id = attendance.user_id
     AND attendance.date LIKE '$month%'
 
-    WHERE users.role = 'employee'
+    WHERE $whereEmployee
 
     GROUP BY users.id
 
     ORDER BY users.name ASC
 ");
 
+/* =========================
+   HISTORY SECTION
+========================= */
 
-
-
-
-$search = $_GET['search'] ?? '';
-$status_filter = $_GET['status'] ?? '';
-
-$where = "attendance.date LIKE '$month%' 
-AND users.role='employee'";
+$whereHistory = "
+attendance.date LIKE '$month%'
+AND users.role='employee'
+";
 
 if (!empty($search)) {
 
-    $where .= " AND users.employee_id LIKE '%$search%'";
+    $whereHistory .= "
+    AND (
+        users.employee_id LIKE '%$search%'
+        OR users.name LIKE '%$search%'
+    )";
 }
 
 if (!empty($status_filter)) {
-
-    $where .= " AND attendance.status='$status_filter'";
+    $whereHistory .= "
+    AND attendance.status='$status_filter'";
 }
 
 $history = $conn->query("
@@ -172,66 +165,16 @@ $history = $conn->query("
         users.name,
         users.employee_id,
         attendance.date,
-
-        (
-            SELECT COUNT(*)
-            FROM attendance a2
-            WHERE a2.user_id = users.id
-            AND a2.status = 'Present'
-            AND a2.date LIKE '$month%'
-        ) as present_count,
-
-        (
-            SELECT COUNT(*)
-            FROM attendance a2
-            WHERE a2.user_id = users.id
-            AND a2.status = 'Absent'
-            AND a2.date LIKE '$month%'
-        ) as absent_count,
-
-        (
-            SELECT COUNT(*)
-            FROM attendance a2
-            WHERE a2.user_id = users.id
-            AND a2.status = 'Half Day'
-            AND a2.date LIKE '$month%'
-        ) as halfday_count,
-
-        (
-            (
-                SELECT COUNT(*)
-                FROM attendance a2
-                WHERE a2.user_id = users.id
-                AND a2.status = 'Present'
-                AND a2.date LIKE '$month%'
-            )
-            +
-            (
-                SELECT COUNT(*)
-                FROM attendance a2
-                WHERE a2.user_id = users.id
-                AND a2.status = 'Absent'
-                AND a2.date LIKE '$month%'
-            )
-            +
-            (
-                (
-                    SELECT COUNT(*)
-                    FROM attendance a2
-                    WHERE a2.user_id = users.id
-                    AND a2.status = 'Half Day'
-                    AND a2.date LIKE '$month%'
-                ) * 0.5
-            )
-        ) as total_days
+        attendance.status,
+        attendance.check_in,
+        attendance.check_out
 
     FROM attendance
 
     INNER JOIN users
     ON users.id = attendance.user_id
 
-    WHERE attendance.date LIKE '$month%'
-    AND users.role = 'employee'
+    WHERE $whereHistory
 
     ORDER BY attendance.date DESC
 ");
@@ -242,16 +185,22 @@ $history = $conn->query("
 
 <head>
 
-    <title>Reports Dashboard</title>
+    <title>Premium Attendance Reports</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
 
-        body {
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
             font-family: 'Poppins', sans-serif;
-            background: #eef2f7;
+            background: #f4f7fb;
+            color: #111827;
         }
 
         .layout {
@@ -259,46 +208,45 @@ $history = $conn->query("
             min-height: 100vh;
         }
 
-        /* =========================
-           SIDEBAR
-        ========================= */
+        /* SIDEBAR */
 
         .sidebar {
-            width: 250px;
-            background: linear-gradient(180deg, #111827, #1f2937);
+            width: 260px;
+            background: linear-gradient(180deg,#111827,#1f2937);
             color: white;
-            padding: 20px;
+            padding: 25px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
         }
 
         .sidebar h2 {
-            margin-bottom: 25px;
-            font-size: 20px;
             text-align: center;
+            margin-bottom: 30px;
+            font-size: 22px;
         }
 
         .sidebar a {
             display: block;
-            padding: 12px 14px;
-            margin: 8px 0;
             color: white;
             text-decoration: none;
-            border-radius: 8px;
+            padding: 13px 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
             transition: 0.3s;
             font-size: 14px;
         }
 
         .sidebar a:hover {
             background: rgba(255,255,255,0.1);
-            transform: translateX(4px);
+            transform: translateX(5px);
         }
 
-        .sidebar .logout {
+        .logout {
             background: #ef4444;
         }
 
-        /* =========================
-           MAIN
-        ========================= */
+        /* MAIN */
 
         .main {
             flex: 1;
@@ -307,140 +255,218 @@ $history = $conn->query("
 
         .header {
             background: white;
-            padding: 18px;
-            border-radius: 12px;
-            font-weight: 600;
+            padding: 22px;
+            border-radius: 16px;
             margin-bottom: 20px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
         }
 
-        /* =========================
-           FILTER
-        ========================= */
+        .header h1 {
+            font-size: 26px;
+        }
+
+        .header p {
+            color: #6b7280;
+            margin-top: 5px;
+        }
+
+        /* FILTER */
 
         .filter-box {
             background: white;
-            padding: 18px;
-            border-radius: 12px;
+            padding: 20px;
+            border-radius: 16px;
             margin-bottom: 20px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
         }
 
-        input {
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
+        .filter-form {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        input,
+        select {
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
             font-family: inherit;
+            min-width: 180px;
         }
 
         button {
-            padding: 10px 15px;
             border: none;
-            background: #667eea;
-            color: white;
-            border-radius: 8px;
+            padding: 12px 18px;
+            border-radius: 10px;
             cursor: pointer;
             font-family: inherit;
+            font-weight: 500;
+            transition: 0.3s;
         }
 
-        button:hover {
+        .btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .btn-print {
+            background: #111827;
+            color: white;
+        }
+
+        .btn-reset {
+            background: #ef4444;
+            color: white;
+            padding:10px;
+            font-family: inherit;
+            font-weight: 400;
+            border-radius: 10px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        button:hover,
+        .btn-reset:hover {
             opacity: 0.9;
+            transform: translateY(-2px);
         }
 
-        /* =========================
-           CARDS
-        ========================= */
+        /* CARDS */
 
         .cards {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+            gap: 18px;
+            margin-bottom: 25px;
         }
 
         .card {
             background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-            text-align: center;
+            padding: 22px;
+            border-radius: 18px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            transition: 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
         }
 
         .card h3 {
-            margin: 0;
+            color: #6b7280;
             font-size: 14px;
-            color: #777;
+            margin-bottom: 12px;
         }
 
         .card p {
-            font-size: 24px;
+            font-size: 30px;
+            font-weight: 700;
+        }
+
+        .green { color: #16a34a; }
+        .red { color: #dc2626; }
+        .orange { color: #f59e0b; }
+        .blue { color: #2563eb; }
+
+        /* TABLE */
+
+        .table-wrapper {
+            background: white;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            margin-bottom: 30px;
+        }
+
+        .table-title {
+            padding: 20px;
+            font-size: 18px;
             font-weight: 600;
-            margin-top: 10px;
+            border-bottom: 1px solid #eee;
         }
-
-        .green {
-            color: green;
-        }
-
-        .orange {
-            color: orange;
-        }
-
-        .red {
-            color: red;
-        }
-
-        .blue {
-            color: #3b82f6;
-        }
-
-        /* =========================
-           TABLE
-        ========================= */
 
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
         }
 
-        table th {
+        th {
             background: #111827;
             color: white;
             padding: 14px;
             font-size: 14px;
+            position: sticky;
+            top: 0;
         }
 
-        table td {
-            padding: 12px;
+        td {
+            padding: 14px;
             border-bottom: 1px solid #eee;
             text-align: center;
             font-size: 14px;
         }
 
-        table tr:hover {
+        tr:hover {
             background: #f9fafb;
         }
 
-        .table-title {
-            font-size: 18px;
+        /* BADGES */
+
+        .badge {
+            padding: 6px 10px;
+            border-radius: 30px;
+            color: white;
+            font-size: 12px;
             font-weight: 600;
-            margin-bottom: 12px;
-            margin-top: 25px;
         }
 
-        /* =========================
-           RESPONSIVE
-        ========================= */
+        .badge.present {
+            background: #16a34a;
+        }
 
-        @media(max-width: 900px) {
+        .badge.absent {
+            background: #dc2626;
+        }
 
-            .cards {
-                grid-template-columns: repeat(2, 1fr);
+        .badge.half {
+            background: #f59e0b;
+        }
+
+        .badge.late {
+            background: #2563eb;
+        }
+
+        /* PRINT */
+
+        @media print {
+
+            .sidebar,
+            .filter-box,
+            button,
+            .btn-reset {
+                display: none !important;
             }
+
+            body {
+                background: white;
+            }
+
+            .main {
+                padding: 0;
+            }
+
+            .table-wrapper,
+            .card,
+            .header {
+                box-shadow: none;
+            }
+        }
+
+        /* MOBILE */
+
+        @media(max-width:900px) {
 
             .layout {
                 flex-direction: column;
@@ -448,18 +474,20 @@ $history = $conn->query("
 
             .sidebar {
                 width: 100%;
+                height: auto;
+                position: relative;
             }
         }
 
-        @media(max-width: 600px) {
-
-            .cards {
-                grid-template-columns: 1fr;
-            }
+        @media(max-width:700px) {
 
             table {
                 display: block;
                 overflow-x: auto;
+            }
+
+            .filter-form {
+                flex-direction: column;
             }
         }
 
@@ -497,183 +525,297 @@ $history = $conn->query("
 
     <div class="main">
 
+        <!-- HEADER -->
+
         <div class="header">
-            📊 Attendance Reports Dashboard
+
+            <h1> Attendance Reports</h1>
+
+            <p>
+                Monthly employee attendance analytics & detailed reports
+            </p>
+
         </div>
 
         <!-- FILTER -->
 
-     <div class="filter-box">
+        <div class="filter-box">
 
-    <form method="GET" style="display:flex; gap:10px; flex-wrap:wrap;">
+            <form method="GET" class="filter-form">
 
-        <!-- Month -->
+                <input
+                    type="month"
+                    name="month"
+                    value="<?= $month ?>"
+                >
 
-        <input
-            type="month"
-            name="month"
-            value="<?= $month ?>"
-        >
+                <input
+                    type="text"
+                    name="search"
+                    placeholder="Search Employee Name / ID"
+                    value="<?= $search ?>"
+                >
 
-        <!-- Search Employee ID -->
+                <select name="status">
 
-        <input
-            type="text"
-            name="search"
-            placeholder="Search Employee ID"
-            value="<?= $search ?>"
-        >
+                    <option value="">All Status</option>
 
-        <!-- Status Filter -->
+                    <option
+                        value="Present"
+                        <?= $status_filter == 'Present' ? 'selected' : '' ?>
+                    >
+                        Present
+                    </option>
 
-        <select name="status">
+                    <option
+                        value="Absent"
+                        <?= $status_filter == 'Absent' ? 'selected' : '' ?>
+                    >
+                        Absent
+                    </option>
 
-            <option value="">
-                All Status
-            </option>
+                    <option
+                        value="Half Day"
+                        <?= $status_filter == 'Half Day' ? 'selected' : '' ?>
+                    >
+                        Half Day
+                    </option>
 
-            <option
-                value="Present"
-                <?= $status_filter == 'Present' ? 'selected' : '' ?>
-            >
-                Present
-            </option>
+                    <option
+                        value="Late"
+                        <?= $status_filter == 'Late' ? 'selected' : '' ?>
+                    >
+                        Late
+                    </option>
 
-            <option
-                value="Absent"
-                <?= $status_filter == 'Absent' ? 'selected' : '' ?>
-            >
-                Absent
-            </option>
+                </select>
 
-            <option
-                value="Half Day"
-                <?= $status_filter == 'Half Day' ? 'selected' : '' ?>
-            >
-                Half Day
-            </option>
+                <button type="submit" class="btn-primary">
+                    Filter
+                </button>
 
-            <option
-                value="Late"
-                <?= $status_filter == 'Late' ? 'selected' : '' ?>
-            >
-                Late
-            </option>
+                <button
+                    type="button"
+                    class="btn-print"
+                    onclick="window.print()"
+                >
+                    Print Report
+                </button>
 
-        </select>
+                <a href="reports.php" class="btn-reset">
+                    Reset
+                </a>
 
-        <!-- Buttons -->
+            </form>
 
-        <button type="submit">
-            Filter
-        </button>
+        </div>
 
-        <button
-            type="button"
-            onclick="window.print()"
-        >
-            Print
-        </button>
-
-    </form>
-
-</div>
-
-        <!-- SUMMARY CARDS
+        <!-- CARDS -->
 
         <div class="cards">
 
             <div class="card">
-                <h3>Present</h3>
+                <h3>Total Present</h3>
                 <p class="green"><?= $present ?></p>
             </div>
 
             <div class="card">
-                <h3>Half Day</h3>
-                <p class="orange"><?= $half ?></p>
-            </div>
-
-            <div class="card">
-                <h3>Absent</h3>
+                <h3>Total Absent</h3>
                 <p class="red"><?= $absent ?></p>
             </div>
 
             <div class="card">
+                <h3>Half Days</h3>
+                <p class="orange"><?= $half ?></p>
+            </div>
+
+            <div class="card">
                 <h3>Late Count</h3>
-                <p class="red"><?= $late ?></p>
+                <p class="blue"><?= $late ?></p>
             </div>
 
             <div class="card">
                 <h3>Attendance %</h3>
-                <p class="blue"><?= $percent ?>%</p>
+                <p class="blue"><?= $attendancePercent ?>%</p>
             </div>
 
-            <div class="card">
-                <h3>Efficiency Score</h3>
-                <p class="green"><?= $score ?>%</p>
+        </div>
+
+        <!-- EMPLOYEE SUMMARY -->
+
+        <div class="table-wrapper">
+
+            <div class="table-title">
+                👨‍💼 Employee Monthly Summary
             </div>
 
-        </div> -->
+            <table>
 
-      <!-- EMPLOYEE REPORT -->
+                <tr>
 
-<div class="table-title">
-    Employee Attendance Report
-</div>
-<table>
+                    <th>Name</th>
 
-<tr>
+                    <th>Employee ID</th>
 
-    <th>Name</th>
+                    <th>Present</th>
 
-    <th>Employee ID</th>
+                    <th>Absent</th>
 
-    <th>Attendance Date</th>
+                    <th>Half Day</th>
 
-    <th>Present</th>
+                    <th>Late</th>
 
-    <th>Absent</th>
+                    <th>Total Attendance</th>
 
-    <th>Half Days</th>
+                </tr>
 
-    <th>Total Days</th>
+                <?php while($emp = $employees->fetch_assoc()): ?>
 
-</tr>
+                <?php
 
-<?php while($row = $history->fetch_assoc()): ?>
+                $finalAttendance =
+                    $emp['present_count']
+                    +
+                    ($emp['halfday_count'] * 0.5);
 
-<tr>
+                ?>
 
-    <td><?= $row['name'] ?></td>
+                <tr>
 
-    <td><?= $row['employee_id'] ?></td>
+                    <td>
+                        <?= $emp['name'] ?>
+                    </td>
 
-    <td>
-        <?= date("d M Y", strtotime($row['date'])) ?>
-    </td>
+                    <td>
+                        <?= $emp['employee_id'] ?>
+                    </td>
 
-    <td class="green">
-        <?= $row['present_count'] ?>
-    </td>
+                    <td class="green">
+                        <?= $emp['present_count'] ?? 0 ?>
+                    </td>
 
-    <td class="red">
-        <?= $row['absent_count'] ?>
-    </td>
+                    <td class="red">
+                        <?= $emp['absent_count'] ?? 0 ?>
+                    </td>
 
-    <td class="orange">
-        <?= $row['halfday_count'] ?>
-    </td>
+                    <td class="orange">
+                        <?= $emp['halfday_count'] ?? 0 ?>
+                    </td>
 
-    <td class="blue">
-        <?= $row['total_days'] ?>
-    </td>
+                    <td class="blue">
+                        <?= $emp['late_count'] ?? 0 ?>
+                    </td>
 
-</tr>
+                    <td style="font-weight:600;">
 
-<?php endwhile; ?>
+                        <?= $finalAttendance ?>
 
-</table>
+                        /
+
+                        <?= $totalDaysInMonth ?>
+
+                        Days
+
+                    </td>
+
+                </tr>
+
+                <?php endwhile; ?>
+
+            </table>
+
+        </div>
+
+        <!-- HISTORY -->
+
+        <div class="table-wrapper">
+
+            <div class="table-title">
+                🕒 Recent Attendance History
+            </div>
+
+            <table>
+
+                <tr>
+
+                    <th>Date</th>
+
+                    <th>Name</th>
+
+                    <th>Employee ID</th>
+
+                    <th>Status</th>
+
+                    <th>Check In</th>
+
+                    <th>Check Out</th>
+
+                </tr>
+
+                <?php while($row = $history->fetch_assoc()): ?>
+
+                <tr>
+
+                    <td>
+                        <?= date("d M Y", strtotime($row['date'])) ?>
+                    </td>
+
+                    <td>
+                        <?= $row['name'] ?>
+                    </td>
+
+                    <td>
+                        <?= $row['employee_id'] ?>
+                    </td>
+
+                    <td>
+
+                        <?php if($row['status'] == 'Present'): ?>
+
+                            <span class="badge present">
+                                Present
+                            </span>
+
+                        <?php elseif($row['status'] == 'Absent'): ?>
+
+                            <span class="badge absent">
+                                Absent
+                            </span>
+
+                        <?php elseif($row['status'] == 'Half Day'): ?>
+
+                            <span class="badge half">
+                                Half Day
+                            </span>
+
+                        <?php else: ?>
+
+                            <span class="badge late">
+                                Late
+                            </span>
+
+                        <?php endif; ?>
+
+                    </td>
+
+                    <td>
+                        <?= $row['check_in'] ?: '-' ?>
+                    </td>
+
+                    <td>
+                        <?= $row['check_out'] ?: '-' ?>
+                    </td>
+
+                </tr>
+
+                <?php endwhile; ?>
+
+            </table>
+
+        </div>
+
     </div>
+
 </div>
 
 </body>
