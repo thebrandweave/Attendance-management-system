@@ -206,11 +206,11 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
           <th>ID</th>
           <th>Date</th>
           <th>Status</th>
-          <th>Check In</th>
+          <th style="background-color:#1636c7;">Check In</th>
           <!-- <th>Lunch Out</th> -->
 <th>Lunch Break</th>
 <th>Lunch Hours</th>
-          <th>Check Out</th>
+          <th style="background-color:#1636c7;">Check Out</th>
           <th>Hours</th>
           <th>Present</th>
           <th>Half</th>
