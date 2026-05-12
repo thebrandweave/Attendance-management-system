@@ -90,7 +90,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     /* ===== CARD ===== */
     .card {
       background: white;
-      padding: 10px;
+      padding: 7px;
       border-radius: 12px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.08);
     }
@@ -402,7 +402,7 @@ if ($totalHours !== "-") {
 
   <td>
     <?= !empty($todayAtt['check_in'])
-        ? date("d-m-Y h:i A", strtotime($todayAtt['check_in']))
+        ? date(" h:i A", strtotime($todayAtt['check_in']))
         : '-' ?>
   </td>
 <td>
@@ -422,7 +422,7 @@ if ($totalHours !== "-") {
 <td><?= $lunchHours ?></td>
   <td>
     <?= !empty($todayAtt['check_out'])
-        ? date("d-m-Y h:i A", strtotime($todayAtt['check_out']))
+        ? date(" h:i A", strtotime($todayAtt['check_out']))
         : '-' ?>
   </td>
 
