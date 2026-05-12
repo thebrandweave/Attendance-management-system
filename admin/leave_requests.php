@@ -174,7 +174,8 @@
     <div class="card">
       <h3>All Leave Requests</h3>
 
-      <table>
+    <table>
+    <thead>
         <tr>
           <th>Employee Name</th>
           <th>Employee ID</th>
@@ -185,6 +186,9 @@
           <th>Request</th>
           <th>Actions</th>
         </tr>
+    </thead>
+
+    <tbody id="leaveTableBody">
 
         <?php
         $res = $conn->query("
@@ -208,48 +212,51 @@
           <td><?= $row['type'] ?></td>
           <td><?= $row['reason'] ?></td>
 
-        <td id="status-<?= $row['id'] ?>">
-<span class="status status-<?= $row['status'] ?>">
-      <?= ucfirst($row['status']) ?>
-  </span>
-</td>
+          <td id="status-<?= $row['id'] ?>">
+            <span class="status status-<?= $row['status'] ?>">
+              <?= ucfirst($row['status']) ?>
+            </span>
+          </td>
 
           <td id="actions-<?= $row['id'] ?>">
-         <?php if ($row['status'] == 'pending') { ?>
 
-<button
-  class="btn btn-green"
-  onclick="updateLeaveStatus(<?= $row['id'] ?>, 'approved', this)">
-  Approve
-</button>
+          <?php if ($row['status'] == 'pending') { ?>
 
-<button
-  class="btn btn-red"
-  onclick="updateLeaveStatus(<?= $row['id'] ?>, 'rejected', this)">
-  Reject
-</button>
+            <button
+              class="btn btn-green"
+              onclick="updateLeaveStatus(<?= $row['id'] ?>, 'approved')">
+              Approve
+            </button>
 
-<?php } else { ?>
+            <button
+              class="btn btn-red"
+              onclick="updateLeaveStatus(<?= $row['id'] ?>, 'rejected')">
+              Reject
+            </button>
 
-<span class="status status-<?= $row['status'] ?>">
-  <?= ucfirst($row['status']) ?>
-</span>
+          <?php } else { ?>
 
-<?php } ?>
-   
+            <span class="status status-<?= $row['status'] ?>">
+              <?= ucfirst($row['status']) ?>
+            </span>
+
+          <?php } ?>
+
           </td>
-          <td>         <a class="btn btn-red"
-   onclick="return confirm('Delete this leave request?')"
-   href="delete_leave.php?id=<?= $row['id'] ?>">
-   Delete
-</a>
-</td>
+
+          <td>
+            <a class="btn btn-red"
+              onclick="return confirm('Delete this leave request?')"
+              href="delete_leave.php?id=<?= $row['id'] ?>">
+              Delete
+            </a>
+          </td>
         </tr>
 
         <?php } ?>
 
-      </table>
-
+    </tbody>
+</table>
     </div>
 
   </div>
@@ -308,6 +315,21 @@ function showToast(message, error = false) {
         toast.remove();
     }, 2500);
 }
+
+function loadLeaveRequests() {
+
+    fetch("fetch_leave_requests.php")
+    .then(res => res.text())
+    .then(data => {
+
+        document.getElementById("leaveTableBody").innerHTML = data;
+
+    });
+
+}
+
+/* Auto refresh every 5 seconds */
+setInterval(loadLeaveRequests, 5000);
 
 </script>
 </body>
