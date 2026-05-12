@@ -108,7 +108,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     }
 
     th {
-      background: #667eea;
+      background: #000000;
       color: white;
       padding: 12px;
       font-size: 13px;
@@ -206,11 +206,11 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
           <th>ID</th>
           <th>Date</th>
           <th>Status</th>
-          <th style="background-color:#1636c7;">Check In</th>
+          <th>Check In</th>
           <!-- <th>Lunch Out</th> -->
 <th>Lunch Break</th>
 <th>Lunch Hours</th>
-          <th style="background-color:#1636c7;">Check Out</th>
+          <th>Check Out</th>
           <th>Hours</th>
           <th>Present</th>
           <th>Half</th>
@@ -400,7 +400,7 @@ if ($totalHours !== "-") {
     <?php } ?>
   </td>
 
-  <td>
+  <td style="background-color:#c5c2c0; color:black;">
     <?= !empty($todayAtt['check_in'])
         ? date(" h:i A", strtotime($todayAtt['check_in']))
         : '-' ?>
@@ -420,7 +420,7 @@ if ($totalHours !== "-") {
 </td> -->
 
 <td><?= $lunchHours ?></td>
-  <td>
+  <td style="background-color:#c5c2c0; color:black;">
     <?= !empty($todayAtt['check_out'])
         ? date(" h:i A", strtotime($todayAtt['check_out']))
         : '-' ?>
