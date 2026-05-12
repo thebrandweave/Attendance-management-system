@@ -201,11 +201,64 @@ $leaves = $conn->query("
 <div class="card">
   <h2>Today's Attendance</h2>
 
-  <?php if ($attendance) { ?>
-    <p><b>Status:</b> <?= $attendance['status']; ?></p>
-    <p><b>Check In:</b> <?= $attendance['check_in']; ?></p>
-    <p><b>Check Out:</b> <?= $attendance['check_out'] ?? "Not yet"; ?></p>
-  <?php } else { ?>
+<?php if ($attendance) { ?>
+
+<?php
+
+$checkInTime = date(
+    "H:i:s",
+    strtotime($attendance['check_in'])
+);
+
+$isLateWarning =
+    $checkInTime >= "09:40:00" &&
+    $checkInTime <= "10:00:00";
+
+?>
+
+<?php if ($isLateWarning) { ?>
+
+<div style="
+    background:#fef3c7;
+    color:#92400e;
+    padding:14px;
+    border-radius:12px;
+    margin-bottom:15px;
+    border-left:5px solid #f59e0b;
+    font-size:14px;
+">
+
+    <b>Late Check-In Notice ⚠</b><br><br>
+
+    You checked in at
+    <b>
+        <?= date("h:i A", strtotime($attendance['check_in'])) ?>
+    </b>.
+
+    Your lunch break time has been reduced to
+    <b>10 minutes</b> today.
+
+</div>
+
+<?php } ?>
+
+<p><b>Status:</b> <?= $attendance['status']; ?></p>
+
+<p>
+    <b>Check In:</b>
+    <?= date("h:i A", strtotime($attendance['check_in'])) ?>
+</p>
+
+<p>
+    <b>Check Out:</b>
+
+    <?= $attendance['check_out']
+        ? date("h:i A", strtotime($attendance['check_out']))
+        : "Not yet"
+    ?>
+</p>
+
+<?php } else { ?>
     <p>No attendance marked today</p>
   <?php } ?>
 </div>
