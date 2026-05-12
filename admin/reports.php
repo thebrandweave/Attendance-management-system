@@ -832,9 +832,67 @@ $history = $conn->query("
 </td>
 
 <td style="font-weight:600;color:#16a34a;">
-    <?= $row['total_hours']
-        ? $row['total_hours'] . ' hrs'
-        : '-' ?>
+
+<?php
+
+/*
+=========================================
+TOTAL HOURS
+Check In -> Check Out
+=========================================
+*/
+
+$workingHours = "-";
+
+if (
+    !empty($row['check_in']) &&
+    !empty($row['check_out'])
+) {
+
+    $totalSeconds =
+        strtotime($row['check_out']) -
+        strtotime($row['check_in']);
+
+    $totalHours = $totalSeconds / 3600;
+
+    /*
+    =========================================
+    LUNCH HOURS
+    Lunch Out -> Lunch In
+    =========================================
+    */
+
+    $lunchHours = 0;
+
+    if (
+        !empty($row['lunch_out']) &&
+        !empty($row['lunch_in'])
+    ) {
+
+        $lunchSeconds =
+            strtotime($row['lunch_in']) -
+            strtotime($row['lunch_out']);
+
+        $lunchHours = $lunchSeconds / 3600;
+    }
+
+    /*
+    =========================================
+    FINAL WORKING HOURS
+    Total - Lunch
+    =========================================
+    */
+
+    $workingHours = round(
+        $totalHours - $lunchHours,
+        2
+    ) . " hrs";
+}
+
+echo $workingHours;
+
+?>
+
 </td>
 
                 </tr>
