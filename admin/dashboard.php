@@ -283,14 +283,10 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   <td><?= $today ?></td>
 
   <td>
-    <?php if ($isNewEmployee) { ?>
-      <span style="color:gray;">Not Started</span>
-    <?php } else { ?>
-      <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
-        <?= $status ?>
-      </span>
-    <?php } ?>
-  </td>
+    <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
+        <?= $status ?? 'Pending' ?>
+    </span>
+</td>
 
   <td>
     <?= !empty($todayAtt['check_in'])
