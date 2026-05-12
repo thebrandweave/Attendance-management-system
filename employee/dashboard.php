@@ -118,10 +118,11 @@ $leaves = $conn->query("
       margin-bottom: 20px;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+   table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 650px;
+}
 
     th {
       background: #667eea;
@@ -156,6 +157,133 @@ $leaves = $conn->query("
 
 .status-pending{
   background:#f59e0b;
+}
+
+/* =========================
+   RESPONSIVE DESIGN
+========================= */
+
+@media (max-width: 992px) {
+
+  .layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 15px;
+  }
+
+  .sidebar h2 {
+    margin-bottom: 15px;
+  }
+
+  .sidebar a {
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  .main {
+    padding: 15px;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  .card {
+    padding: 15px;
+    overflow-x: auto;
+  }
+
+  table {
+    min-width: 700px;
+  }
+
+}
+
+@media (max-width: 768px) {
+
+  body {
+    font-size: 14px;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .sidebar h2 {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+
+  .sidebar a {
+    flex: 1 1 calc(50% - 10px);
+    text-align: center;
+    margin: 0;
+    font-size: 12px;
+  }
+
+  .main {
+    padding: 12px;
+  }
+
+  h1 {
+    font-size: 22px;
+    line-height: 1.4;
+  }
+
+  .card h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .status-badge {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  td,
+  th {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+}
+
+@media (max-width: 480px) {
+
+  .sidebar a {
+    flex: 1 1 100%;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  .card {
+    border-radius: 10px;
+  }
+
+  .card h2 {
+    font-size: 16px;
+  }
+
+  td,
+  th {
+    font-size: 11px;
+    padding: 8px;
+  }
+
+  p {
+    font-size: 13px;
+  }
+
 }
   </style>
 </head>
