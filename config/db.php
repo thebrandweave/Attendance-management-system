@@ -41,6 +41,7 @@ DATABASE CONNECTION
 */
 
 $conn = new mysqli($host, $user, $pass, $db);
+$conn->query("SET time_zone = '+05:30'");
 
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);

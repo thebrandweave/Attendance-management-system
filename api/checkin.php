@@ -258,13 +258,50 @@ if ($now <= "09:30:00") {
     $status = "Half Day";
 }              
 
-  // INSERT ATTENDANCE
-  $stmt = $conn->prepare("
-    INSERT INTO attendance (user_id, date, check_in, status)
-    VALUES (?, ?, NOW(), ?)
-  ");
-  $stmt->bind_param("iss", $userId, $today, $status);
-  $stmt->execute();
+$currentDateTime = new DateTime('now', new DateTimeZone('Asia/Kolkata'));
+
+$today = $currentDateTime->format("Y-m-d");
+
+$now = $currentDateTime->format("H:i:s");
+
+$checkInTime = $currentDateTime->format("Y-m-d H:i:s");
+
+/* STATUS LOGIC */
+
+if ($now <= "09:30:00") {
+
+    $status = "Present";
+
+} elseif ($now <= "10:00:00") {
+
+    $status = "Late";
+
+} else {
+
+    $status = "Half Day";
+}
+
+/* INSERT ATTENDANCE */
+
+$stmt = $conn->prepare("
+    INSERT INTO attendance (
+        user_id,
+        date,
+        check_in,
+        status
+    )
+    VALUES (?, ?, ?, ?)
+");
+
+$stmt->bind_param(
+    "isss",
+    $userId,
+    $today,
+    $checkInTime,
+    $status
+);
+
+$stmt->execute();
 
   echo "<script>alert('Check-in successful ($status)'); window.location.href='../admin/dashboard.php';</script>";
 }
