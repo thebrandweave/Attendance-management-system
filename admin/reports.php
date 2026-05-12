@@ -167,7 +167,10 @@ $history = $conn->query("
         attendance.date,
         attendance.status,
         attendance.check_in,
-        attendance.check_out
+       attendance.lunch_out,
+    attendance.lunch_in,
+    attendance.check_out,
+    attendance.total_hours
 
     FROM attendance
 
@@ -746,9 +749,15 @@ $history = $conn->query("
 
                     <th>Status</th>
 
-                    <th>Check In</th>
+                <th>Check In</th>
 
-                    <th>Check Out</th>
+<th>Lunch Out</th>
+
+<th>Lunch In</th>
+
+<th>Check Out</th>
+
+<th>Total Hours</th>
 
                 </tr>
 
@@ -798,13 +807,35 @@ $history = $conn->query("
 
                     </td>
 
-                    <td>
-                        <?= $row['check_in'] ?: '-' ?>
-                    </td>
+                <td>
+    <?= !empty($row['check_in'])
+        ? date("h:i A", strtotime($row['check_in']))
+        : '-' ?>
+</td>
 
-                    <td>
-                        <?= $row['check_out'] ?: '-' ?>
-                    </td>
+<td>
+    <?= !empty($row['lunch_out'])
+        ? date("h:i A", strtotime($row['lunch_out']))
+        : '-' ?>
+</td>
+
+<td>
+    <?= !empty($row['lunch_in'])
+        ? date("h:i A", strtotime($row['lunch_in']))
+        : '-' ?>
+</td>
+
+<td>
+    <?= !empty($row['check_out'])
+        ? date("h:i A", strtotime($row['check_out']))
+        : '-' ?>
+</td>
+
+<td style="font-weight:600;color:#16a34a;">
+    <?= $row['total_hours']
+        ? $row['total_hours'] . ' hrs'
+        : '-' ?>
+</td>
 
                 </tr>
 

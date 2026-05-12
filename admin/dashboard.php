@@ -90,7 +90,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     /* ===== CARD ===== */
     .card {
       background: white;
-      padding: 20px;
+      padding: 10px;
       border-radius: 12px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.08);
     }
@@ -203,6 +203,9 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
           <th>Date</th>
           <th>Status</th>
           <th>Check In</th>
+          <th>Lunch Out</th>
+<th>Lunch In</th>
+<th>Total Hours</th>
           <th>Check Out</th>
           <th>Hours</th>
           <th>Present</th>
@@ -297,7 +300,21 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
         ? date("d-m-Y h:i A", strtotime($todayAtt['check_in']))
         : '-' ?>
   </td>
+<td>
+<?= !empty($todayAtt['lunch_out'])
+    ? date("h:i A", strtotime($todayAtt['lunch_out']))
+    : '-' ?>
+</td>
 
+<td>
+<?= !empty($todayAtt['lunch_in'])
+    ? date("h:i A", strtotime($todayAtt['lunch_in']))
+    : '-' ?>
+</td>
+
+<td>
+<?= $todayAtt['total_hours'] ?? '-' ?>
+</td>
   <td>
     <?= !empty($todayAtt['check_out'])
         ? date("d-m-Y h:i A", strtotime($todayAtt['check_out']))
