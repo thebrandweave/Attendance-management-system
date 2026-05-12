@@ -207,8 +207,8 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
           <th>Date</th>
           <th>Status</th>
           <th>Check In</th>
-          <th>Lunch Out</th>
-<th>Lunch In</th>
+          <!-- <th>Lunch Out</th> -->
+<th>Lunch Break</th>
 <th>Lunch Hours</th>
           <th>Check Out</th>
           <th>Hours</th>
@@ -409,13 +409,15 @@ if ($totalHours !== "-") {
 <?= !empty($todayAtt['lunch_out'])
     ? date("h:i A", strtotime($todayAtt['lunch_out']))
     : '-' ?>
-</td>
-
-<td>
-<?= !empty($todayAtt['lunch_in'])
+    <span>/</span>
+    <?= !empty($todayAtt['lunch_in'])
     ? date("h:i A", strtotime($todayAtt['lunch_in']))
     : '-' ?>
 </td>
+
+<!-- <td>
+
+</td> -->
 
 <td><?= $lunchHours ?></td>
   <td>
