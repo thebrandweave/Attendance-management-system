@@ -205,7 +205,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
           <th>Check In</th>
           <th>Lunch Out</th>
 <th>Lunch In</th>
-<th>Total Hours</th>
+<th>Lunch Hours</th>
           <th>Check Out</th>
           <th>Hours</th>
           <th>Present</th>
@@ -251,14 +251,69 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
 
   $perDay = 500;
   $salary = ($present * $perDay) + ($half * ($perDay / 2));
+/*
+============================================
+TOTAL HOURS
+Check In -> Check Out
+============================================
+*/
 
-  $hours = "-";
-  if (!empty($todayAtt['check_in']) && !empty($todayAtt['check_out'])) {
-    $hours = round(
-      (strtotime($todayAtt['check_out']) - strtotime($todayAtt['check_in'])) / 3600,
-      2
-    );
-  }
+$totalHours = "-";
+$totalHoursValue = 0;
+
+if (
+    !empty($todayAtt['check_in']) &&
+    !empty($todayAtt['check_out'])
+) {
+
+    $totalSeconds =
+        strtotime($todayAtt['check_out']) -
+        strtotime($todayAtt['check_in']);
+
+    $totalHoursValue = $totalSeconds / 3600;
+
+    $totalHours = round($totalHoursValue, 2);
+}
+
+/*
+============================================
+LUNCH HOURS
+Lunch Out -> Lunch In
+============================================
+*/
+
+$lunchHours = "-";
+$lunchHoursValue = 0;
+
+if (
+    !empty($todayAtt['lunch_out']) &&
+    !empty($todayAtt['lunch_in'])
+) {
+
+    $lunchSeconds =
+        strtotime($todayAtt['lunch_in']) -
+        strtotime($todayAtt['lunch_out']);
+
+    $lunchHoursValue = $lunchSeconds / 3600;
+
+    $lunchHours = round($lunchHoursValue, 2);
+}
+
+/*
+============================================
+FINAL WORKING HOURS
+Total Hours - Lunch Hours
+============================================
+*/
+
+$workingHours = "-";
+
+if ($totalHours !== "-") {
+
+    $finalHours = $totalHoursValue - $lunchHoursValue;
+
+    $workingHours = round($finalHours, 2) . " hrs";
+}
 ?>
 
 <tr
@@ -312,16 +367,14 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     : '-' ?>
 </td>
 
-<td>
-<?= $todayAtt['total_hours'] ?? '-' ?>
-</td>
+<td><?= $lunchHours ?></td>
   <td>
     <?= !empty($todayAtt['check_out'])
         ? date("d-m-Y h:i A", strtotime($todayAtt['check_out']))
         : '-' ?>
   </td>
 
-  <td><?= $hours ?></td>
+<td><?= $workingHours ?></td>
   <td><?= $present ?></td>
   <td><?= $half ?></td>
   <td><?= $absent ?></td>
