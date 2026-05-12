@@ -1,4 +1,9 @@
 <?php
+
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 
 include("../config/db.php");
@@ -101,35 +106,63 @@ if (isset($_POST['token'])) {
         exit();
     }
 
-   /*
+  /*
 ============================================
 FINAL OFFICE CHECK-OUT
 ============================================
 */
 
 if (
+    !empty($attendance['check_in']) &&
     !empty($attendance['lunch_out']) &&
     !empty($attendance['lunch_in']) &&
     empty($attendance['check_out'])
 ) {
 
-    // MORNING SESSION
+    // SAFE TIME CONVERSION
+
+    $checkInTime = strtotime($attendance['check_in']);
+
+    $lunchOutTime = strtotime($attendance['lunch_out']);
+
+    $lunchInTime = strtotime($attendance['lunch_in']);
+
+    $finalOutTime = strtotime($currentTime);
+
+    // VALIDATION
+
+    if (
+        !$checkInTime ||
+        !$lunchOutTime ||
+        !$lunchInTime ||
+        !$finalOutTime
+    ) {
+
+        die("
+            <script>
+                alert('Time calculation error ❌');
+                window.location.href='../admin/dashboard.php';
+            </script>
+        ");
+    }
+
+    // MORNING WORK HOURS
 
     $morningSeconds =
-        strtotime($attendance['lunch_out']) -
-        strtotime($attendance['check_in']);
+        $lunchOutTime - $checkInTime;
 
-    // EVENING SESSION
+    // EVENING WORK HOURS
 
     $eveningSeconds =
-        strtotime($currentTime) -
-        strtotime($attendance['lunch_in']);
+        $finalOutTime - $lunchInTime;
 
-    // TOTAL
+    // TOTAL WORKING HOURS
 
-    $totalSeconds = $morningSeconds + $eveningSeconds;
+    $totalSeconds =
+        $morningSeconds + $eveningSeconds;
 
-    $totalHours = round($totalSeconds / 3600, 2);
+    $totalHours =
+        round($totalSeconds / 3600, 2);
 
     // STATUS
 
@@ -146,7 +179,7 @@ if (
         $status = "Absent";
     }
 
-    // UPDATE
+    // UPDATE DATABASE
 
     $stmt = $conn->prepare("
         UPDATE attendance
@@ -165,12 +198,24 @@ if (
         $attendance['id']
     );
 
-    $stmt->execute();
+    if (!$stmt->execute()) {
 
-    echo "<script>
-        alert('Final Check-Out Successful ✅');
+        die("
+            <script>
+                alert('Database update failed ❌');
+            </script>
+        ");
+    }
+
+    echo "
+    <script>
+        alert(
+            'Final Check-Out Successful ✅ Total Hours: $totalHours hrs'
+        );
+
         window.location.href='../admin/dashboard.php';
-    </script>";
+    </script>
+    ";
 
     exit();
 }
