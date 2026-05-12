@@ -228,11 +228,12 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
     WHERE user_id=$empId AND date='$today'
   ")->fetch_assoc();
 
-  $status = $todayAtt['status'] ?? "Absent";
+if ($isNewEmployee && !$todayAtt) {
 
-if ($isNewEmployee) {
     $status = "-";
+
 } else {
+
     $status = $todayAtt['status'] ?? "Absent";
 }
 
@@ -247,9 +248,15 @@ if ($isNewEmployee) {
     ");
 
     while ($m = $monthly->fetch_assoc()) {
-      if ($m['status'] == "Present") $present++;
-      elseif ($m['status'] == "Half Day") $half++;
-      elseif ($m['status'] == "Absent") $absent++;
+ if ($m['status'] == "Present" || $m['status'] == "Late") {
+    $present++;
+}
+elseif ($m['status'] == "Half Day") {
+    $half++;
+}
+elseif ($m['status'] == "Absent") {
+    $absent++;
+}
     }
   }
 
