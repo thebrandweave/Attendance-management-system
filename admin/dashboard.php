@@ -145,6 +145,10 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   border-radius:8px;
   font-family:'Poppins',sans-serif;
 }
+.status-late {
+    color: orange;
+    font-weight: 600;
+}
   </style>
 </head>
 
@@ -187,6 +191,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   <select id="statusFilter" onchange="filterTable()">
     <option value="">All Status</option>
     <option value="Present">Present</option>
+        <option value="Late">Late</option>
     <option value="Absent">Absent</option>
     <option value="Half Day">Half Day</option>
   </select>
@@ -225,11 +230,11 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
 
   $status = $todayAtt['status'] ?? "Absent";
 
-  if ($isNewEmployee) {
-      $status = null;
-  } else {
-      $status = $todayAtt['status'] ?? "Pending";
-  }
+if ($isNewEmployee) {
+    $status = "-";
+} else {
+    $status = $todayAtt['status'] ?? "Absent";
+}
 
   $present = 0;
   $half = 0;
@@ -285,7 +290,7 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   <td><?= $today ?></td>
 
   <td>
-    <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
+   <span class="status-<?= strtolower(str_replace([' ', '-'], '', $status)) ?>">
         <?= $status ?>
     </span>
 </td>
