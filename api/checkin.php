@@ -221,8 +221,13 @@ $input = $_POST['token'];
 parse_str(parse_url($input, PHP_URL_QUERY), $query);
 
 $token = $query['token'] ?? $input;
-  $today = date("Y-m-d");
-  $now = date("H:i:s");
+$currentDateTime = new DateTime();
+
+$today = $currentDateTime->format("Y-m-d");
+
+$now = $currentDateTime->format("H:i:s");
+
+$checkInTime = $currentDateTime->format("Y-m-d H:i:s");
 
   // SAFE USER FETCH
   $stmt = $conn->prepare("SELECT * FROM users WHERE qr_token = ?");
@@ -259,11 +264,12 @@ if ($now <= "09:30:00") {
 }              
 
   // INSERT ATTENDANCE
+  $checkInTime = date("Y-m-d H:i:s");
   $stmt = $conn->prepare("
     INSERT INTO attendance (user_id, date, check_in, status)
-    VALUES (?, ?, NOW(), ?)
+  VALUES (?, ?, ?, ?)
   ");
-  $stmt->bind_param("iss", $userId, $today, $status);
+  $stmt->bind_param("iss", $userId, $today,  $checkInTime, $status);
   $stmt->execute();
 
   echo "<script>alert('Check-in successful ($status)'); window.location.href='../admin/dashboard.php';</script>";
