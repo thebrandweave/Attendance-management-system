@@ -447,7 +447,25 @@ window.onload = function () {
     }, 1500);
 
 };
+function checkAutoRedirect() {
 
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+
+    // 9:30 AM CHECK-IN
+    if (hours === 9 && minutes === 30) {
+        window.location.href = "../api/checkin.php";
+    }
+
+    // 5:24 PM CHECK-OUT
+    if (hours === 17 && minutes === 27) {
+        window.location.href = "../api/checkout.php";
+    }
+}
+
+// check every 30 seconds
+setInterval(checkAutoRedirect, 30000);
 </script>
 
 <?php unset($_SESSION['success']); ?>
