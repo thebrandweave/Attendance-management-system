@@ -323,9 +323,13 @@ tr:hover{
     font-size:18px;
   }
 
-  td,
+  td{
+    padding:23px;
+    font-size:12px;
+  }
+
   th{
-    padding:10px;
+    padding:23px;
     font-size:12px;
   }
 
@@ -362,9 +366,13 @@ tr:hover{
     font-size:16px;
   }
 
-  td,
+  td{
+    padding:23px;
+    font-size:12px;
+  }
+
   th{
-    font-size:11px;
+    font-size:23px;
     padding:8px;
   }
 
