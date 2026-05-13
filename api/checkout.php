@@ -75,13 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
     $totalHours = round($totalSeconds / 3600, 2);
 
     /* ================= STATUS ================= */
-    if ($totalHours >= 8) {
-        $status = "Present";
-    } elseif ($totalHours >= 4) {
-        $status = "Half Day";
-    } else {
-        $status = "Absent";
-    }
+   if ($totalHours >= 8) {
+    $status = "Present";
+} elseif ($totalHours >= 6) {
+    $status = "Half Day";
+} elseif ($totalHours > 0) {
+    $status = "Short Day";
+} else {
+    $status = "Absent";
+}
 
     /* ================= UPDATE ================= */
     $stmt = $conn->prepare("
@@ -136,6 +138,19 @@ body {
     border: 2px dashed #6366f1;
     border-radius: 12px;
 }
+ .back-btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 15px;
+            background: #111827;
+            color: white;
+            border-radius: 10px;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: #000;
+        }
 </style>
 </head>
 
@@ -150,7 +165,9 @@ body {
         <input type="hidden" name="token" id="token">
     </form>
 
-
+    <a href="../admin/dashboard.php" class="back-btn">
+        ⬅ Go Back
+    </a>
 </div>
 
 <script>
