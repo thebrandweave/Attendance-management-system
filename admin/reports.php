@@ -628,7 +628,7 @@ $history = $conn->query("
 
         <!-- CARDS -->
 
-        <div class="cards">
+        <!-- <div class="cards">
 
             <div class="card">
                 <h3>Total Present</h3>
@@ -655,7 +655,7 @@ $history = $conn->query("
                 <p class="blue"><?= $attendancePercent ?>%</p>
             </div>
 
-        </div>
+        </div> -->
 
         <!-- EMPLOYEE SUMMARY -->
 
