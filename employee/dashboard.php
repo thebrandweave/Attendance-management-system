@@ -420,17 +420,7 @@ tr:hover{
   Welcome back,
   <?= htmlspecialchars($user['name']) ?> 
 </h1>
-<div style="
-  background:#16a34a;
-  color:white;
-  padding:15px 20px;
-  border-radius:12px;
-  display:inline-block;
-  margin-bottom:20px;
-">
 
-  
-</div>
 <p style="
     margin-top:-10px;
     margin-bottom:25px;
@@ -440,7 +430,18 @@ tr:hover{
   Employee ID:
   <b><?= htmlspecialchars($user['employee_id']) ?></b>
 </p>
+
+<div style="
+  background:#16a34a;
+  color:white;
+  padding:15px 20px;
+  border-radius:12px;
+  display:inline-block;
+  margin-bottom:20px;
+">
   <div style="font-size:14px;">Total Present Days <span> <?= $totalPresentDays ?></span></div>
+  
+</div>
 <!-- <div class="actions">
   <a href="../api/checkin.php" class="btn btn-green">🟢 Check In</a>
   <a href="../api/checkout.php" class="btn btn-red">🔴 Check Out</a>
