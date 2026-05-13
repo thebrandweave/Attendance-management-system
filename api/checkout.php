@@ -12,6 +12,9 @@ if (!isset($_SESSION['user'])) {
     exit();
 }
 
+$toastMessage = "";
+$toastColor = "";
+
 /* =====================================================
    ONLY PROCESS CHECKOUT WHEN FORM IS SUBMITTED
 ===================================================== */
@@ -26,10 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
         $token = $input;
     }
 
-    if (empty($token)) {
-        die("<script>alert('Invalid QR Format'); window.location.href='checkout.php';</script>");
-    }
-
     $today = date("Y-m-d");
     $currentTime = date("Y-m-d H:i:s");
 
@@ -40,171 +39,180 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
     $user = $stmt->get_result()->fetch_assoc();
 
     if (!$user) {
-        die("<script>alert('Invalid QR ❌'); window.location.href='checkout.php';</script>");
+        $toastMessage = "Invalid QR ❌";
+        $toastColor = "#ef4444";
+    } else {
+        $userId = $user['id'];
+
+        /* ================= ATTENDANCE ================= */
+        $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
+        $stmt->bind_param("is", $userId, $today);
+        $stmt->execute();
+        $attendance = $stmt->get_result()->fetch_assoc();
+
+        if (!$attendance) {
+            $toastMessage = "Please Check-In First ❌";
+            $toastColor = "#f59e0b";
+        } elseif (!empty($attendance['check_out'])) {
+            $toastMessage = "Already Checked-Out ❌";
+            $toastColor = "#f59e0b";
+        } elseif (empty($attendance['check_in'])) {
+            $toastMessage = "Invalid Check-In Record ❌";
+            $toastColor = "#ef4444";
+        } else {
+            /* ================= TIME CALCULATION ================= */
+            $checkIn = strtotime($attendance['check_in']);
+            $checkOut = strtotime($currentTime);
+            $totalSeconds = $checkOut - $checkIn;
+            $totalHours = round($totalSeconds / 3600, 2);
+
+            /* ================= STATUS DETERMINATION ================= */
+            if ($totalHours >= 8) {
+                $status = "Present";
+            } elseif ($totalHours >= 6) {
+                $status = "Half Day";
+            } elseif ($totalHours > 0) {
+                $status = "Short Day";
+            } else {
+                $status = "Absent";
+            }
+
+            /* ================= UPDATE DATABASE ================= */
+            $stmt = $conn->prepare("UPDATE attendance SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
+            $stmt->bind_param("sdsi", $currentTime, $totalHours, $status, $attendance['id']);
+            
+            if ($stmt->execute()) {
+                $toastMessage = "Check-Out Successful ✅ Hours: $totalHours";
+                $toastColor = "#16a34a";
+            }
+        }
     }
-
-    $userId = $user['id'];
-
-    /* ================= ATTENDANCE ================= */
-    $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
-    $stmt->bind_param("is", $userId, $today);
-    $stmt->execute();
-    $attendance = $stmt->get_result()->fetch_assoc();
-
-    if (!$attendance) {
-        die("<script>alert('Please Check-In First ❌'); window.location.href='checkin.php';</script>");
-    }
-
-    if (!empty($attendance['check_out'])) {
-        die("<script>alert('Already Checked-Out ❌'); window.location.href='../admin/dashboard.php';</script>");
-    }
-
-    if (empty($attendance['check_in'])) {
-        die("<script>alert('Invalid Check-In ❌'); window.location.href='../admin/dashboard.php';</script>");
-    }
-
-    /* ================= TIME ================= */
-    $checkIn = strtotime($attendance['check_in']);
-    $checkOut = strtotime($currentTime);
-
-    if (!$checkIn || !$checkOut) {
-        die("<script>alert('Time error ❌');</script>");
-    }
-
-    $totalSeconds = $checkOut - $checkIn;
-    $totalHours = round($totalSeconds / 3600, 2);
-
-    /* ================= STATUS ================= */
-   if ($totalHours >= 8) {
-    $status = "Present";
-} elseif ($totalHours >= 6) {
-    $status = "Half Day";
-} elseif ($totalHours > 0) {
-    $status = "Short Day";
-} else {
-    $status = "Absent";
-}
-
-    /* ================= UPDATE ================= */
-    $stmt = $conn->prepare("
-        UPDATE attendance 
-        SET check_out = ?, total_hours = ?, status = ?
-        WHERE id = ?
-    ");
-
-    $stmt->bind_param("sdsi", $currentTime, $totalHours, $status, $attendance['id']);
-    $stmt->execute();
-
-    echo "<script>
-        alert('Check-Out Successful ✅ Hours: $totalHours');
-        window.location.href='../admin/dashboard.php';
-    </script>";
-    exit();
 }
 ?>
 
-<!-- =====================================================
-     HTML UI STARTS HERE (ONLY LOADS ON GET REQUEST)
-===================================================== -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <title>QR Check Out</title>
-
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-body {
-    font-family: 'Poppins', sans-serif;
-    background: #f3f4f6;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-}
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+    }
+    .card {
+        width: 90%;
+        max-width: 500px;
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    #reader {
+        width: 100%;
+        border-radius: 15px;
+        overflow: hidden;
+        border: 2px dashed #6366f1;
+        background: #f9fafb;
+    }
+    .back-btn {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 10px 20px;
+        background: #111827;
+        color: white;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: 0.3s;
+    }
+    .back-btn:hover { background: #000; }
 
-.card {
-    width: 600px;
-    background: white;
-    padding: 25px;
-    border-radius: 18px;
-    text-align: center;
-}
-
-#reader {
-    width: 100%;
-    min-height: 400px;
-    border: 2px dashed #6366f1;
-    border-radius: 12px;
-}
- .back-btn {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 12px 15px;
-            background: #111827;
-            color: white;
-            border-radius: 10px;
-            text-decoration: none;
-        }
-
-        .back-btn:hover {
-            background: #000;
-        }
+    /* Toast Notification */
+    .toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 12px;
+        color: white;
+        font-weight: 500;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        transform: translateX(150%);
+        transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        z-index: 10000;
+    }
+    .toast.show { transform: translateX(0); }
 </style>
 </head>
 
 <body>
 
-<div class="card">
-    <h2>Scan QR To Check-Out</h2>
+<div id="toast" class="toast"></div>
 
+<div class="card">
+    <h2 style="color: #1e293b;">Check-Out 🕒</h2>
+    <p style="color: #64748b; margin-bottom: 20px;">Scan QR to finish your day</p>
+    
     <div id="reader"></div>
 
     <form method="POST" id="scanForm">
         <input type="hidden" name="token" id="token">
     </form>
 
-    <a href="../admin/dashboard.php" class="back-btn">
-        ⬅ Go Back
-    </a>
+    <a href="../admin/dashboard.php" class="back-btn">⬅ Go Back</a>
 </div>
 
 <script>
-let qrScanner;
+    const toast = document.getElementById("toast");
 
-function onScanSuccess(decodedText) {
-    console.log("QR:", decodedText);
+    function showToast(message, color = "#111827") {
+        toast.innerText = message;
+        toast.style.backgroundColor = color;
+        toast.classList.add("show");
 
-    document.getElementById("token").value = decodedText.trim();
-
-    setTimeout(() => {
-        document.getElementById("scanForm").submit();
-    }, 300);
-}
-
-/* ================= CAMERA ================= */
-qrScanner = new Html5Qrcode("reader");
-
-Html5Qrcode.getCameras()
-.then(devices => {
-    if (!devices || devices.length === 0) {
-        alert("No camera found");
-        return;
+        setTimeout(() => {
+            toast.classList.remove("show");
+        }, 3500);
     }
 
-    qrScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        onScanSuccess
-    );
-})
-.catch(err => {
-    console.error(err);
-    alert("Camera not available or permission denied");
-});
+    // Trigger toast if PHP set a message
+    <?php if ($toastMessage): ?>
+        showToast("<?php echo $toastMessage; ?>", "<?php echo $toastColor; ?>");
+    <?php endif; ?>
 
+    function onScanSuccess(decodedText) {
+        // Stop scanning to prevent multiple triggers
+        html5QrCode.stop().then(() => {
+            toast.innerText = "Processing Check-out... ⏳";
+            toast.style.backgroundColor = "#6366f1";
+            toast.classList.add("show");
 
+            document.getElementById("token").value = decodedText.trim();
+            document.getElementById("scanForm").submit();
+        });
+    }
+
+    let html5QrCode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess
+            );
+        }
+    }).catch(err => {
+        showToast("Camera Error ❌", "#ef4444");
+    });
 </script>
 
 </body>

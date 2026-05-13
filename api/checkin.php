@@ -12,8 +12,10 @@ if (!isset($_SESSION['user'])) {
     exit();
 }
 
-if (isset($_POST['token'])) {
+$toastMessage = "";
+$toastColor = "";
 
+if (isset($_POST['token'])) {
     $input = $_POST['token'];
 
     // Extract token safely
@@ -25,103 +27,62 @@ if (isset($_POST['token'])) {
     }
 
     $today = date("Y-m-d");
-
     $now = new DateTime('now', new DateTimeZone('Asia/Kolkata'));
     $currentTime = $now->format("Y-m-d H:i:s");
     $timeOnly = $now->format("H:i:s");
 
     // GET USER
-    $stmt = $conn->prepare("
-        SELECT * FROM users WHERE qr_token = ?
-    ");
+    $stmt = $conn->prepare("SELECT * FROM users WHERE qr_token = ?");
     $stmt->bind_param("s", $token);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
 
     if (!$user) {
-        echo "<script>
-            alert('Invalid QR ❌');
-            window.location.href='checkin.php';
-        </script>";
-        exit();
-    }
+        $toastMessage = "Access Denied: Invalid QR Code";
+        $toastColor = "#ef4444"; // Red
+    } else {
+        $userId = $user['id'];
 
-    $userId = $user['id'];
-
-    // CHECK TODAY ATTENDANCE
-    $stmt = $conn->prepare("
-        SELECT * FROM attendance
-        WHERE user_id = ? AND date = ?
-    ");
-    $stmt->bind_param("is", $userId, $today);
-    $stmt->execute();
-    $attendance = $stmt->get_result()->fetch_assoc();
-
-    /*
-    ============================================
-    FIRST CHECK-IN ONLY
-    ============================================
-    */
-    if (!$attendance) {
-
-        if ($timeOnly <= "09:30:00") {
-            $status = "Present";
-        } elseif ($timeOnly <= "10:00:00") {
-            $status = "Late";
-        } else {
-            $status = "Half Day";
-        }
-
-        $stmt = $conn->prepare("
-            INSERT INTO attendance (
-                user_id,
-                date,
-                check_in,
-                status
-            )
-            VALUES (?, ?, ?, ?)
-        ");
-
-        $stmt->bind_param(
-            "isss",
-            $userId,
-            $today,
-            $currentTime,
-            $status
-        );
-
+        // CHECK TODAY ATTENDANCE
+        $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
+        $stmt->bind_param("is", $userId, $today);
         $stmt->execute();
+        $attendance = $stmt->get_result()->fetch_assoc();
 
-        echo "<script>
-            alert('Check-In Successful ✅');
-            window.location.href='../admin/dashboard.php';
-        </script>";
-        exit();
+        if (!$attendance) {
+            // Determine Status
+            if ($timeOnly <= "09:30:00") {
+                $status = "Present";
+            } elseif ($timeOnly <= "10:00:00") {
+                $status = "Late";
+            } else {
+                $status = "Half Day";
+            }
+
+            $stmt = $conn->prepare("INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("isss", $userId, $today, $currentTime, $status);
+            
+            if ($stmt->execute()) {
+                $toastMessage = " ✅ Check-In Successful. Status: $status";
+                $toastColor = "#16a34a"; // Green
+                // $redirect = "../admin/dashboard.php";
+            }
+        } else {
+            $toastMessage = "Attendance already recorded for today.";
+            $toastColor = "#f59e0b"; // Amber/Orange
+            // $redirect = "../admin/dashboard.php";
+        }
     }
-
-    /*
-    ============================================
-    ALREADY CHECKED IN
-    ============================================
-    */
-
-    echo "<script>
-        alert('Already Checked-In ❌');
-        window.location.href='../admin/dashboard.php';
-    </script>";
-
-    exit();
 }
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>QR Check In</title>
-
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode"></script>
-
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -130,102 +91,109 @@ if (isset($_POST['token'])) {
             justify-content: center;
             align-items: center;
             height: 100vh;
+            margin: 0;
         }
-
         .card {
-            width: 600px;
+            width: 90%;
+            max-width: 500px;
             background: white;
-            padding: 25px;
-            border-radius: 18px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
             text-align: center;
         }
-
         #reader {
             width: 100%;
-            min-height: 420px;
-            border-radius: 16px;
+            border-radius: 15px;
             overflow: hidden;
-            border: 2px dashed #6366f1;
-            padding: 10px;
+            border: 2px solid #6366f1;
             background: #f9fafb;
         }
-
-        #reader video {
-            width: 100% !important;
-            height: 420px !important;
-            object-fit: cover;
-            border-radius: 12px;
-        }
-
         .back-btn {
             display: inline-block;
             margin-top: 20px;
-            padding: 12px 15px;
-            background: #111827;
+            padding: 10px 20px;
+            background: #1f2937;
             color: white;
-            border-radius: 10px;
+            border-radius: 8px;
             text-decoration: none;
+            transition: 0.3s;
         }
+        .back-btn:hover { background: #000; }
 
-        .back-btn:hover {
-            background: #000;
+        /* Toast Styling */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transform: translateX(150%);
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 10000;
         }
+        .toast.show { transform: translateX(0); }
     </style>
 </head>
-
 <body>
 
+<div id="toast" class="toast"></div>
+
 <div class="card">
-
-    <h2>Scan QR To Check-In</h2>
-
+    <h2 style="margin-bottom: 20px; color: #1e293b;">Scan Attendance QR</h2>
     <div id="reader"></div>
-
+    
     <form method="POST" id="scanForm">
         <input type="hidden" name="token" id="token">
     </form>
 
-    <!-- <h3>OR Upload QR Image</h3>
-
-<input type="file" id="qrUpload" accept="image/*" />
-
-<p id="uploadStatus" style="color:green;"></p> -->
-
-    <a href="../admin/dashboard.php" class="back-btn">
-        ⬅ Go Back
-    </a>
-
+    <a href="../admin/dashboard.php" class="back-btn">⬅ Go Back</a>
 </div>
 
 <script>
+    const toast = document.getElementById("toast");
 
-function onScanSuccess(decodedText) {
-    document.getElementById("token").value = decodedText;
-    document.getElementById("scanForm").submit();
-}
+    function showToast(message, color = "#111827", redirect = null) {
+        toast.innerText = message;
+        toast.style.backgroundColor = color;
+        toast.classList.add("show");
 
-/* CAMERA SCANNER */
-const html5QrCode = new Html5Qrcode("reader");
-
-Html5Qrcode.getCameras().then(devices => {
-
-    if (devices && devices.length) {
-
-        html5QrCode.start(
-            { facingMode: "environment" },
-            {
-                fps: 15,
-                qrbox: { width: 280, height: 280 }
-            },
-            onScanSuccess
-        );
+        setTimeout(() => {
+            toast.classList.remove("show");
+            if(redirect) {
+                window.location.href = redirect;
+            }
+        }, 2000);
     }
-});
 
-/* IMAGE UPLOAD QR SCAN */
+    // Trigger toast if PHP set a message
+    <?php if ($toastMessage): ?>
+        showToast("<?php echo $toastMessage; ?>", "<?php echo $toastColor; ?>", "<?php echo $redirect ?? ''; ?>");
+    <?php endif; ?>
 
+    function onScanSuccess(decodedText) {
+        // Stop scanning to prevent multiple submissions
+        html5QrCode.stop().then(() => {
+            document.getElementById("token").value = decodedText;
+            document.getElementById("scanForm").submit();
+        });
+    }
 
+    const html5QrCode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess
+            );
+        }
+    }).catch(err => {
+        showToast("Camera Error: " + err, "#ef4444");
+    });
 </script>
 
 </body>

@@ -9,8 +9,10 @@ if (!isset($_SESSION['user'])) {
     exit();
 }
 
-if (isset($_POST['token'])) {
+$toastMessage = "";
+$toastColor = "";
 
+if (isset($_POST['token'])) {
     $input = $_POST['token'];
 
     if (filter_var($input, FILTER_VALIDATE_URL)) {
@@ -30,196 +32,168 @@ if (isset($_POST['token'])) {
     $user = $stmt->get_result()->fetch_assoc();
 
     if (!$user) {
-        echo "<script>
-            alert('Invalid QR ❌');
-            window.location.href='lunch.php';
-        </script>";
-        exit();
-    }
+        $toastMessage = "Invalid QR Code ❌";
+        $toastColor = "#ef4444";
+    } else {
+        $userId = $user['id'];
 
-    $userId = $user['id'];
-
-    /* ================= ATTENDANCE ================= */
-    $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
-    $stmt->bind_param("is", $userId, $today);
-    $stmt->execute();
-    $attendance = $stmt->get_result()->fetch_assoc();
-
-    if (!$attendance) {
-        echo "<script>
-            alert('Please Check-In First ❌');
-            window.location.href='checkin.php';
-        </script>";
-        exit();
-    }
-
-    /* ================= CASE 1: START LUNCH ================= */
-    if (empty($attendance['lunch_out'])) {
-
-        $stmt = $conn->prepare("
-            UPDATE attendance
-            SET lunch_out = ?
-            WHERE id = ?
-        ");
-
-        $stmt->bind_param("si", $now, $attendance['id']);
+        /* ================= ATTENDANCE CHECK ================= */
+        $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
+        $stmt->bind_param("is", $userId, $today);
         $stmt->execute();
+        $attendance = $stmt->get_result()->fetch_assoc();
 
-        echo "<script>
-            alert('Lunch Started 🍴');
-            window.location.href='../admin/dashboard.php';
-        </script>";
-        exit();
+        if (!$attendance) {
+            $toastMessage = "Please Check-In First ❌";
+            $toastColor = "#ef4444";
+        } else {
+            /* ================= CASE 1: START LUNCH ================= */
+            if (empty($attendance['lunch_out'])) {
+                $stmt = $conn->prepare("UPDATE attendance SET lunch_out = ? WHERE id = ?");
+                $stmt->bind_param("si", $now, $attendance['id']);
+                $stmt->execute();
+
+                $toastMessage = "Lunch Started 🍴 Enjoy your meal!";
+                $toastColor = "#6366f1"; // Indigo
+            } 
+            /* ================= CASE 2: END LUNCH ================= */
+            elseif (empty($attendance['lunch_in'])) {
+                $stmt = $conn->prepare("UPDATE attendance SET lunch_in = ? WHERE id = ?");
+                $stmt->bind_param("si", $now, $attendance['id']);
+                $stmt->execute();
+
+                $toastMessage = "Lunch Ended ✅ Welcome back!";
+                $toastColor = "#16a34a"; // Green
+            } 
+            /* ================= CASE 3: COMPLETED ================= */
+            else {
+                $toastMessage = "Lunch already completed for today ❌";
+                $toastColor = "#f59e0b"; // Amber
+            }
+        }
     }
-
-    /* ================= CASE 2: END LUNCH ================= */
-    if (!empty($attendance['lunch_out']) && empty($attendance['lunch_in'])) {
-
-        $stmt = $conn->prepare("
-            UPDATE attendance
-            SET lunch_in = ?
-            WHERE id = ?
-        ");
-
-        $stmt->bind_param("si", $now, $attendance['id']);
-        $stmt->execute();
-
-        echo "<script>
-            alert('Lunch Ended ✅');
-            window.location.href='../admin/dashboard.php';
-        </script>";
-        exit();
-    }
-
-    /* ================= CASE 3 ================= */
-    echo "<script>
-        alert('Lunch already completed ❌');
-        window.location.href='../admin/dashboard.php';
-    </script>";
-    exit();
 }
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>QR Lunch Break</title>
+    <meta charset="UTF-8">
+    <title>QR Lunch Break</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #eef2f7, #dbeafe);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            width: 90%;
+            max-width: 500px;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        #reader {
+            width: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px dashed #6366f1;
+            background: #f9fafb;
+        }
+        .back-btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #1f2937;
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: 0.3s;
+        }
+        .back-btn:hover { background: #000; }
 
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-body {
-    font-family: 'Poppins', sans-serif;
-    background: linear-gradient(135deg, #eef2f7, #dbeafe);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-}
-
-.card {
-    width: 600px;
-    background: white;
-    padding: 25px;
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-    text-align: center;
-}
-
-#reader {
-    width: 100%;
-    min-height: 420px;
-    border-radius: 16px;
-    overflow: hidden;
-    border: 2px dashed #6366f1;
-    padding: 10px;
-    background: #f9fafb;
-}
-
-#reader video {
-    width: 100% !important;
-    height: 420px !important;
-    object-fit: cover;
-    border-radius: 12px;
-}
-
-.back-btn {
-    display: inline-block;
-    margin-top: 20px;
-    padding: 12px 15px;
-    background: #111827;
-    color: white;
-    border-radius: 10px;
-    text-decoration: none;
-}
-
-.back-btn:hover {
-    background: #000;
-}
-</style>
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transform: translateX(150%);
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 10000;
+        }
+        .toast.show { transform: translateX(0); }
+    </style>
 </head>
-
 <body>
 
+<div id="toast" class="toast"></div>
+
 <div class="card">
-
-    <h2>Scan QR for Lunch Break 🍴</h2>
-
+    <h2 style="color: #1e293b;">Lunch Break 🍴</h2>
+    <p style="color: #64748b; margin-bottom: 20px;">Scan to Start or End Lunch</p>
+    
     <div id="reader"></div>
-
+    
     <form method="POST" id="scanForm">
         <input type="hidden" name="token" id="token">
     </form>
 
-    <a href="../admin/dashboard.php" class="back-btn">⬅ Go Back</a>
-
+    <a href="../admin/dashboard.php" class="back-param back-btn">⬅ Go Back</a>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+    const toast = document.getElementById("toast");
 
-    let html5QrCode = new Html5Qrcode("reader");
+    function showToast(message, color = "#111827") {
+        toast.innerText = message;
+        toast.style.backgroundColor = color;
+        toast.classList.add("show");
+
+        setTimeout(() => {
+            toast.classList.remove("show");
+        }, 3000);
+    }
+
+    // Trigger toast if PHP set a message
+    <?php if ($toastMessage): ?>
+        showToast("<?php echo $toastMessage; ?>", "<?php echo $toastColor; ?>");
+    <?php endif; ?>
 
     function onScanSuccess(decodedText) {
+        // Show processing state
+        toast.innerText = "Verifying QR... 🔄";
+        toast.style.backgroundColor = "#6366f1";
+        toast.classList.add("show");
+
         document.getElementById("token").value = decodedText;
         document.getElementById("scanForm").submit();
     }
 
-    function startCamera() {
-
-        Html5Qrcode.getCameras().then(devices => {
-
-            if (!devices || devices.length === 0) {
-                alert("No camera found ❌");
-                return;
-            }
-
-            let cameraId = devices[0].id;
-
-            const backCamera = devices.find(d =>
-                d.label && d.label.toLowerCase().includes("back")
-            );
-
-            if (backCamera) {
-                cameraId = backCamera.id;
-            }
-
+    let html5QrCode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
             html5QrCode.start(
-                cameraId,
-                { fps: 10, qrbox: 250 },
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
                 onScanSuccess
-            ).catch(err => {
-                console.error(err);
-                alert("Camera blocked or not allowed ❌");
-            });
-
-        });
-    }
-
-    setTimeout(startCamera, 800);
-
-});
+            );
+        }
+    }).catch(err => {
+        showToast("Camera Error ❌", "#ef4444");
+    });
 </script>
 
 </body>
