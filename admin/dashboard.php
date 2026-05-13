@@ -512,18 +512,7 @@ if (
 <td>
   <?= $emp['name'] ?>
 
-  <i class="bi bi-pencil-square"
-     onclick='openEditModal(
-        <?= json_encode($emp) ?>,
-        <?= json_encode($todayAtt) ?>
-     )'
-     style="
-        margin-left:8px;
-        color:#667eea;
-        cursor:pointer;
-        font-size:14px;
-     ">
-  </i>
+ 
 </td>
 
   <td><?= $emp['employee_id'] ?></td>
@@ -569,7 +558,7 @@ if (
   <td><?= $present ?></td>
   <td><?= $half ?></td>
   <td><?= $absent ?></td>
-    <td>
+    <td >
   <a href="delete_employee.php?id=<?= $emp['id'] ?>"
      onclick="return confirm('Are you sure you want to delete this employee?')"
      style="
@@ -583,6 +572,29 @@ if (
      ">
      Delete
   </a>
+<button
+    onclick='openEditModal(
+        <?= json_encode($emp) ?>,
+        <?= json_encode($todayAtt) ?>
+    )'
+    style="
+        background:#667eea;
+        color:white;
+        border:none;
+        margin-left:10px;
+        padding:8px 12px;
+        border-radius:8px;
+        cursor:pointer;
+        font-size:13px;
+        
+        align-items:center;
+        gap:6px;
+        font-weight:600;
+    "
+>
+    <i class="bi bi-pencil-square"></i>
+    Edit
+</button>
 </td>
 </tr>
 
