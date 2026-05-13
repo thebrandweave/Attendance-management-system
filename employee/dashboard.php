@@ -55,90 +55,143 @@ $leaves = $conn->query("
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
 
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: 'Poppins', sans-serif;
-    }
 
-    body { background: #eef2f7; }
-
-    .layout { display: flex; min-height: 100vh; }
-
-    .sidebar {
-      width: 250px;
-      background: linear-gradient(180deg, #111827, #1f2937);
-      color: white;
-      padding: 20px;
-    }
-
-    .sidebar h2 {
-      text-align: center;
-      margin-bottom: 25px;
-      font-size: 20px;
-    }
-
-    .sidebar a {
-      display: block;
-      padding: 12px 14px;
-      margin: 8px 0;
-      color: white;
-      text-decoration: none;
-      border-radius: 8px;
-      font-size: 14px;
-    }
-
-    .sidebar a:hover { background: rgba(255,255,255,0.1); }
-
-    .sidebar .logout { background: #ef4444; }
-
-    .main { flex: 1; padding: 25px; }
-
-    h1 { margin-bottom: 20px; }
-
-    .actions { display: flex; gap: 10px; margin-bottom: 20px; }
-
-    .btn {
-      padding: 10px 14px;
-      border-radius: 8px;
-      text-decoration: none;
-      color: white;
-      font-size: 13px;
-    }
-
-    .btn-green { background: #28a745; }
-    .btn-red { background: #dc3545; }
-
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
-    }
-
-   table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 650px;
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family:'Poppins',sans-serif;
 }
 
-    th {
-      background: #667eea;
-      color: white;
-      padding: 12px;
-      font-size: 13px;
-    }
+body{
+  background:#eef2f7;
+}
 
-    td {
-      padding: 12px;
-      text-align: center;
-      border-bottom: 1px solid #eee;
-      font-size: 13px;
-    }
+/* =========================
+   LAYOUT
+========================= */
 
-    .status-badge{
+.layout{
+  display:flex;
+  min-height:100vh;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+
+.sidebar{
+  width:250px;
+  background:linear-gradient(180deg,#111827,#1f2937);
+  color:white;
+  padding:20px;
+  position:sticky;
+  top:0;
+  height:100vh;
+}
+
+.sidebar h2{
+  text-align:center;
+  margin-bottom:25px;
+  font-size:20px;
+}
+
+.sidebar a{
+  display:block;
+  padding:12px 14px;
+  margin:8px 0;
+  color:white;
+  text-decoration:none;
+  border-radius:10px;
+  font-size:14px;
+  transition:0.3s;
+}
+
+.sidebar a:hover{
+  background:rgba(255,255,255,0.1);
+  transform:translateX(3px);
+}
+
+.sidebar .logout{
+  background:#ef4444;
+}
+
+/* =========================
+   MAIN
+========================= */
+
+.main{
+  flex:1;
+  padding:25px;
+  overflow:hidden;
+}
+
+h1{
+  margin-bottom:15px;
+  color:#111827;
+  font-size:32px;
+  line-height:1.3;
+}
+
+/* =========================
+   CARDS
+========================= */
+
+.card{
+  background:white;
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 5px 20px rgba(0,0,0,0.06);
+  margin-bottom:20px;
+  overflow:hidden;
+}
+
+.card h2{
+  margin-bottom:18px;
+  color:#111827;
+  font-size:22px;
+}
+
+/* =========================
+   TABLE
+========================= */
+
+.table-wrapper{
+  width:100%;
+  overflow-x:auto;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:700px;
+}
+
+th{
+  background:#667eea;
+  color:white;
+  padding:14px;
+  font-size:13px;
+  white-space:nowrap;
+}
+
+td{
+  padding:12px;
+  text-align:center;
+  border-bottom:1px solid #eee;
+  font-size:13px;
+  white-space:nowrap;
+}
+
+tr:hover{
+  background:#f9fafb;
+}
+
+/* =========================
+   STATUS
+========================= */
+
+.status-badge{
   padding:6px 12px;
   border-radius:20px;
   font-size:12px;
@@ -160,132 +213,167 @@ $leaves = $conn->query("
 }
 
 /* =========================
-   RESPONSIVE DESIGN
+   BUTTONS
 ========================= */
 
-@media (max-width: 992px) {
-
-  .layout {
-    flex-direction: column;
-  }
-
-  .sidebar {
-    width: 100%;
-    padding: 15px;
-  }
-
-  .sidebar h2 {
-    margin-bottom: 15px;
-  }
-
-  .sidebar a {
-    font-size: 13px;
-    padding: 10px;
-  }
-
-  .main {
-    padding: 15px;
-  }
-
-  h1 {
-    font-size: 24px;
-  }
-
-  .card {
-    padding: 15px;
-    overflow-x: auto;
-  }
-
-  table {
-    min-width: 700px;
-  }
-
+.actions{
+  display:flex;
+  gap:10px;
+  margin-bottom:20px;
+  flex-wrap:wrap;
 }
 
-@media (max-width: 768px) {
+.btn{
+  padding:10px 14px;
+  border-radius:10px;
+  text-decoration:none;
+  color:white;
+  font-size:13px;
+  transition:0.3s;
+}
 
-  body {
-    font-size: 14px;
+.btn:hover{
+  opacity:0.9;
+}
+
+.btn-green{
+  background:#16a34a;
+}
+
+.btn-red{
+  background:#dc2626;
+}
+
+/* =========================
+   LATE WARNING
+========================= */
+
+.warning-box{
+  background:#fef3c7;
+  color:#92400e;
+  padding:14px;
+  border-radius:12px;
+  margin-bottom:15px;
+  border-left:5px solid #f59e0b;
+  font-size:14px;
+  line-height:1.6;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media(max-width:992px){
+
+  .layout{
+    flex-direction:column;
   }
 
-  .sidebar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-    align-items: center;
+  .sidebar{
+    width:100%;
+    height:auto;
+    position:relative;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:10px;
   }
 
-  .sidebar h2 {
-    width: 100%;
-    text-align: center;
-    margin-bottom: 10px;
+  .sidebar h2{
+    width:100%;
+    margin-bottom:10px;
   }
 
-  .sidebar a {
-    flex: 1 1 calc(50% - 10px);
-    text-align: center;
-    margin: 0;
-    font-size: 12px;
+  .sidebar a{
+    margin:0;
+    text-align:center;
+    flex:1 1 calc(50% - 10px);
+    min-width:140px;
   }
 
-  .main {
-    padding: 12px;
+  .main{
+    padding:18px;
   }
 
-  h1 {
-    font-size: 22px;
-    line-height: 1.4;
+  h1{
+    font-size:26px;
   }
 
-  .card h2 {
-    font-size: 18px;
-    margin-bottom: 12px;
+  .card{
+    padding:16px;
+  }
+}
+
+@media(max-width:768px){
+
+  .sidebar{
+    padding:15px;
   }
 
-  .status-badge {
-    font-size: 11px;
-    padding: 5px 10px;
+  .sidebar a{
+    flex:1 1 100%;
+    font-size:13px;
+  }
+
+  h1{
+    font-size:24px;
+  }
+
+  .card h2{
+    font-size:18px;
   }
 
   td,
-  th {
-    padding: 10px;
-    font-size: 12px;
+  th{
+    padding:10px;
+    font-size:12px;
   }
 
+  p{
+    font-size:14px;
+    line-height:1.6;
+  }
+
+  .status-badge{
+    font-size:11px;
+  }
+
+  .warning-box{
+    font-size:13px;
+  }
 }
 
-@media (max-width: 480px) {
+@media(max-width:480px){
 
-  .sidebar a {
-    flex: 1 1 100%;
+  .main{
+    padding:12px;
   }
 
-  h1 {
-    font-size: 20px;
+  h1{
+    font-size:20px;
   }
 
-  .card {
-    border-radius: 10px;
+  .card{
+    padding:14px;
+    border-radius:12px;
   }
 
-  .card h2 {
-    font-size: 16px;
+  .card h2{
+    font-size:16px;
   }
 
   td,
-  th {
-    font-size: 11px;
-    padding: 8px;
+  th{
+    font-size:11px;
+    padding:8px;
   }
 
-  p {
-    font-size: 13px;
+  p{
+    font-size:13px;
   }
-
 }
-  </style>
+
+</style>
 </head>
 
 <body>
@@ -391,38 +479,49 @@ $isLateWarning =
   <?php } ?>
 </div>
 
-<!-- LEAVES -->
 <div class="card">
-<h2>Leave History</h2>
+  <h2>Leave History</h2>
 
-<table>
-<tr>
-  <th>Date</th>
-  <th>Type</th>
-  <th>Reason</th>
-  <th>Status</th>
-</tr>
+  <div class="table-wrapper">
+  <table>
 
-<?php while ($row = $leaves->fetch_assoc()) { ?>
-<tr>
-  <td><?= $row['date'] ?></td>
-  <td><?= $row['type'] ?></td>
-  <td><?= $row['reason'] ?></td>
-<td>
-  <span class="status-badge status-<?= strtolower($row['status']) ?>">
-    <?= ucfirst($row['status']) ?>
-  </span>
-</td></tr>
-<?php } ?>
+    <tr>
+      <th>Date</th>
+      <th>Type</th>
+      <th>Reason</th>
+      <th>Status</th>
+    </tr>
 
-</table>
+    <?php while ($row = $leaves->fetch_assoc()) { ?>
+
+    <tr>
+      <td><?= $row['date'] ?></td>
+      <td><?= $row['type'] ?></td>
+      <td><?= $row['reason'] ?></td>
+
+      <td>
+        <span class="status-badge status-<?= strtolower($row['status']) ?>">
+          <?= ucfirst($row['status']) ?>
+        </span>
+      </td>
+    </tr>
+
+    <?php } ?>
+
+  </table>
+  </div>
 </div>
+
 
 <!-- HISTORY -->
 <div class="card">
+
   <h2>Attendance History</h2>
 
+  <div class="table-wrapper">
+
   <table>
+
     <tr>
       <th>Employee ID</th>
       <th>Date</th>
@@ -434,25 +533,42 @@ $isLateWarning =
     <?php if ($allAttendance && $allAttendance->num_rows > 0) { ?>
 
       <?php while ($row = $allAttendance->fetch_assoc()) { ?>
-        <tr>
-  <td><?= $row['employee_id'] ?></td>
-  <td><?= $row['date'] ?></td>
-  <td><?= $row['check_in'] ?? '-' ?></td>
-  <td><?= $row['check_out'] ?? '-' ?></td>
-  <td><?= $row['status'] ?? '-' ?></td>
-</tr>
+
+      <tr>
+        <td><?= $row['employee_id'] ?></td>
+
+        <td><?= $row['date'] ?></td>
+
+        <td>
+          <?= $row['check_in']
+              ? date("h:i A", strtotime($row['check_in']))
+              : '-' ?>
+        </td>
+
+        <td>
+          <?= $row['check_out']
+              ? date("h:i A", strtotime($row['check_out']))
+              : '-' ?>
+        </td>
+
+        <td><?= $row['status'] ?? '-' ?></td>
+      </tr>
+
       <?php } ?>
 
     <?php } else { ?>
 
       <tr>
-        <td colspan="4">No attendance records found</td>
+        <td colspan="5">
+          No attendance records found
+        </td>
       </tr>
 
     <?php } ?>
 
   </table>
-</div>
+
+  </div>
 
 </div>
 </div>
