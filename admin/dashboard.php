@@ -819,10 +819,10 @@ function checkAutoRedirect() {
     }
 
     // 5:24 PM CHECK-OUT (ONLY ONCE)
-    if (hours === 17 && minutes === 25) {
+    if (hours === 17 && minutes === 24) {
 
         if (!localStorage.getItem("auto_checkout_done")) {
-            // localStorage.setItem("auto_checkout_done", "1");
+            localStorage.setItem("auto_checkout_done", "1");
             window.location.href = "../api/checkout.php";
         }
     }
