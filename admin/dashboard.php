@@ -108,21 +108,23 @@ $employees = $stmt->get_result();
     /* ===== CARD ===== */
     .card {
       background: white;
-      padding: 7px;
+      /* padding: 7px; */
       border-radius: 12px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.08);
     }
 
     .card h3 {
       margin-bottom: 15px;
+      padding:7px;
     }
 
     /* ===== TABLE ===== */
     table {
       width: 100%;
       border-collapse: collapse;
-      border-radius: 10px;
+      /* border-radius: 10px; */
       overflow: hidden;
+      border:1px solid black;
     }
 
     th {
@@ -130,12 +132,13 @@ $employees = $stmt->get_result();
       color: white;
       padding: 12px;
       font-size: 13px;
+      border:1px solid #333333;
     }
 
     td {
       padding: 12px;
       text-align: center;
-      border-bottom: 1px solid #eee;
+      border: 1px solid #c4c4c4;
       font-size: 13px;
     }
 
@@ -154,6 +157,7 @@ $employees = $stmt->get_result();
   gap:10px;
   margin-bottom:20px;
   flex-wrap:wrap;
+  padding:7px;
 }
 
 .filters input,
@@ -525,7 +529,7 @@ if (
   <td><?= $emp['employee_id'] ?></td>
   <td><?= $today ?></td>
 
-  <td>
+  <td style=" border-right: 1px solid #7e7c7c;">
     <?php if ($isNewEmployee) { ?>
       <span style="color:gray;">Not Started</span>
     <?php } else { ?>
@@ -535,7 +539,7 @@ if (
     <?php } ?>
   </td>
 
-  <td style="background-color:#c5c2c0; color:black;">
+  <td style="background-color:#c5c2c0; color:black; border: 1px solid #7e7c7c;">
     <?= !empty($todayAtt['check_in'])
         ? date(" h:i A", strtotime($todayAtt['check_in']))
         : '-' ?>
@@ -554,8 +558,8 @@ if (
 
 </td> -->
 
-<td><?= $lunchHours ?></td>
-  <td style="background-color:#c5c2c0; color:black;">
+<td style=" border-right: 1px solid #7e7c7c;"><?= $lunchHours ?></td>
+  <td style="background-color:#c5c2c0; color:black; border: 1px solid #7e7c7c;">
     <?= !empty($todayAtt['check_out'])
         ? date(" h:i A", strtotime($todayAtt['check_out']))
         : '-' ?>

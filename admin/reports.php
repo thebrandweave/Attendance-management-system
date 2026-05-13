@@ -420,7 +420,7 @@ $history = $conn->query("
 
         td {
             padding: 14px;
-            border-bottom: 1px solid #eee;
+            border: 1px solid #eee;
             text-align: center;
             font-size: 14px;
         }
