@@ -420,18 +420,11 @@ tr:hover{
   Welcome back,
   <?= htmlspecialchars($user['name']) ?> 
 </h1>
-<div style="
-  background:#16a34a;
-  color:white;
-  padding:15px 20px;
-  border-radius:12px;
-  display:inline-block;
-  margin-bottom:20px;
-">
-  <div style="font-size:14px;">Total Present Days</div>
-  <div style="font-size:28px;font-weight:bold;">
+<div class="card" style="display:inline-block;">
+  <h2>Total Present Days</h2>
+  <h1 style="color:#16a34a;">
     <?= $totalPresentDays ?>
-  </div>
+  </h1>
 </div>
 <p style="
     margin-top:-10px;
