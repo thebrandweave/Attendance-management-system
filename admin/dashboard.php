@@ -296,7 +296,7 @@ if ($isNewEmployee) {
       if ($m['status'] == "Present" || $m['status']=="Late"){ $present++;
       }
       elseif ($m['status'] == "Half Day") $half++;
-      elseif ($m['status'] == "Pending" || $m['status'=="Absent"]){ $absent++;
+      elseif ($m['status'] == "Pending" || $m['status']=="Absent"){ $absent++;
       }
     }
   }
