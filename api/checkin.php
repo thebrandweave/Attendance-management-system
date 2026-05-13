@@ -1,4 +1,7 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 include("../config/db.php");
 
@@ -13,9 +16,18 @@ if (isset($_POST['token'])) {
 
     $input = $_POST['token'];
 
-    parse_str(parse_url($input, PHP_URL_QUERY), $query);
+    $query = [];
 
-    $token = $query['token'] ?? $input;
+    if (filter_var($input, FILTER_VALIDATE_URL)) {
+
+        parse_str(parse_url($input, PHP_URL_QUERY), $query);
+
+        $token = $query['token'] ?? '';
+
+    } else {
+
+        $token = trim($input);
+    }
 
     $today = date("Y-m-d");
 
@@ -106,41 +118,6 @@ if (isset($_POST['token'])) {
         );
 
         $stmt->execute();
-        if (
-    $timeNow >= "09:40:00" &&
-    $timeNow <= "10:00:00"
-) {
-
-    include("../mail/send_mail_function.php");
-
-    $subject = "Late Check-In Warning";
-
-    $message = "
-    <h2>Late Check-In Notice</h2>
-
-    <p>Hello {$user['name']},</p>
-
-    <p>
-        You checked in at 
-        <b>" . date("h:i A", strtotime($currentTime)) . "</b>.
-    </p>
-
-    <p>
-        Your lunch break has been reduced
-        to <b>10 minutes</b>.
-    </p>
-
-    <br>
-
-    <p>Thank You.</p>
-    ";
-
-    sendEmployeeMail(
-        $user['email'],
-        $subject,
-        $message
-    );
-}
 
         echo "<script>
             alert('Office Check-In Successful ✅');
@@ -318,8 +295,7 @@ Html5Qrcode.getCameras().then(devices => {
 
                 videoConstraints: {
                     width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    focusMode: "continuous"
+                    height: { ideal: 1080 }
                 }
             },
 
