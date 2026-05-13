@@ -534,9 +534,7 @@ $history = $conn->query("
 
             <h1> Attendance Reports</h1>
 
-            <p>
-                Monthly employee attendance analytics & detailed reports
-            </p>
+           
 
         </div>
 
@@ -597,13 +595,13 @@ $history = $conn->query("
                     Filter
                 </button>
 
-                <button
-                    type="button"
-                    class="btn-print"
-                    onclick="window.print()"
-                >
-                    Print Report
-                </button>
+               <button
+    type="button"
+    class="btn-print"
+    onclick="printSummary()"
+>
+    Print Report
+</button>
 
                 <a href="reports.php" class="btn-reset">
                     Reset
@@ -646,10 +644,10 @@ $history = $conn->query("
 
         <!-- EMPLOYEE SUMMARY -->
 
-        <div class="table-wrapper">
+        <div class="table-wrapper" id="employeeSummary">
 
             <div class="table-title">
-                👨‍💼 Employee Monthly Summary
+                👨‍💼 Employee Monthly Report
             </div>
 
             <table>
@@ -906,6 +904,67 @@ echo $workingHours;
     </div>
 
 </div>
+<script>
 
+function printSummary() {
+
+    const printContent =
+        document.getElementById("employeeSummary").innerHTML;
+
+    const originalContent = document.body.innerHTML;
+
+    document.body.innerHTML = `
+        <html>
+        <head>
+            <title>Employee Monthly Summary</title>
+
+            <style>
+
+                body{
+                    font-family:Poppins,sans-serif;
+                    padding:20px;
+                }
+
+                table{
+                    width:100%;
+                    border-collapse:collapse;
+                }
+
+                th{
+                    background:#111827;
+                    color:white;
+                    padding:12px;
+                    border:1px solid #ddd;
+                }
+
+                td{
+                    padding:12px;
+                    border:1px solid #ddd;
+                    text-align:center;
+                }
+
+                .table-title{
+                    font-size:22px;
+                    font-weight:600;
+                    margin-bottom:20px;
+                }
+
+            </style>
+        </head>
+
+        <body>
+
+            ${printContent}
+
+        </body>
+        </html>
+    `;
+
+    window.print();
+
+    location.reload();
+}
+
+</script>
 </body>
 </html>
