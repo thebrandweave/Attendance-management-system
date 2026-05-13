@@ -3,15 +3,32 @@ include("../config/db.php");
 
 date_default_timezone_set("Asia/Kolkata");
 
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
-  header("Location: ../index.php");
-  exit();
+if (
+    !isset($_SESSION['user']) ||
+    $_SESSION['user']['role'] != "admin"
+) {
+
+    header("Location: ../index.php");
+    exit();
 }
+
+$adminBranch = $_SESSION['user']['branch'];
 
 $today = date("Y-m-d");
 $month = date("Y-m");
 
-$employees = $conn->query("SELECT * FROM users WHERE role='employee'");
+$stmt = $conn->prepare("
+    SELECT *
+    FROM users
+    WHERE role='employee'
+    AND branch=?
+");
+
+$stmt->bind_param("s", $adminBranch);
+
+$stmt->execute();
+
+$employees = $stmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -158,7 +175,9 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
 
   <!-- SIDEBAR (UPDATED STYLE MATCHED) -->
   <div class="sidebar">
-    <h2>Admin Panel</h2>
+<h2>
+  <?= htmlspecialchars($adminBranch) ?> Admin
+</h2>
 
     <a href="#">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
@@ -172,9 +191,9 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   <!-- MAIN -->
   <div class="main">
 
-    <div class="header">
-      Admin Dashboard - Attendance Management
-    </div>
+ <div class="header">
+  Admin Dashboard - <?= htmlspecialchars($adminBranch) ?> Branch
+</div>
 
     <div class="card">
       <h3>Employee Attendance</h3>
@@ -225,10 +244,24 @@ $employees = $conn->query("SELECT * FROM users WHERE role='employee'");
   $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
   $isNewEmployee = ($empCreatedDate == $today);
 
-  $todayAtt = $conn->query("
-    SELECT * FROM attendance 
-    WHERE user_id=$empId AND date='$today'
-  ")->fetch_assoc();
+$attStmt = $conn->prepare("
+    SELECT *
+    FROM attendance
+    WHERE user_id=?
+    AND date=?
+");
+
+$attStmt->bind_param(
+    "is",
+    $empId,
+    $today
+);
+
+$attStmt->execute();
+
+$todayAtt = $attStmt
+    ->get_result()
+    ->fetch_assoc();
 
 if ($isNewEmployee) {
 
@@ -273,11 +306,18 @@ if ($isNewEmployee) {
 
             $status = "Overtime";
 
-            $conn->query("
-                UPDATE attendance
-                SET status='Overtime'
-                WHERE id='{$todayAtt['id']}'
-            ");
+          $updateStmt = $conn->prepare("
+    UPDATE attendance
+    SET status='Overtime'
+    WHERE id=?
+");
+
+$updateStmt->bind_param(
+    "i",
+    $todayAtt['id']
+);
+
+$updateStmt->execute();
         }
     }
 }
@@ -486,7 +526,11 @@ if ($totalHours !== "-") {
     <h3>Edit Employee Details</h3>
 
     <form method="POST" action="update_employee.php">
-
+<input
+    type="hidden"
+    name="branch"
+    value="<?= htmlspecialchars($adminBranch) ?>"
+>
       <input type="hidden" name="id" id="editId">
 
       <!-- NAME -->

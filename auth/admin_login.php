@@ -28,6 +28,7 @@ if (isset($_POST['login'])) {
     if (password_verify($pass, $user['password'])) {
 
       $_SESSION['user'] = $user;
+      $_SESSION['branch'] = $user['branch'];
 
       header("Location: ../admin/dashboard.php");
       exit();

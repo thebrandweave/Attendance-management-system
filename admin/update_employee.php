@@ -1,18 +1,41 @@
 <?php
+
+session_start();
+
 include("../config/db.php");
 
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
+date_default_timezone_set("Asia/Kolkata");
+
+/* =========================
+   AUTH CHECK
+========================= */
+
+if (
+    !isset($_SESSION['user']) ||
+    $_SESSION['user']['role'] != "admin"
+) {
+
     header("Location: ../index.php");
     exit();
 }
 
-$id = $_POST['id'];
+/* =========================
+   ADMIN BRANCH
+========================= */
 
-$name = $_POST['name'];
+$adminBranch = $_SESSION['user']['branch'];
 
-$employee_id = $_POST['employee_id'];
+/* =========================
+   FORM DATA
+========================= */
 
-$status = $_POST['status'];
+$id = (int)$_POST['id'];
+
+$name = trim($_POST['name']);
+
+$employee_id = trim($_POST['employee_id']);
+
+$status = trim($_POST['status']);
 
 $check_in = !empty($_POST['check_in'])
     ? date("Y-m-d H:i:s", strtotime($_POST['check_in']))
@@ -23,6 +46,34 @@ $check_out = !empty($_POST['check_out'])
     : null;
 
 $today = date("Y-m-d");
+
+/* =========================
+   SECURITY CHECK
+   ONLY SAME BRANCH
+========================= */
+
+$branchCheck = $conn->prepare("
+    SELECT id
+    FROM users
+    WHERE id = ?
+    AND role='employee'
+    AND branch = ?
+");
+
+$branchCheck->bind_param(
+    "is",
+    $id,
+    $adminBranch
+);
+
+$branchCheck->execute();
+
+$branchResult = $branchCheck->get_result();
+
+if ($branchResult->num_rows == 0) {
+
+    die("Unauthorized Access");
+}
 
 /* =========================
    UPDATE USER
@@ -56,14 +107,18 @@ $check = $conn->prepare("
     AND date = ?
 ");
 
-$check->bind_param("is", $id, $today);
+$check->bind_param(
+    "is",
+    $id,
+    $today
+);
 
 $check->execute();
 
 $result = $check->get_result();
 
 /* =========================
-   UPDATE / INSERT ATTENDANCE
+   UPDATE ATTENDANCE
 ========================= */
 
 if ($result->num_rows > 0) {
@@ -91,6 +146,10 @@ if ($result->num_rows > 0) {
 
 } else {
 
+    /* =========================
+       INSERT ATTENDANCE
+    ========================= */
+
     $stmt = $conn->prepare("
         INSERT INTO attendance
         (
@@ -115,6 +174,12 @@ if ($result->num_rows > 0) {
     $stmt->execute();
 }
 
+/* =========================
+   REDIRECT
+========================= */
+
 header("Location: dashboard.php");
+
 exit();
+
 ?>

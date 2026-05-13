@@ -24,6 +24,8 @@ if (isset($_POST['create'])) {
   }
 
   $name = $_POST['name'];
+  $branch_id = $_SESSION['user']['branch_id'];
+  $branch = $_SESSION['user']['branch'];
 
 
   $empId = "EMP" . rand(1000,9999);
@@ -32,11 +34,11 @@ $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
   $token = bin2hex(random_bytes(32));
 
   $stmt = $conn->prepare("
-    INSERT INTO users (name, employee_id, password, role, qr_token)
-    VALUES (?, ?, ?, 'employee', ?)
+    INSERT INTO users (name, employee_id, password, role, qr_token,branch,branch_id)
+    VALUES (?, ?, ?, 'employee',?, ?,?)
   ");
 
-  $stmt->bind_param("ssss", $name, $empId, $hashedPassword, $token);
+  $stmt->bind_param("sssssi", $name, $empId, $hashedPassword, $token,$branch,$branch_id);
   $stmt->execute();
 
 $_SESSION['success'] = [

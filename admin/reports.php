@@ -20,6 +20,7 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
 $month = $_GET['month'] ?? date("Y-m");
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status'] ?? '';
+$branch_id = $_SESSION['user']['branch_id'];
 
 /* =========================
    TOTAL DAYS IN MONTH
@@ -36,10 +37,19 @@ $totalDaysInMonth = cal_days_in_month(
 ========================= */
 
 $summary = $conn->query("
-    SELECT status, COUNT(*) as total
+    SELECT
+        attendance.status,
+        COUNT(*) as total
+
     FROM attendance
-    WHERE date LIKE '$month%'
-    GROUP BY status
+
+    INNER JOIN users
+    ON users.id = attendance.user_id
+
+    WHERE attendance.date LIKE '$month%'
+    AND users.branch_id = '$branch_id'
+
+    GROUP BY attendance.status
 ");
 
 $present = 0;
@@ -76,7 +86,10 @@ $attendancePercent = $totalAttendance
    EMPLOYEE SUMMARY REPORT
 ========================= */
 
-$whereEmployee = "users.role='employee'";
+$whereEmployee = "
+users.role='employee'
+AND users.branch_id='$branch_id'
+";
 
 if (!empty($search)) {
     $whereEmployee .= "
@@ -144,6 +157,7 @@ $employees = $conn->query("
 $whereHistory = "
 attendance.date LIKE '$month%'
 AND users.role='employee'
+AND users.branch_id='$branch_id'
 ";
 
 if (!empty($search)) {
