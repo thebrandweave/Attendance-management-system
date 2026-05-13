@@ -143,7 +143,8 @@ if (isset($_POST['token'])) {
 <div id="toast" class="toast"></div>
 
 <div class="card">
-    <h2 style="margin-bottom: 20px; color: #1e293b;">Scan Attendance QR</h2>
+  <h2 style="color: #1e293b;">Check-In 🕒</h2>
+     <p style="color: #64748b; margin-bottom: 20px;">Welcome</p>
     <div id="reader"></div>
     
     <form method="POST" id="scanForm">
