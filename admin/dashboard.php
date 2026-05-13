@@ -293,7 +293,8 @@ if ($isNewEmployee) {
     ");
 
     while ($m = $monthly->fetch_assoc()) {
-      if ($m['status'] == "Present") $present++;
+      if ($m['status'] == "Present" || $m['status']=="Late"){ $present++;
+      }
       elseif ($m['status'] == "Half Day") $half++;
       elseif ($m['status'] == "Pending") $absent++;
     }
