@@ -1,14 +1,22 @@
 <?php
+session_start();
 include("../config/db.php");
+
+$branch = $_SESSION['user']['branch'];
 
 $res = $conn->query("
     SELECT 
         lr.*,
         u.name AS employee_name,
         u.employee_id AS employee_code
+
     FROM leave_requests lr
-    LEFT JOIN users u 
+
+    LEFT JOIN users u
     ON lr.employee_id = u.id
+
+    WHERE u.branch = '$branch'
+
     ORDER BY lr.id DESC
 ");
 

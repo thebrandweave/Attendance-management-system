@@ -1,4 +1,17 @@
-<?php include("../config/db.php"); ?>
+<?php
+session_start();
+include("../config/db.php");
+
+if (
+    !isset($_SESSION['user']) ||
+    $_SESSION['user']['role'] != "admin"
+) {
+    header("Location: ../index.php");
+    exit();
+}
+
+$branch = $_SESSION['user']['branch'];
+?>
 
 <!DOCTYPE html>
 <html>
@@ -153,7 +166,7 @@
 
   <!-- SIDEBAR -->
   <div class="sidebar">
-    <h2>Admin Panel</h2>
+   <h2><?= htmlspecialchars($branch) ?> Admin</h2>
 
     <a href="dashboard.php"> Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
@@ -191,16 +204,21 @@
     <tbody id="leaveTableBody">
 
         <?php
-        $res = $conn->query("
-          SELECT 
-            lr.*,
-            u.name AS employee_name,
-            u.employee_id AS employee_code
-          FROM leave_requests lr
-          LEFT JOIN users u 
-          ON lr.employee_id = u.id
-          ORDER BY lr.id DESC
-        ");
+      $res = $conn->query("
+    SELECT 
+        lr.*,
+        u.name AS employee_name,
+        u.employee_id AS employee_code
+
+    FROM leave_requests lr
+
+    LEFT JOIN users u
+    ON lr.employee_id = u.id
+
+    WHERE u.branch = '$branch'
+
+    ORDER BY lr.id DESC
+");
 
         while ($row = $res->fetch_assoc()) {
         ?>
@@ -318,7 +336,7 @@ function showToast(message, error = false) {
 
 function loadLeaveRequests() {
 
-    fetch("fetch_leave_requests.php")
+   fetch("fetch_leave_requests.php?branch=<?= urlencode($branch) ?>")
     .then(res => res.text())
     .then(data => {
 
