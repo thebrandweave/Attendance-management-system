@@ -809,14 +809,19 @@ $history = $conn->query("
                             <span class="badge half">
                                 Half Day
                             </span>
+<?php elseif($row['status'] == 'Overtime'): ?>
 
-                        <?php else: ?>
+    <span class="badge present">
+        Present
+    </span>
 
-                            <span class="badge late">
-                                Late
-                            </span>
+<?php else: ?>
 
-                        <?php endif; ?>
+    <span class="badge late">
+        Late
+    </span>
+
+<?php endif; ?>
 
                     </td>
 
