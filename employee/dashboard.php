@@ -439,7 +439,7 @@ tr:hover{
   display:inline-block;
   margin-bottom:20px;
 ">
-  <div style="font-size:14px;">Total Present Days <span style="font-weight:700;"> <?= $totalPresentDays ?></span></div>
+  <div style="font-size:14px;">Total Present Days :  <span style="font-weight:700;"> <?= $totalPresentDays ?></span></div>
   
 </div>
 <!-- <div class="actions">
