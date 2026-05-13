@@ -242,6 +242,17 @@ $employees = $stmt->get_result();
 <?php while ($emp = $employees->fetch_assoc()) {
 
   $empId = $emp['id'];
+  $attStmt = $conn->prepare("
+    SELECT *
+    FROM attendance
+    WHERE user_id=?
+    AND date=?
+");
+
+$attStmt->bind_param("is", $empId, $today);
+$attStmt->execute();
+
+$todayAtt = $attStmt->get_result()->fetch_assoc();
 
   $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
   $isNewEmployee = ($empCreatedDate == $today);
@@ -322,55 +333,54 @@ if ($isNewEmployee) {
     IF WORKING HOURS > 7
     ============================================
     */
+if (
+    $todayAtt &&
+    !empty($todayAtt['check_in']) &&
+    !empty($todayAtt['check_out'])
+) {
+
+    $totalSeconds =
+        strtotime($todayAtt['check_out']) -
+        strtotime($todayAtt['check_in']);
+
+    $lunchSeconds = 0;
 
     if (
-        !empty($todayAtt['check_in']) &&
-        !empty($todayAtt['check_out'])
+        !empty($todayAtt['lunch_out']) &&
+        !empty($todayAtt['lunch_in'])
     ) {
-
-        $totalSeconds =
-            strtotime($todayAtt['check_out']) -
-            strtotime($todayAtt['check_in']);
-
-        $lunchSeconds = 0;
-
-        if (
-            !empty($todayAtt['lunch_out']) &&
-            !empty($todayAtt['lunch_in'])
-        ) {
-
-            $lunchSeconds =
-                strtotime($todayAtt['lunch_in']) -
-                strtotime($todayAtt['lunch_out']);
-        }
-
-        $workingHours =
-            ($totalSeconds - $lunchSeconds) / 3600;
-
-        if ($workingHours > 7) {
-
-            $status = "Overtime";
-
-          $updateStmt = $conn->prepare("
-    UPDATE attendance
-    SET status='Overtime'
-    WHERE id=?
-");
-
-$updateStmt->bind_param(
-    "i",
-    $todayAtt['id']
-);
-
-$updateStmt->execute();
-        }
+        $lunchSeconds =
+            strtotime($todayAtt['lunch_in']) -
+            strtotime($todayAtt['lunch_out']);
     }
+
+    $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
+
+    if ($workingHours > 7) {
+
+        $status = "Overtime";
+
+        $updateStmt = $conn->prepare("
+            UPDATE attendance
+            SET status=?
+            WHERE id=?
+        ");
+
+        $updateStmt->bind_param(
+            "si",
+            $status,
+            $todayAtt['id']
+        );
+
+        $updateStmt->execute();
+    }
+}
 }
 $present = 0;
 $half = 0;
 $absent = 0;
 
-if (!$isNewEmployee) {
+if (!$isNewEmployee && $todayAtt) {
 
  if (
     $status == "Present" ||
