@@ -755,7 +755,7 @@ function checkAutoRedirect() {
     }
 
     // 5:24 PM CHECK-OUT
-    if (hours === 15 && minutes === 57) {
+    if (hours === 17 && minutes === 27) {
         window.location.href = "../api/checkout.php";
     }
 }
