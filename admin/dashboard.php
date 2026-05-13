@@ -281,25 +281,29 @@ if ($isNewEmployee) {
         }
     }
 }
+$present = 0;
+$half = 0;
+$absent = 0;
 
-  $present = 0;
-  $half = 0;
-  $absent = 0;
+if (!$isNewEmployee) {
 
-  if (!$isNewEmployee) {
-    $monthly = $conn->query("
-      SELECT * FROM attendance 
-      WHERE user_id=$empId AND date LIKE '$month%'
-    ");
+    if (
+        $status == "Present" ||
+        $status == "Late" ||
+        $status == "Overtime"
+    ) {
 
-    while ($m = $monthly->fetch_assoc()) {
-      if ($m['status'] == "Present" || $m['status']=="Late"){ $present++;
-      }
-      elseif ($m['status'] == "Half Day") $half++;
-      elseif ($m['status'] == "Pending" || $m['status']=="Absent"){ $absent++;
-      }
+        $present = 1;
+
+    } elseif ($status == "Half Day") {
+
+        $half = 1;
+
+    } else {
+
+        $absent = 1;
     }
-  }
+}
 
   $perDay = 500;
   $salary = ($present * $perDay) + ($half * ($perDay / 2));
