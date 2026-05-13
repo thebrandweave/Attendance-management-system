@@ -13,6 +13,20 @@ $user = $_SESSION['user'];
 $userId = (int)$user['id'];
 $today = date("Y-m-d");
 
+
+/* =======================
+   TOTAL PRESENT DAYS
+======================= */
+
+$presentQuery = $conn->query("
+  SELECT COUNT(*) AS total_present
+  FROM attendance
+  WHERE user_id = $userId
+  AND (status = 'Present' OR status = 'Late' OR status = 'Overtime')
+");
+
+$presentData = $presentQuery->fetch_assoc();
+$totalPresentDays = $presentData['total_present'] ?? 0;
 /* =======================
    TODAY ATTENDANCE
 ======================= */
@@ -406,7 +420,19 @@ tr:hover{
   Welcome back,
   <?= htmlspecialchars($user['name']) ?> 
 </h1>
-
+<div style="
+  background:#16a34a;
+  color:white;
+  padding:15px 20px;
+  border-radius:12px;
+  display:inline-block;
+  margin-bottom:20px;
+">
+  <div style="font-size:14px;">Total Present Days</div>
+  <div style="font-size:28px;font-weight:bold;">
+    <?= $totalPresentDays ?>
+  </div>
+</div>
 <p style="
     margin-top:-10px;
     margin-bottom:25px;
