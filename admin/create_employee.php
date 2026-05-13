@@ -453,19 +453,24 @@ function checkAutoRedirect() {
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-  // 9:30 AM to 9:40 AM CHECK-IN
-if (hours === 9 && minutes >= 30 && minutes <= 40) {
-        window.location.href = "../api/checkin.php";
+    // 9:30 AM to 9:40 AM CHECK-IN (ONLY ONCE)
+    if (hours === 9 && minutes >= 30 && minutes <= 40) {
+
+        if (!localStorage.getItem("auto_checkin_done")) {
+            localStorage.setItem("auto_checkin_done", "1");
+            window.location.href = "../api/checkin.php";
+        }
     }
 
-    // 5:27 PM CHECK-OUT
-    if (hours === 17 && minutes >= 27 && minutes <=40) {
-        window.location.href = "../api/checkout.php";
+    // 5:24 PM CHECK-OUT (ONLY ONCE)
+    if (hours === 17 && minutes === 24) {
+
+        if (!localStorage.getItem("auto_checkout_done")) {
+            localStorage.setItem("auto_checkout_done", "1");
+            window.location.href = "../api/checkout.php";
+        }
     }
 }
-
-// check every 30 seconds
-setInterval(checkAutoRedirect, 30000);
 </script>
 
 <?php unset($_SESSION['success']); ?>

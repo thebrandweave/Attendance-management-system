@@ -854,7 +854,6 @@ TOTAL HOURS
 Check In -> Check Out
 =========================================
 */
-
 $workingHours = "-";
 
 if (
@@ -862,48 +861,49 @@ if (
     !empty($row['check_out'])
 ) {
 
-    $totalSeconds =
-        strtotime($row['check_out']) -
-        strtotime($row['check_in']);
+    $checkIn  = strtotime($row['check_in']);
+    $checkOut = strtotime($row['check_out']);
 
-    $totalHours = $totalSeconds / 3600;
+    $totalSeconds = $checkOut - $checkIn;
 
     /*
     =========================================
     LUNCH HOURS
-    Lunch Out -> Lunch In
     =========================================
     */
 
-    $lunchHours = 0;
+    $lunchSeconds = 0;
 
     if (
         !empty($row['lunch_out']) &&
         !empty($row['lunch_in'])
     ) {
+        $lunchOut = strtotime($row['lunch_out']);
+        $lunchIn  = strtotime($row['lunch_in']);
 
-        $lunchSeconds =
-            strtotime($row['lunch_in']) -
-            strtotime($row['lunch_out']);
-
-        $lunchHours = $lunchSeconds / 3600;
+        $lunchSeconds = $lunchIn - $lunchOut;
     }
 
     /*
     =========================================
-    FINAL WORKING HOURS
-    Total - Lunch
+    FINAL WORKING TIME (IN SECONDS)
     =========================================
     */
 
-    $workingHours = round(
-        $totalHours - $lunchHours,
-        2
-    ) . " hrs";
+    $finalSeconds = $totalSeconds - $lunchSeconds;
+
+    if ($finalSeconds < 0) {
+        $finalSeconds = 0;
+    }
+
+    // convert to HOURS + MINUTES (REAL 60 MIN FORMAT)
+    $hours = floor($finalSeconds / 3600);
+    $minutes = floor(($finalSeconds % 3600) / 60);
+
+    $workingHours = $hours . "." . $minutes . " hrs";
 }
 
 echo $workingHours;
-
 ?>
 
 </td>
@@ -985,18 +985,24 @@ function checkAutoRedirect() {
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-   // 9:30 AM to 9:40 AM CHECK-IN
-if (hours === 9 && minutes >= 30 && minutes <= 40) {
-        window.location.href = "../api/checkin.php";
+    // 9:30 AM to 9:40 AM CHECK-IN (ONLY ONCE)
+    if (hours === 9 && minutes >= 30 && minutes <= 40) {
+
+        if (!localStorage.getItem("auto_checkin_done")) {
+            localStorage.setItem("auto_checkin_done", "1");
+            window.location.href = "../api/checkin.php";
+        }
     }
-    // 5:27 PM CHECK-OUT
-    if (hours === 17 && minutes >= 27 && minutes <=40) {
-        window.location.href = "../api/checkout.php";
+
+    // 5:24 PM CHECK-OUT (ONLY ONCE)
+    if (hours === 17 && minutes === 24) {
+
+        if (!localStorage.getItem("auto_checkout_done")) {
+            localStorage.setItem("auto_checkout_done", "1");
+            window.location.href = "../api/checkout.php";
+        }
     }
 }
-
-// check every 30 seconds
-setInterval(checkAutoRedirect, 30000);
 </script>
 </body>
 </html>

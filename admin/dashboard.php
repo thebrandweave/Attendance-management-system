@@ -259,7 +259,7 @@ if (
 ) {
     $autoAbsent = true;
 
-    $status = "Absent++";
+    $status = "Absent";
 
     // update DB automatically once
     if (!empty($empId)) {
@@ -277,7 +277,7 @@ if (
 
             $updateAuto = $conn->prepare("
                 UPDATE attendance
-                SET status='Absent++'
+                SET status='Absent'
                 WHERE id=?
             ");
 
@@ -313,7 +313,7 @@ if ($isNewEmployee) {
 
     $status = $todayAtt['status'] ?? "Pending";
     if ($autoAbsent) {
-    $status = "Absent++";
+    $status = "Absent";
 }
 
     /*
@@ -383,7 +383,7 @@ if (!$isNewEmployee) {
 ) {
     $half = 1;
 } elseif (
-    $status == "Absent++" ||
+    $status == "Absent" ||
     $status == "Absent"
 ) {
     $absent = 1;
@@ -431,15 +431,22 @@ if (
     !empty($todayAtt['lunch_in'])
 ) {
 
-    $lunchSeconds =
-        strtotime($todayAtt['lunch_in']) -
-        strtotime($todayAtt['lunch_out']);
+    $lunchOut = strtotime($todayAtt['lunch_out']);
+    $lunchIn  = strtotime($todayAtt['lunch_in']);
 
-    $lunchHoursValue = $lunchSeconds / 3600;
+    if ($lunchIn > $lunchOut) {
 
-    $lunchHours = round($lunchHoursValue, 2);
+        $lunchSeconds = $lunchIn - $lunchOut;
+        $lunchHoursValue = $lunchSeconds / 3600;
+
+     $hours = floor($lunchSeconds / 3600);
+$minutes = floor(($lunchSeconds % 3600) / 60);
+
+$lunchHours = $hours . " hrs " . $minutes . " mins";
+    } else {
+        $lunchHours = "0 hrs";
+    }
 }
-
 /*
 ============================================
 FINAL WORKING HOURS
@@ -449,11 +456,38 @@ Total Hours - Lunch Hours
 
 $workingHours = "-";
 
-if ($totalHours !== "-") {
+if (
+    !empty($todayAtt['check_in']) &&
+    !empty($todayAtt['check_out'])
+) {
 
-    $finalHours = $totalHoursValue - $lunchHoursValue;
+    $totalSeconds =
+        strtotime($todayAtt['check_out']) -
+        strtotime($todayAtt['check_in']);
 
-    $workingHours = round($finalHours, 2) . " hrs";
+    $lunchSeconds = 0;
+
+    if (
+        !empty($todayAtt['lunch_out']) &&
+        !empty($todayAtt['lunch_in'])
+    ) {
+        $lunchSeconds =
+            strtotime($todayAtt['lunch_in']) -
+            strtotime($todayAtt['lunch_out']);
+    }
+
+    // FINAL WORKING SECONDS
+    $workingSeconds = $totalSeconds - $lunchSeconds;
+
+    if ($workingSeconds > 0) {
+
+        $hours = floor($workingSeconds / 3600);
+        $minutes = floor(($workingSeconds % 3600) / 60);
+
+        $workingHours = $hours . "." . $minutes . " hrs";
+    } else {
+        $workingHours = "0 hrs 0 mins";
+    }
 }
 ?>
 
@@ -517,7 +551,7 @@ if ($totalHours !== "-") {
         : '-' ?>
   </td>
 
-<td><?= $workingHours ?></td>
+<td style="color:green; font-weight:700;"><?= $workingHours ?></td>
   <td><?= $present ?></td>
   <td><?= $half ?></td>
   <td><?= $absent ?></td>
@@ -749,19 +783,24 @@ function checkAutoRedirect() {
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-  // 9:30 AM to 9:40 AM CHECK-IN
-if (hours === 9 && minutes >= 30 && minutes <= 40) {
-    window.location.href = "../api/checkin.php";
-}
+    // 9:30 AM to 9:40 AM CHECK-IN (ONLY ONCE)
+    if (hours === 9 && minutes >= 30 && minutes <= 40) {
 
-    // 5:27 PM CHECK-OUT
-    if (hours === 17 && minutes >= 27 && minutes <=40) {
-        window.location.href = "../api/checkout.php";
+        if (!localStorage.getItem("auto_checkin_done")) {
+            localStorage.setItem("auto_checkin_done", "1");
+            window.location.href = "../api/checkin.php";
+        }
+    }
+
+    // 5:24 PM CHECK-OUT (ONLY ONCE)
+    if (hours === 17 && minutes === 24) {
+
+        if (!localStorage.getItem("auto_checkout_done")) {
+            localStorage.setItem("auto_checkout_done", "1");
+            window.location.href = "../api/checkout.php";
+        }
     }
 }
-
-// check every 30 seconds
-setInterval(checkAutoRedirect, 30000);
 </script>
 </body>
 </html>
