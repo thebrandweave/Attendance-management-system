@@ -749,12 +749,12 @@ function checkAutoRedirect() {
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-    // 9:30 AM CHECK-IN
-    if (hours === 9 && minutes === 30) {
-        window.location.href = "../api/checkin.php";
-    }
+  // 9:30 AM to 9:40 AM CHECK-IN
+if (hours === 9 && minutes >= 30 && minutes <= 40) {
+    window.location.href = "../api/checkin.php";
+}
 
-    // 5:24 PM CHECK-OUT
+    // 5:27 PM CHECK-OUT
     if (hours === 17 && minutes === 27) {
         window.location.href = "../api/checkout.php";
     }
