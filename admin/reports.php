@@ -603,9 +603,7 @@ $history = $conn->query("
     Print Report
 </button>
 
-                <a href="reports.php" class="btn-reset">
-                    Reset
-                </a>
+          
 
             </form>
 
