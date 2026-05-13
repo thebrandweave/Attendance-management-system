@@ -509,6 +509,7 @@ if ($totalHours !== "-") {
           <option value="Late">Late</option>
           <option value="Half Day">Half Day</option>
           <option value="Pending">Pending</option>
+          <option value="Absent">Absent</option>
           <option value="Overtime">Overtime</option>
 
       </select>
