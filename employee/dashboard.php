@@ -428,7 +428,7 @@ tr:hover{
   display:inline-block;
   margin-bottom:20px;
 ">
-  <div style="font-size:14px;">Total Present Days <span> <?= $totalPresentDays ?></span></div>
+
   
 </div>
 <p style="
@@ -440,6 +440,7 @@ tr:hover{
   Employee ID:
   <b><?= htmlspecialchars($user['employee_id']) ?></b>
 </p>
+  <div style="font-size:14px;">Total Present Days <span> <?= $totalPresentDays ?></span></div>
 <!-- <div class="actions">
   <a href="../api/checkin.php" class="btn btn-green">🟢 Check In</a>
   <a href="../api/checkout.php" class="btn btn-red">🔴 Check Out</a>
