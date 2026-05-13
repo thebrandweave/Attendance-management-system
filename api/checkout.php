@@ -1,11 +1,8 @@
 <?php
-
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 session_start();
-
 include("../config/db.php");
 
 date_default_timezone_set("Asia/Kolkata");
@@ -15,257 +12,107 @@ if (!isset($_SESSION['user'])) {
     exit();
 }
 
-if (isset($_POST['token'])) {
+/* =====================================================
+   ONLY PROCESS CHECKOUT WHEN FORM IS SUBMITTED
+===================================================== */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
 
-    $input = $_POST['token'];
+    $input = trim($_POST['token']);
 
-    parse_str(parse_url($input, PHP_URL_QUERY), $query);
+    if (filter_var($input, FILTER_VALIDATE_URL)) {
+        parse_str(parse_url($input, PHP_URL_QUERY), $query);
+        $token = $query['token'] ?? '';
+    } else {
+        $token = $input;
+    }
 
-    $token = $query['token'] ?? $input;
+    if (empty($token)) {
+        die("<script>alert('Invalid QR Format'); window.location.href='checkout.php';</script>");
+    }
 
     $today = date("Y-m-d");
+    $currentTime = date("Y-m-d H:i:s");
 
-    $currentDateTime = new DateTime('now', new DateTimeZone('Asia/Kolkata'));
-
-    $currentTime = $currentDateTime->format("Y-m-d H:i:s");
-
-    // GET USER
-    $stmt = $conn->prepare("
-        SELECT * FROM users
-        WHERE qr_token = ?
-    ");
-
+    /* ================= USER ================= */
+    $stmt = $conn->prepare("SELECT * FROM users WHERE qr_token = ?");
     $stmt->bind_param("s", $token);
-
     $stmt->execute();
-
     $user = $stmt->get_result()->fetch_assoc();
 
     if (!$user) {
-
-        echo "<script>
-            alert('Invalid QR ❌');
-            window.location.href='checkout.php';
-        </script>";
-
-        exit();
+        die("<script>alert('Invalid QR ❌'); window.location.href='checkout.php';</script>");
     }
 
     $userId = $user['id'];
 
-    // GET ATTENDANCE
-    $stmt = $conn->prepare("
-        SELECT * FROM attendance
-        WHERE user_id = ?
-        AND date = ?
-    ");
-
+    /* ================= ATTENDANCE ================= */
+    $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
     $stmt->bind_param("is", $userId, $today);
-
     $stmt->execute();
-
     $attendance = $stmt->get_result()->fetch_assoc();
 
     if (!$attendance) {
-
-        echo "<script>
-            alert('Please Check-In First ❌');
-            window.location.href='checkout.php';
-        </script>";
-
-        exit();
+        die("<script>alert('Please Check-In First ❌'); window.location.href='checkin.php';</script>");
     }
 
-    /*
-    ============================================
-    LUNCH BREAK CHECK-OUT
-    ============================================
-    */
-
-    if (empty($attendance['lunch_out'])) {
-
-        $stmt = $conn->prepare("
-            UPDATE attendance
-            SET lunch_out = ?
-            WHERE id = ?
-        ");
-
-        $stmt->bind_param(
-            "si",
-            $currentTime,
-            $attendance['id']
-        );
-
-        $stmt->execute();
-
-        echo "<script>
-            alert('Lunch Break Started 🍴');
-            window.location.href='../admin/dashboard.php';
-        </script>";
-
-        exit();
+    if (!empty($attendance['check_out'])) {
+        die("<script>alert('Already Checked-Out ❌'); window.location.href='../admin/dashboard.php';</script>");
     }
 
-  /*
-============================================
-FINAL OFFICE CHECK-OUT
-============================================
-*/
-
-if (
-    !empty($attendance['check_in']) &&
-    !empty($attendance['lunch_out']) &&
-    !empty($attendance['lunch_in']) &&
-    empty($attendance['check_out'])
-) {
-
-    // SAFE TIME CONVERSION
-
-    $checkInTime = strtotime($attendance['check_in']);
-
-    $lunchOutTime = strtotime($attendance['lunch_out']);
-
-    $lunchInTime = strtotime($attendance['lunch_in']);
-
-    $finalOutTime = strtotime($currentTime);
-
-    // VALIDATION
-
-    if (
-        !$checkInTime ||
-        !$lunchOutTime ||
-        !$lunchInTime ||
-        !$finalOutTime
-    ) {
-
-        die("
-            <script>
-                alert('Time calculation error ❌');
-                window.location.href='../admin/dashboard.php';
-            </script>
-        ");
+    if (empty($attendance['check_in'])) {
+        die("<script>alert('Invalid Check-In ❌'); window.location.href='../admin/dashboard.php';</script>");
     }
 
-    // MORNING WORK HOURS
+    /* ================= TIME ================= */
+    $checkIn = strtotime($attendance['check_in']);
+    $checkOut = strtotime($currentTime);
 
-    $morningSeconds =
-        $lunchOutTime - $checkInTime;
+    if (!$checkIn || !$checkOut) {
+        die("<script>alert('Time error ❌');</script>");
+    }
 
-    // EVENING WORK HOURS
+    $totalSeconds = $checkOut - $checkIn;
+    $totalHours = round($totalSeconds / 3600, 2);
 
-    $eveningSeconds =
-        $finalOutTime - $lunchInTime;
-
-    // TOTAL WORKING HOURS
-
-    $totalSeconds =
-        $morningSeconds + $eveningSeconds;
-
-    $totalHours =
-        round($totalSeconds / 3600, 2);
-
-    // STATUS
-
+    /* ================= STATUS ================= */
     if ($totalHours >= 8) {
-
         $status = "Present";
-
     } elseif ($totalHours >= 4) {
-
         $status = "Half Day";
-
     } else {
-
         $status = "Absent";
     }
 
-    // UPDATE DATABASE
-
+    /* ================= UPDATE ================= */
     $stmt = $conn->prepare("
-        UPDATE attendance
-        SET
-            check_out = ?,
-            total_hours = ?,
-            status = ?
+        UPDATE attendance 
+        SET check_out = ?, total_hours = ?, status = ?
         WHERE id = ?
     ");
 
-    $stmt->bind_param(
-        "sdsi",
-        $currentTime,
-        $totalHours,
-        $status,
-        $attendance['id']
-    );
-
-    if (!$stmt->execute()) {
-
-        die("
-            <script>
-                alert('Database update failed ❌');
-            </script>
-        ");
-    }
-
-    echo "
-    <script>
-        alert(
-            'Final Check-Out Successful ✅ Total Hours: $totalHours hrs'
-        );
-
-        window.location.href='../admin/dashboard.php';
-    </script>
-    ";
-
-    exit();
-}
-
-    /*
-    ============================================
-    LUNCH NOT RETURNED
-    ============================================
-    */
-
-    if (
-        !empty($attendance['lunch_out']) &&
-        empty($attendance['lunch_in'])
-    ) {
-
-        echo "<script>
-            alert('Please do Lunch Check-In First ❌');
-            window.location.href='../admin/dashboard.php';
-        </script>";
-
-        exit();
-    }
-
-    /*
-    ============================================
-    ALREADY CHECKED OUT
-    ============================================
-    */
+    $stmt->bind_param("sdsi", $currentTime, $totalHours, $status, $attendance['id']);
+    $stmt->execute();
 
     echo "<script>
-        alert('Already Checked-Out ❌');
+        alert('Check-Out Successful ✅ Hours: $totalHours');
         window.location.href='../admin/dashboard.php';
     </script>";
-
     exit();
 }
 ?>
 
+<!-- =====================================================
+     HTML UI STARTS HERE (ONLY LOADS ON GET REQUEST)
+===================================================== -->
 <!DOCTYPE html>
 <html>
 <head>
-
 <title>QR Check Out</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-
 body {
     font-family: 'Poppins', sans-serif;
     background: #f3f4f6;
@@ -280,110 +127,66 @@ body {
     background: white;
     padding: 25px;
     border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
     text-align: center;
 }
 
 #reader {
     width: 100%;
-    min-height: 420px;
-    border-radius: 16px;
-    overflow: hidden;
+    min-height: 400px;
     border: 2px dashed #6366f1;
-    padding: 10px;
-    background: #f9fafb;
-}
-
-#reader video {
-    width: 100% !important;
-    height: 420px !important;
-    object-fit: cover;
     border-radius: 12px;
 }
-
-.back-btn {
-    display: inline-block;
-    margin-top: 20px;
-    padding: 12px 15px;
-    background: #111827;
-    color: white;
-    border-radius: 10px;
-    text-decoration: none;
-}
-
-.back-btn:hover {
-    background: #000;
-}
-
 </style>
 </head>
 
 <body>
 
 <div class="card">
-
     <h2>Scan QR To Check-Out</h2>
 
     <div id="reader"></div>
 
     <form method="POST" id="scanForm">
-
         <input type="hidden" name="token" id="token">
-
     </form>
 
-    <a href="../admin/dashboard.php" class="back-btn">
-        ⬅ Go Back
-    </a>
 
 </div>
 
 <script>
+let qrScanner;
 
 function onScanSuccess(decodedText) {
+    console.log("QR:", decodedText);
 
-    document.getElementById("token").value = decodedText;
+    document.getElementById("token").value = decodedText.trim();
 
-    document.getElementById("scanForm").submit();
+    setTimeout(() => {
+        document.getElementById("scanForm").submit();
+    }, 300);
 }
 
-const html5QrCode = new Html5Qrcode("reader");
+/* ================= CAMERA ================= */
+qrScanner = new Html5Qrcode("reader");
 
-Html5Qrcode.getCameras().then(devices => {
-
-    if (devices && devices.length) {
-
-        html5QrCode.start(
-
-            { facingMode: "environment" },
-
-            {
-                fps: 15,
-
-                qrbox: {
-                    width: 280,
-                    height: 280
-                },
-
-                aspectRatio: 1.777,
-
-                disableFlip: false,
-
-                videoConstraints: {
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    focusMode: "continuous"
-                }
-            },
-
-            onScanSuccess
-        );
+Html5Qrcode.getCameras()
+.then(devices => {
+    if (!devices || devices.length === 0) {
+        alert("No camera found");
+        return;
     }
 
-}).catch(err => {
-
-    console.log(err);
+    qrScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        onScanSuccess
+    );
+})
+.catch(err => {
+    console.error(err);
+    alert("Camera not available or permission denied");
 });
+
 
 </script>
 

@@ -183,6 +183,7 @@ $employees = $stmt->get_result();
     <a href="#">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
       <a href="../api/checkin.php">🟢 Check In</a>
+      <a href="../api/lunch.php">🍽️ Lunch Break</a>
   <a href="../api/checkout.php">🔴 Check Out</a>
     <a href="leave_requests.php">📩 Manage Leaves</a>
     <a href="reports.php">📊 Reports</a>
@@ -244,7 +245,47 @@ $employees = $stmt->get_result();
 
   $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
   $isNewEmployee = ($empCreatedDate == $today);
+$currentHour = (int)date("H");
 
+$autoAbsent = false;
+
+if (
+    !$isNewEmployee &&
+    empty($todayAtt['check_in']) &&
+    empty($todayAtt['check_out']) &&
+    empty($todayAtt['lunch_out']) &&
+    empty($todayAtt['lunch_in']) &&
+    $currentHour >= 16
+) {
+    $autoAbsent = true;
+
+    $status = "Absent++";
+
+    // update DB automatically once
+    if (!empty($empId)) {
+
+        $checkAuto = $conn->prepare("
+            SELECT id FROM attendance 
+            WHERE user_id=? AND date=?
+        ");
+
+        $checkAuto->bind_param("is", $empId, $today);
+        $checkAuto->execute();
+        $res = $checkAuto->get_result()->fetch_assoc();
+
+        if ($res) {
+
+            $updateAuto = $conn->prepare("
+                UPDATE attendance
+                SET status='Absent++'
+                WHERE id=?
+            ");
+
+            $updateAuto->bind_param("i", $res['id']);
+            $updateAuto->execute();
+        }
+    }
+}
 $attStmt = $conn->prepare("
     SELECT *
     FROM attendance
@@ -271,6 +312,9 @@ if ($isNewEmployee) {
 } else {
 
     $status = $todayAtt['status'] ?? "Pending";
+    if ($autoAbsent) {
+    $status = "Absent++";
+}
 
     /*
     ============================================
@@ -328,22 +372,22 @@ $absent = 0;
 
 if (!$isNewEmployee) {
 
-    if (
-        $status == "Present" ||
-        $status == "Late" ||
-        $status == "Overtime"
-    ) {
-
-        $present = 1;
-
-    } elseif ($status == "Half Day") {
-
-        $half = 1;
-
-    } else {
-
-        $absent = 1;
-    }
+ if (
+    $status == "Present" ||
+    $status == "Late" ||
+    $status == "Overtime"
+) {
+    $present = 1;
+} elseif (
+    $status == "Half Day"
+) {
+    $half = 1;
+} elseif (
+    $status == "Absent++" ||
+    $status == "Absent"
+) {
+    $absent = 1;
+}
 }
 
   $perDay = 500;

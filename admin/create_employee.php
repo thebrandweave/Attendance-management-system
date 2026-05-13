@@ -307,11 +307,14 @@ async function downloadQR() {
 
   <!-- SIDEBAR -->
   <div class="sidebar">
-    <h2>Admin Panel</h2>
+   <h2 style="text-align:center;">
+  <?= htmlspecialchars($_SESSION['user']['branch']) ?> Admin 
+</h2>
 
     <a href="dashboard.php">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
     <a href="../api/checkin.php">🟢 Check In</a>
+     <a href="../api/lunch.php">🍽️ Lunch Break</a>
     <a href="../api/checkout.php">🔴 Check Out</a>
     <a href="leave_requests.php">📩 Manage Leaves</a>
     <a href="reports.php">📊 Reports</a>
