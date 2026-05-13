@@ -313,9 +313,9 @@ async function downloadQR() {
 
     <a href="dashboard.php">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
-    <a href="../api/checkin.php">🟢 Check In</a>
+    <a href="../api/checkin.php">🟢 Check In- Morning</a>
      <a href="../api/lunch.php">🍽️ Lunch Break</a>
-    <a href="../api/checkout.php">🔴 Check Out</a>
+    <a href="../api/checkout.php">🔴 Check Out- Evening</a>
     <a href="leave_requests.php">📩 Manage Leaves</a>
     <a href="reports.php">📊 Reports</a>
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
