@@ -108,6 +108,7 @@ $employees = $conn->query("
         SUM(
             CASE
                 WHEN attendance.status='Present'
+                    OR attendance.status='Overtime'
                 THEN 1
                 ELSE 0
             END
@@ -116,7 +117,7 @@ $employees = $conn->query("
         SUM(
             CASE
                 WHEN attendance.status='Absent'
-                    OR attendance.status='Overtime'
+                
                 THEN 1
                 ELSE 0
             END
