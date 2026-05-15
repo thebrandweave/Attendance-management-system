@@ -518,12 +518,15 @@ if (
         !empty($todayAtt['lunch_out']) &&
         !empty($todayAtt['lunch_in'])
     ) {
-        $lunchSeconds =
-            strtotime($todayAtt['lunch_in']) -
-            strtotime($todayAtt['lunch_out']);
+
+        $lunchOut = strtotime($todayAtt['lunch_out']);
+        $lunchIn  = strtotime($todayAtt['lunch_in']);
+
+        if ($lunchIn > $lunchOut) {
+            $lunchSeconds = $lunchIn - $lunchOut;
+        }
     }
 
-    // FINAL WORKING SECONDS
     $workingSeconds = $totalSeconds - $lunchSeconds;
 
     if ($workingSeconds > 0) {
@@ -531,9 +534,15 @@ if (
         $hours = floor($workingSeconds / 3600);
         $minutes = floor(($workingSeconds % 3600) / 60);
 
-        $workingHours = $hours . "." . $minutes . " hrs";
+        if ($hours == 0 && $minutes == 0) {
+            $workingHours = "Less than 1 min";
+        } else {
+            $workingHours = $hours . " hrs " . $minutes . " mins";
+        }
+
     } else {
-        $workingHours = "0 hrs 0 mins";
+
+        $workingHours = "0 hrs";
     }
 }
 ?>
