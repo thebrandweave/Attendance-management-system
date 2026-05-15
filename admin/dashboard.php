@@ -1,4 +1,8 @@
 <?php
+$lifetime = 60 * 60 * 24 * 30;
+
+session_set_cookie_params($lifetime);
+
 session_start();
 include("../config/db.php");
 
