@@ -193,7 +193,36 @@ $employees = $stmt->get_result();
       <a href="../api/checkin.php">🟢 Check In- Morning</a>
       <a href="../api/lunch.php">🍽️ Lunch Break</a>
   <a href="../api/checkout.php">🔴 Check Out- Evening</a>
-    <a href="leave_requests.php">📩 Manage Leaves</a>
+  <?php
+
+  $branch = $_SESSION['user']['branch'];
+$leaveCountQuery = $conn->query("
+    SELECT COUNT(*) as total
+    FROM leave_requests lr
+    LEFT JOIN users u ON lr.employee_id = u.id
+    WHERE u.branch='$branch'
+    AND lr.status='pending'
+");
+
+$leaveCount = $leaveCountQuery->fetch_assoc()['total'];
+?>
+
+<a href="leave_requests.php">
+    📩 Manage Leaves
+    <?php if($leaveCount > 0) { ?>
+        <span style="
+            background:#ef4444;
+            color:white;
+            padding:2px 8px;
+            border-radius:50px;
+            font-size:12px;
+            margin-left:8px;
+            font-weight:600;
+        ">
+            <?= $leaveCount ?>
+        </span>
+    <?php } ?>
+</a>
     <a href="reports.php">📊 Reports</a>
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
   </div>
