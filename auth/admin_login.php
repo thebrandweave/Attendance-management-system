@@ -1,5 +1,10 @@
 <?php
 
+// KEEP LOGIN FOR 30 DAYS
+$lifetime = 60 * 60 * 24 * 30;
+
+session_set_cookie_params($lifetime);
+
 session_start();
 
 include("../config/db.php");
@@ -26,6 +31,9 @@ if (isset($_POST['login'])) {
     $user = $result->fetch_assoc();
 
     if (password_verify($pass, $user['password'])) {
+
+      // SECURITY
+      session_regenerate_id(true);
 
       $_SESSION['user'] = $user;
       $_SESSION['branch'] = $user['branch'];
