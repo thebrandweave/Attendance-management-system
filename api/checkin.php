@@ -53,15 +53,21 @@ if (isset($_POST['token'])) {
         $stmt->execute();
         $attendance = $stmt->get_result()->fetch_assoc();
 
-        if (!$attendance) {
-            // Determine Status
-            if ($timeOnly <= "09:30:00") {
-                $status = "Present";
-            } elseif ($timeOnly <= "10:00:00") {
-                $status = "Late";
-            } else {
-                $status = "Half Day";
-            }
+      if (!$attendance) {
+
+    // Determine Status
+    if ($timeOnly <= "09:45:00") {
+
+        $status = "Present";
+
+    } elseif ($timeOnly <= "10:00:00") {
+
+        $status = "Late";
+
+    } else {
+
+        $status = "Half Day";
+    }
 
             $stmt = $conn->prepare("INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, ?)");
             $stmt->bind_param("isss", $userId, $today, $currentTime, $status);
