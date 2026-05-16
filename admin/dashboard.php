@@ -308,6 +308,7 @@ if (
     $autoAbsent = true;
 
     $status = "Absent";
+    $absent++ 
 
     // update DB automatically once
     if (!empty($empId)) {
@@ -450,7 +451,7 @@ $totalHours = "-";
 $totalHoursValue = 0;
 
 if (
-    !empty($todayAtt['check_in']) &&
+    !empty($todayAtt['check_in']) && 
     !empty($todayAtt['check_out'])
 ) {
 
