@@ -308,7 +308,6 @@ if (
     $autoAbsent = true;
 
     $status = "Absent";
-    $absent++ ;
 
     // update DB automatically once
     if (!empty($empId)) {
