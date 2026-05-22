@@ -57,14 +57,29 @@ if (isset($_POST['token'])) {
                 $toastColor = "#6366f1"; // Indigo
             } 
             /* ================= CASE 2: END LUNCH ================= */
-            elseif (empty($attendance['lunch_in'])) {
-                $stmt = $conn->prepare("UPDATE attendance SET lunch_in = ? WHERE id = ?");
-                $stmt->bind_param("si", $now, $attendance['id']);
-                $stmt->execute();
+        elseif (empty($attendance['lunch_in'])) {
 
-                $toastMessage = "Lunch Ended ✅ Welcome back!";
-                $toastColor = "#16a34a"; // Green
-            } 
+    $lunchOutTime = strtotime($attendance['lunch_out']);
+    $currentTime = strtotime($now);
+
+    $difference = $currentTime - $lunchOutTime;
+
+    // Minimum 60 seconds required
+    if ($difference < 60) {
+
+        $toastMessage = "Please wait before ending lunch ⏳";
+        $toastColor = "#f59e0b";
+
+    } else {
+
+        $stmt = $conn->prepare("UPDATE attendance SET lunch_in = ? WHERE id = ?");
+        $stmt->bind_param("si", $now, $attendance['id']);
+        $stmt->execute();
+
+        $toastMessage = "Lunch Ended ✅ Welcome back!";
+        $toastColor = "#16a34a";
+    }
+}
             /* ================= CASE 3: COMPLETED ================= */
             else {
                 $toastMessage = "Lunch already completed for today ❌";
@@ -153,9 +168,11 @@ if (isset($_POST['token'])) {
 
     <a href="../admin/dashboard.php" class="back-param back-btn">⬅ Go Back</a>
 </div>
-
 <script>
     const toast = document.getElementById("toast");
+
+    let scanned = false;
+    let html5QrCode;
 
     function showToast(message, color = "#111827") {
         toast.innerText = message;
@@ -167,33 +184,58 @@ if (isset($_POST['token'])) {
         }, 3000);
     }
 
-    // Trigger toast if PHP set a message
     <?php if ($toastMessage): ?>
         showToast("<?php echo $toastMessage; ?>", "<?php echo $toastColor; ?>");
     <?php endif; ?>
 
-    function onScanSuccess(decodedText) {
-        // Show processing state
-        toast.innerText = "Verifying QR... 🔄";
-        toast.style.backgroundColor = "#6366f1";
-        toast.classList.add("show");
+    async function onScanSuccess(decodedText) {
 
-        document.getElementById("token").value = decodedText;
-        document.getElementById("scanForm").submit();
+        // Prevent multiple scans
+        if (scanned) return;
+
+        scanned = true;
+
+        try {
+
+            // Stop scanner immediately
+            await html5QrCode.stop();
+
+            showToast("Verifying QR... 🔄", "#6366f1");
+
+            document.getElementById("token").value = decodedText;
+
+            // Small delay before submit
+            setTimeout(() => {
+                document.getElementById("scanForm").submit();
+            }, 500);
+
+        } catch (err) {
+            console.error(err);
+            scanned = false;
+        }
     }
 
-    let html5QrCode = new Html5Qrcode("reader");
-    Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-            html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                onScanSuccess
-            );
-        }
-    }).catch(err => {
-        showToast("Camera Error ❌", "#ef4444");
-    });
+    html5QrCode = new Html5Qrcode("reader");
+
+    Html5Qrcode.getCameras()
+        .then(devices => {
+
+            if (devices && devices.length) {
+
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    {
+                        fps: 5,
+                        qrbox: { width: 250, height: 250 }
+                    },
+                    onScanSuccess
+                );
+            }
+
+        })
+        .catch(err => {
+            showToast("Camera Error ❌", "#ef4444");
+        });
 </script>
 
 </body>
