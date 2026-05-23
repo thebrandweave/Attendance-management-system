@@ -254,7 +254,7 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
   </select>
 
 </div>
-
+<div id="tableContainer">
 <table id="employeeTable">
 
    
@@ -644,7 +644,7 @@ if (
 
       </table>
     </div>
-
+ </div>
   </div>
 </div>
 <!-- EDIT MODAL -->
@@ -768,6 +768,8 @@ if (
 
 <script>
 
+
+
 function formatDateTime(dateTime) {
 
     if (!dateTime) return "";
@@ -869,6 +871,46 @@ function checkAutoRedirect() {
         }
     }
 }
+</script>
+
+<script>
+
+function loadAttendanceTable() {
+
+    fetch(window.location.href)
+
+    .then(response => response.text())
+
+    .then(data => {
+
+        let parser = new DOMParser();
+
+        let htmlDoc = parser.parseFromString(data, 'text/html');
+
+        let newTable =
+            htmlDoc.querySelector('#tableContainer').innerHTML;
+
+        document.querySelector('#tableContainer').innerHTML =
+            newTable;
+    })
+
+    .catch(error => {
+        console.log("Refresh Error:", error);
+    });
+}
+
+/*
+========================================
+AUTO REFRESH EVERY 10 SECONDS
+========================================
+*/
+
+setInterval(() => {
+
+    loadAttendanceTable();
+
+}, 10000);
+
 </script>
 </body>
 </html>
