@@ -320,18 +320,37 @@ if (
         $checkAuto->bind_param("is", $empId, $today);
         $checkAuto->execute();
         $res = $checkAuto->get_result()->fetch_assoc();
+if ($res) {
 
-        if ($res) {
+    // UPDATE existing attendance row
+    $updateAuto = $conn->prepare("
+        UPDATE attendance
+        SET status='Absent'
+        WHERE id=?
+    ");
 
-            $updateAuto = $conn->prepare("
-                UPDATE attendance
-                SET status='Absent'
-                WHERE id=?
-            ");
+    $updateAuto->bind_param("i", $res['id']);
+    $updateAuto->execute();
 
-            $updateAuto->bind_param("i", $res['id']);
-            $updateAuto->execute();
-        }
+} else {
+
+    // INSERT absent record if no attendance row exists
+    $insertAbsent = $conn->prepare("
+        INSERT INTO attendance (
+            user_id,
+            date,
+            status
+        ) VALUES (?, ?, 'Absent')
+    ");
+
+    $insertAbsent->bind_param(
+        "is",
+        $empId,
+        $today
+    );
+
+    $insertAbsent->execute();
+}
     }
 }
 $attStmt = $conn->prepare("
