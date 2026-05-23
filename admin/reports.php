@@ -143,12 +143,7 @@ $employees = $conn->query("
 
     LEFT JOIN attendance
     ON users.id = attendance.user_id
-    AND attendance.date BETWEEN
-DATE(CONCAT('$month','-21'))
-AND LEAST(
-    LAST_DAY('$month-01'),
-    CURDATE()
-)
+    AND attendance.date LIKE '$month%'
 
     WHERE $whereEmployee
 
@@ -182,176 +177,26 @@ if (!empty($status_filter)) {
 }
 
 $history = $conn->query("
-
-WITH RECURSIVE dates AS (
-
-    SELECT DATE(CONCAT('$month','-21')) as report_date
-
-    UNION ALL
-
-    SELECT DATE_ADD(report_date, INTERVAL 1 DAY)
-
-    FROM dates
-
-    WHERE report_date < LEAST(
-    LAST_DAY('$month-01'),
-    CURDATE()
-)
-)
-
-SELECT
-
-    users.name,
-    users.employee_id,
-
-    dates.report_date as date,
-
-    CASE
-        WHEN attendance.status IS NULL
-        THEN 'Absent'
-        ELSE attendance.status
-    END as status,
-
-    attendance.check_in,
-    attendance.lunch_out,
+    SELECT
+        users.name,
+        users.employee_id,
+        attendance.date,
+        attendance.status,
+        attendance.check_in,
+       attendance.lunch_out,
     attendance.lunch_in,
     attendance.check_out,
     attendance.total_hours
 
-FROM dates
+    FROM attendance
 
-CROSS JOIN users
+    INNER JOIN users
+    ON users.id = attendance.user_id
 
-LEFT JOIN attendance
-ON attendance.user_id = users.id
-AND attendance.date = dates.report_date
+    WHERE $whereHistory
 
-WHERE users.role='employee'
-AND users.branch='$branch'
+    ORDER BY attendance.date DESC
 ");
-
-/*
-=========================================
-SEARCH FILTER
-=========================================
-*/
-
-if (!empty($search)) {
-
-    $history = $conn->query("
-
-    WITH RECURSIVE dates AS (
-
-        SELECT DATE('$month-01') as report_date
-
-        UNION ALL
-
-        SELECT DATE_ADD(report_date, INTERVAL 1 DAY)
-
-        FROM dates
-
-        WHERE report_date < LAST_DAY('$month-01')
-    )
-
-    SELECT
-
-        users.name,
-        users.employee_id,
-
-        dates.report_date as date,
-
-        CASE
-            WHEN attendance.status IS NULL
-            THEN 'Absent'
-            ELSE attendance.status
-        END as status,
-
-        attendance.check_in,
-        attendance.lunch_out,
-        attendance.lunch_in,
-        attendance.check_out,
-        attendance.total_hours
-
-    FROM dates
-
-    CROSS JOIN users
-
-    LEFT JOIN attendance
-    ON attendance.user_id = users.id
-    AND attendance.date = dates.report_date
-
-    WHERE users.role='employee'
-    AND users.branch='$branch'
-
-    AND (
-        users.employee_id LIKE '%$search%'
-        OR users.name LIKE '%$search%'
-    )
-    ");
-}
-
-/*
-=========================================
-STATUS FILTER
-=========================================
-*/
-
-if (!empty($status_filter)) {
-
-    $history = $conn->query("
-
-    WITH RECURSIVE dates AS (
-
-        SELECT DATE('$month-01') as report_date
-
-        UNION ALL
-
-        SELECT DATE_ADD(report_date, INTERVAL 1 DAY)
-
-        FROM dates
-
-        WHERE report_date < LAST_DAY('$month-01')
-    )
-
-    SELECT
-
-        users.name,
-        users.employee_id,
-
-        dates.report_date as date,
-
-        CASE
-            WHEN attendance.status IS NULL
-            THEN 'Absent'
-            ELSE attendance.status
-        END as status,
-
-        attendance.check_in,
-        attendance.lunch_out,
-        attendance.lunch_in,
-        attendance.check_out,
-        attendance.total_hours
-
-    FROM dates
-
-    CROSS JOIN users
-
-    LEFT JOIN attendance
-    ON attendance.user_id = users.id
-    AND attendance.date = dates.report_date
-
-    WHERE users.role='employee'
-    AND users.branch='$branch'
-
-    AND (
-        CASE
-            WHEN attendance.status IS NULL
-            THEN 'Absent'
-            ELSE attendance.status
-        END = '$status_filter'
-    )
-    ");
-}
 ?>
 
 <!DOCTYPE html>
@@ -955,10 +800,7 @@ if (!empty($status_filter)) {
                                 Present
                             </span>
 
-                        <?php elseif(
-    $row['status'] == 'Absent' ||
-    empty($row['check_in'])
-): ?>
+                        <?php elseif($row['status'] == 'Absent'): ?>
 
                             <span class="badge absent">
                                 Absent
