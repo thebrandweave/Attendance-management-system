@@ -143,7 +143,12 @@ $employees = $conn->query("
 
     LEFT JOIN attendance
     ON users.id = attendance.user_id
-    AND attendance.date LIKE '$month%'
+    AND attendance.date BETWEEN
+DATE(CONCAT('$month','-21'))
+AND LEAST(
+    LAST_DAY('$month-01'),
+    CURDATE()
+)
 
     WHERE $whereEmployee
 
