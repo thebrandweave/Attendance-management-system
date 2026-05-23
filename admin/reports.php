@@ -177,25 +177,128 @@ if (!empty($status_filter)) {
 }
 
 $history = $conn->query("
+
     SELECT
         users.name,
         users.employee_id,
-        attendance.date,
-        attendance.status,
+
+        COALESCE(attendance.date, CURDATE()) as date,
+
+        CASE
+            WHEN attendance.status IS NULL
+            THEN 'Absent'
+            ELSE attendance.status
+        END as status,
+
         attendance.check_in,
-       attendance.lunch_out,
-    attendance.lunch_in,
-    attendance.check_out,
-    attendance.total_hours
+        attendance.lunch_out,
+        attendance.lunch_in,
+        attendance.check_out,
+        attendance.total_hours
 
-    FROM attendance
+    FROM users
 
-    INNER JOIN users
+    LEFT JOIN attendance
     ON users.id = attendance.user_id
+    AND attendance.date LIKE '$month%'
 
-    WHERE $whereHistory
+    WHERE users.role='employee'
+    AND users.branch='$branch'
 
-    ORDER BY attendance.date DESC
+");
+
+/*
+=========================================
+SEARCH FILTER
+=========================================
+*/
+
+if (!empty($search)) {
+
+    $history = $conn->query("
+
+        SELECT
+            users.name,
+            users.employee_id,
+
+            COALESCE(attendance.date, CURDATE()) as date,
+
+            CASE
+                WHEN attendance.status IS NULL
+                THEN 'Absent'
+                ELSE attendance.status
+            END as status,
+
+            attendance.check_in,
+            attendance.lunch_out,
+            attendance.lunch_in,
+            attendance.check_out,
+            attendance.total_hours
+
+        FROM users
+
+        LEFT JOIN attendance
+        ON users.id = attendance.user_id
+        AND attendance.date LIKE '$month%'
+
+        WHERE users.role='employee'
+        AND users.branch='$branch'
+
+        AND (
+            users.employee_id LIKE '%$search%'
+            OR users.name LIKE '%$search%'
+        )
+
+    ");
+}
+
+/*
+=========================================
+STATUS FILTER
+=========================================
+*/
+
+if (!empty($status_filter)) {
+
+    $history = $conn->query("
+
+        SELECT
+            users.name,
+            users.employee_id,
+
+            COALESCE(attendance.date, CURDATE()) as date,
+
+            CASE
+                WHEN attendance.status IS NULL
+                THEN 'Absent'
+                ELSE attendance.status
+            END as status,
+
+            attendance.check_in,
+            attendance.lunch_out,
+            attendance.lunch_in,
+            attendance.check_out,
+            attendance.total_hours
+
+        FROM users
+
+        LEFT JOIN attendance
+        ON users.id = attendance.user_id
+        AND attendance.date LIKE '$month%'
+
+        WHERE users.role='employee'
+        AND users.branch='$branch'
+
+        AND (
+            attendance.status='$status_filter'
+            OR (
+                '$status_filter'='Absent'
+                AND attendance.status IS NULL
+            )
+        )
+
+    ");
+}
 ");
 ?>
 
@@ -800,7 +903,10 @@ $history = $conn->query("
                                 Present
                             </span>
 
-                        <?php elseif($row['status'] == 'Absent'): ?>
+                        <?php elseif(
+    $row['status'] == 'Absent' ||
+    empty($row['check_in'])
+): ?>
 
                             <span class="badge absent">
                                 Absent
