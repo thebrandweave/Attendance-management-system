@@ -177,7 +177,6 @@ if (!empty($status_filter)) {
 }
 
 $history = $conn->query("
-
     SELECT
         users.name,
         users.employee_id,
@@ -205,100 +204,7 @@ $history = $conn->query("
     WHERE users.role='employee'
     AND users.branch='$branch'
 
-");
-
-/*
-=========================================
-SEARCH FILTER
-=========================================
-*/
-
-if (!empty($search)) {
-
-    $history = $conn->query("
-
-        SELECT
-            users.name,
-            users.employee_id,
-
-            COALESCE(attendance.date, CURDATE()) as date,
-
-            CASE
-                WHEN attendance.status IS NULL
-                THEN 'Absent'
-                ELSE attendance.status
-            END as status,
-
-            attendance.check_in,
-            attendance.lunch_out,
-            attendance.lunch_in,
-            attendance.check_out,
-            attendance.total_hours
-
-        FROM users
-
-        LEFT JOIN attendance
-        ON users.id = attendance.user_id
-        AND attendance.date LIKE '$month%'
-
-        WHERE users.role='employee'
-        AND users.branch='$branch'
-
-        AND (
-            users.employee_id LIKE '%$search%'
-            OR users.name LIKE '%$search%'
-        )
-
-    ");
-}
-
-/*
-=========================================
-STATUS FILTER
-=========================================
-*/
-
-if (!empty($status_filter)) {
-
-    $history = $conn->query("
-
-        SELECT
-            users.name,
-            users.employee_id,
-
-            COALESCE(attendance.date, CURDATE()) as date,
-
-            CASE
-                WHEN attendance.status IS NULL
-                THEN 'Absent'
-                ELSE attendance.status
-            END as status,
-
-            attendance.check_in,
-            attendance.lunch_out,
-            attendance.lunch_in,
-            attendance.check_out,
-            attendance.total_hours
-
-        FROM users
-
-        LEFT JOIN attendance
-        ON users.id = attendance.user_id
-        AND attendance.date LIKE '$month%'
-
-        WHERE users.role='employee'
-        AND users.branch='$branch'
-
-        AND (
-            attendance.status='$status_filter'
-            OR (
-                '$status_filter'='Absent'
-                AND attendance.status IS NULL
-            )
-        )
-
-    ");
-}
+    ORDER BY date DESC
 ");
 ?>
 
