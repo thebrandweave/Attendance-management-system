@@ -177,11 +177,80 @@ if (!empty($status_filter)) {
 }
 
 $history = $conn->query("
+
+WITH RECURSIVE dates AS (
+
+    SELECT DATE('$month-01') as report_date
+
+    UNION ALL
+
+    SELECT DATE_ADD(report_date, INTERVAL 1 DAY)
+
+    FROM dates
+
+    WHERE report_date < LAST_DAY('$month-01')
+)
+
+SELECT
+
+    users.name,
+    users.employee_id,
+
+    dates.report_date as date,
+
+    CASE
+        WHEN attendance.status IS NULL
+        THEN 'Absent'
+        ELSE attendance.status
+    END as status,
+
+    attendance.check_in,
+    attendance.lunch_out,
+    attendance.lunch_in,
+    attendance.check_out,
+    attendance.total_hours
+
+FROM dates
+
+CROSS JOIN users
+
+LEFT JOIN attendance
+ON attendance.user_id = users.id
+AND attendance.date = dates.report_date
+
+WHERE users.role='employee'
+AND users.branch='$branch'
+");
+
+/*
+=========================================
+SEARCH FILTER
+=========================================
+*/
+
+if (!empty($search)) {
+
+    $history = $conn->query("
+
+    WITH RECURSIVE dates AS (
+
+        SELECT DATE('$month-01') as report_date
+
+        UNION ALL
+
+        SELECT DATE_ADD(report_date, INTERVAL 1 DAY)
+
+        FROM dates
+
+        WHERE report_date < LAST_DAY('$month-01')
+    )
+
     SELECT
+
         users.name,
         users.employee_id,
 
-        COALESCE(attendance.date, CURDATE()) as date,
+        dates.report_date as date,
 
         CASE
             WHEN attendance.status IS NULL
@@ -195,17 +264,86 @@ $history = $conn->query("
         attendance.check_out,
         attendance.total_hours
 
-    FROM users
+    FROM dates
+
+    CROSS JOIN users
 
     LEFT JOIN attendance
-    ON users.id = attendance.user_id
-    AND attendance.date LIKE '$month%'
+    ON attendance.user_id = users.id
+    AND attendance.date = dates.report_date
 
     WHERE users.role='employee'
     AND users.branch='$branch'
 
-    ORDER BY date DESC
-");
+    AND (
+        users.employee_id LIKE '%$search%'
+        OR users.name LIKE '%$search%'
+    )
+    ");
+}
+
+/*
+=========================================
+STATUS FILTER
+=========================================
+*/
+
+if (!empty($status_filter)) {
+
+    $history = $conn->query("
+
+    WITH RECURSIVE dates AS (
+
+        SELECT DATE('$month-01') as report_date
+
+        UNION ALL
+
+        SELECT DATE_ADD(report_date, INTERVAL 1 DAY)
+
+        FROM dates
+
+        WHERE report_date < LAST_DAY('$month-01')
+    )
+
+    SELECT
+
+        users.name,
+        users.employee_id,
+
+        dates.report_date as date,
+
+        CASE
+            WHEN attendance.status IS NULL
+            THEN 'Absent'
+            ELSE attendance.status
+        END as status,
+
+        attendance.check_in,
+        attendance.lunch_out,
+        attendance.lunch_in,
+        attendance.check_out,
+        attendance.total_hours
+
+    FROM dates
+
+    CROSS JOIN users
+
+    LEFT JOIN attendance
+    ON attendance.user_id = users.id
+    AND attendance.date = dates.report_date
+
+    WHERE users.role='employee'
+    AND users.branch='$branch'
+
+    AND (
+        CASE
+            WHEN attendance.status IS NULL
+            THEN 'Absent'
+            ELSE attendance.status
+        END = '$status_filter'
+    )
+    ");
+}
 ?>
 
 <!DOCTYPE html>
