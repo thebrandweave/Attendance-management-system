@@ -180,7 +180,7 @@ $history = $conn->query("
 
 WITH RECURSIVE dates AS (
 
-    SELECT DATE('$month-01') as report_date
+    SELECT DATE('2026-05-21') as report_date
 
     UNION ALL
 
@@ -188,7 +188,7 @@ WITH RECURSIVE dates AS (
 
     FROM dates
 
-    WHERE report_date < LAST_DAY('$month-01')
+    WHERE report_date < CURDATE()
 )
 
 SELECT
