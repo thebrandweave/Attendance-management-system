@@ -82,6 +82,107 @@ $attendancePercent = $totalAttendance
     ? round((($present + ($half * 0.5)) / $totalAttendance) * 100, 2)
     : 0;
 
+
+
+/*
+=========================================
+AUTO INSERT ABSENT FOR MISSING DAYS
+=========================================
+*/
+
+$startDate = $month . "-01";
+$endDate = date("Y-m-t", strtotime($startDate));
+
+$currentDate = date("Y-m-d");
+
+$employeesAbsent = $conn->query("
+    SELECT id, created_at
+    FROM users
+    WHERE role='employee'
+    AND branch='$branch'
+");
+
+while ($emp = $employeesAbsent->fetch_assoc()) {
+
+    $empId = $emp['id'];
+
+    $joinDate = date(
+        "Y-m-d",
+        strtotime($emp['created_at'])
+    );
+
+    $dateLoop = strtotime($startDate);
+
+    while ($dateLoop <= strtotime($endDate)) {
+
+        $loopDate = date("Y-m-d", $dateLoop);
+
+        /*
+        =====================================
+        SKIP FUTURE DATES
+        =====================================
+        */
+
+        if ($loopDate >= $currentDate) {
+            break;
+        }
+
+        /*
+        =====================================
+        SKIP BEFORE EMPLOYEE JOIN DATE
+        =====================================
+        */
+
+        if ($loopDate < $joinDate) {
+            $dateLoop = strtotime("+1 day", $dateLoop);
+            continue;
+        }
+
+        /*
+        =====================================
+        SKIP SUNDAYS
+        =====================================
+        */
+
+        if (date("N", strtotime($loopDate)) == 7) {
+            $dateLoop = strtotime("+1 day", $dateLoop);
+            continue;
+        }
+
+        /*
+        =====================================
+        CHECK ATTENDANCE EXISTS
+        =====================================
+        */
+
+        $check = $conn->query("
+            SELECT id
+            FROM attendance
+            WHERE user_id='$empId'
+            AND date='$loopDate'
+        ");
+
+        if ($check->num_rows == 0) {
+
+            $conn->query("
+                INSERT INTO attendance (
+                    user_id,
+                    date,
+                    status
+                ) VALUES (
+                    '$empId',
+                    '$loopDate',
+                    'Absent'
+                )
+            ");
+        }
+
+        $dateLoop = strtotime("+1 day", $dateLoop);
+    }
+}
+
+
+
 /* =========================
    EMPLOYEE SUMMARY REPORT
 ========================= */
