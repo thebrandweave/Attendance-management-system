@@ -28,7 +28,7 @@ $check = $conn->query("
 ");
 
 if ($check->num_rows > 0) {
-  exit("Already checked in ❌");
+  exit("Already checked checkin_p in ❌");
 }
 
 $now = date("H:i:s");
