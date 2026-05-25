@@ -26,11 +26,37 @@ $branch = $_SESSION['user']['branch'];
    TOTAL DAYS IN MONTH
 ========================= */
 
-$totalDaysInMonth = cal_days_in_month(
+/*
+=========================================
+TOTAL WORKING DAYS (EXCLUDING SUNDAYS)
+=========================================
+*/
+
+$totalDaysInMonth = 0;
+
+$year = date('Y', strtotime($month));
+$monthNumber = date('m', strtotime($month));
+
+$totalCalendarDays = cal_days_in_month(
     CAL_GREGORIAN,
-    date('m', strtotime($month)),
-    date('Y', strtotime($month))
+    $monthNumber,
+    $year
 );
+
+for ($day = 1; $day <= $totalCalendarDays; $day++) {
+
+    $currentDateCheck = $year . "-" .
+        str_pad($monthNumber, 2, "0", STR_PAD_LEFT) .
+        "-" .
+        str_pad($day, 2, "0", STR_PAD_LEFT);
+
+    // SKIP SUNDAY
+    if (date("N", strtotime($currentDateCheck)) == 7) {
+        continue;
+    }
+
+    $totalDaysInMonth++;
+}
 
 /* =========================
    DASHBOARD SUMMARY
