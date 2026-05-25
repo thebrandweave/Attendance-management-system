@@ -271,6 +271,7 @@ $employees = $conn->query("
     LEFT JOIN attendance
     ON users.id = attendance.user_id
     AND attendance.date LIKE '$month%'
+    AND DAYOFWEEK(attendance.date) != 1
 
     WHERE $whereEmployee
 
@@ -285,6 +286,7 @@ $employees = $conn->query("
 
 $whereHistory = "
 attendance.date LIKE '$month%'
+AND DAYOFWEEK(attendance.date) != 1
 AND users.role='employee'
 AND users.branch='$branch'
 ";
