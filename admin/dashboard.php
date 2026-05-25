@@ -295,9 +295,12 @@ $todayAtt = $attStmt->get_result()->fetch_assoc();
   $isNewEmployee = ($empCreatedDate == $today);
 $currentHour = (int)date("H");
 
+$isSunday = (date("w") == 0);
+
 $autoAbsent = false;
 
 if (
+    !$isSunday && // SKIP SUNDAYS
     !$isNewEmployee &&
     empty($todayAtt['check_in']) &&
     empty($todayAtt['check_out']) &&
