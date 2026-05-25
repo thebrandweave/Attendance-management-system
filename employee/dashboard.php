@@ -22,7 +22,12 @@ $presentQuery = $conn->query("
   SELECT COUNT(*) AS total_present
   FROM attendance
   WHERE user_id = $userId
-  AND (status = 'Present' OR status = 'Late' OR status = 'Overtime')
+  AND DAYOFWEEK(date) != 1
+  AND (
+      status = 'Present'
+      OR status = 'Late'
+      OR status = 'Overtime'
+  )
 ");
 
 $presentData = $presentQuery->fetch_assoc();
@@ -45,9 +50,15 @@ $allAttendance = $conn->query("
     a.check_in,
     a.check_out,
     a.status
+
   FROM attendance a
-  INNER JOIN users u ON a.user_id = u.id
+
+  INNER JOIN users u
+  ON a.user_id = u.id
+
   WHERE a.user_id = $userId
+  AND DAYOFWEEK(a.date) != 1
+
   ORDER BY a.date DESC
 ");
 
