@@ -225,8 +225,8 @@ th{
 <label>Leave Title</label>
 <input type="text" name="title" placeholder="Example: Bakrid Holiday" required>
 
-<label>Description</label>
-<textarea name="description" rows="4" placeholder="Optional"></textarea>
+<!-- <label>Description</label>
+<textarea name="description" rows="4" placeholder="Optional"></textarea> -->
 
 <button type="submit">
     Add Leave
@@ -242,7 +242,7 @@ th{
 <tr>
     <th>Date</th>
     <th>Title</th>
-    <th>Description</th>
+    <!-- <th>Description</th> -->
     <th>Status</th>
 </tr>
 
@@ -257,9 +257,9 @@ th{
         <?= htmlspecialchars($row['title']) ?>
     </td>
 
-    <td>
+    <!-- <td>
         <?= htmlspecialchars($row['description']) ?>
-    </td>
+    </td> -->
 
     <td>
 
