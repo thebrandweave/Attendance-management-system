@@ -259,7 +259,70 @@ RESPONSIVE DESIGN
     width: 100%;
   }
 }
+/* =========================================
+14 INCH LAPTOPS (1366px WIDTH)
+========================================= */
 
+@media (max-width: 1366px) {
+
+  .sidebar {
+    width: 220px;
+    padding: 18px;
+  }
+
+  .sidebar h2 {
+    font-size: 18px;
+  }
+
+  .sidebar a {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .main {
+    padding: 18px;
+  }
+
+  .header {
+    padding: 16px;
+    font-size: 15px;
+  }
+
+  .card {
+    overflow-x: auto;
+  }
+
+  table {
+    font-size: 12px;
+    min-width: 1050px;
+  }
+
+  th,
+  td {
+    padding: 9px;
+    white-space: nowrap;
+  }
+
+  .filters {
+    gap: 8px;
+  }
+
+  .filters input,
+  .filters select {
+    font-size: 13px;
+    padding: 9px;
+  }
+
+  #tableContainer {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  button,
+  a {
+    font-size: 12px;
+  }
+}
 /* MOBILE DEVICES */
 @media (max-width: 768px) {
 
