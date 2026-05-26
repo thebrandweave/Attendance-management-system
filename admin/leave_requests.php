@@ -174,6 +174,7 @@ $branch = $_SESSION['user']['branch'];
         <a href="../api/lunch.php">🍽️ Lunch Break</a>
   <a href="../api/checkout.php">🔴 Check Out- Evening</a>
     <a href="leave_requests.php">📩 Manage Leaves</a>
+    <a href="add_leave.php">📅 Company Leaves</a>
     <a href="reports.php">📊 Reports</a>
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
   </div>

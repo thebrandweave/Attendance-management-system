@@ -223,6 +223,7 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
         </span>
     <?php } ?>
 </a>
+<a href="add_leave.php">📅 Company Leaves</a>
     <a href="reports.php">📊 Reports</a>
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
   </div>
