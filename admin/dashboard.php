@@ -542,7 +542,7 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
 
 <?php endif; ?>
 
-<div id="tableContainer" style="overflow-x:auto; width:100%;">
+<div id="tableContainer" >
     
 <table id="employeeTable">
 
