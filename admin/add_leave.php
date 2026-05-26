@@ -243,10 +243,12 @@ th{
     <th>Date</th>
     <th>Title</th>
     <th>Description</th>
+    <th>Status</th>
 </tr>
 
 <?php while($row = $leaves->fetch_assoc()): ?>
 <tr>
+
     <td>
         <?= date("d M Y", strtotime($row['leave_date'])) ?>
     </td>
@@ -258,6 +260,63 @@ th{
     <td>
         <?= htmlspecialchars($row['description']) ?>
     </td>
+
+    <td>
+
+<?php
+
+$today = date("Y-m-d");
+
+if ($row['leave_date'] == $today) {
+
+    echo '
+    <span style="
+        background:#f59e0b;
+        color:white;
+        padding:6px 12px;
+        border-radius:20px;
+        font-size:12px;
+        font-weight:600;
+    ">
+        Today
+    </span>
+    ';
+
+} elseif ($row['leave_date'] > $today) {
+
+    echo '
+    <span style="
+        background:#16a34a;
+        color:white;
+        padding:6px 12px;
+        border-radius:20px;
+        font-size:12px;
+        font-weight:600;
+    ">
+        Upcoming
+    </span>
+    ';
+
+} else {
+
+    echo '
+    <span style="
+        background:#6b7280;
+        color:white;
+        padding:6px 12px;
+        border-radius:20px;
+        font-size:12px;
+        font-weight:600;
+    ">
+        Completed
+    </span>
+    ';
+}
+
+?>
+
+    </td>
+
 </tr>
 <?php endwhile; ?>
 
