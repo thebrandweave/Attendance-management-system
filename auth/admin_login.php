@@ -254,7 +254,7 @@ if (isset($_POST['login'])) {
 
     <i
       id="eyeIcon"
-      class="fa-solid fa-eye"
+      class="fa-solid fa-eye-slash"
       onclick="togglePassword()"
     ></i>
 
