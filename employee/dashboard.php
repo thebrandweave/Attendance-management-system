@@ -13,7 +13,6 @@ $user = $_SESSION['user'];
 $userId = (int)$user['id'];
 $today = date("Y-m-d");
 
-
 /* =======================
    TOTAL PRESENT DAYS
 ======================= */
@@ -58,7 +57,7 @@ $allAttendance = $conn->query("
 ");
 
 /* =======================
-   LEAVES (FIXED)
+   LEAVES
 ======================= */
 $leaves = $conn->query("
   SELECT * FROM leave_requests 
@@ -107,7 +106,38 @@ body {
 }
 
 /* =========================
-   SIDEBAR
+   MOBILE HEADER (HAMBURGER)
+========================= */
+.mobile-top-bar {
+  display: none;
+  background: #111827;
+  color: white;
+  padding: 15px 20px;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.mobile-top-bar h2 {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.hamburger-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* =========================
+   SIDEBAR (DESKTOP DEFAULT)
 ========================= */
 .sidebar {
   width: 260px;
@@ -119,6 +149,8 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  transition: transform 0.3s ease;
+  z-index: 999;
 }
 
 .sidebar h2 {
@@ -126,7 +158,6 @@ body {
   margin-bottom: 30px;
   font-size: 20px;
   font-weight: 600;
-  letter-spacing: 0.5px;
 }
 
 .sidebar a {
@@ -149,13 +180,25 @@ body {
 .sidebar .logout {
   background: #ef4444;
   color: white;
-  margin-top: auto; /* Pushes logout to bottom on desktop */
+  margin-top: auto;
   text-align: center;
 }
 
 .sidebar .logout:hover {
   background: #dc2626;
   transform: none;
+}
+
+/* Overlay for Mobile Navigation drawer */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998;
 }
 
 /* =========================
@@ -182,9 +225,6 @@ h1 {
   font-size: 14px;
 }
 
-/* =========================
-   CARDS & BADGES
-========================= */
 .present-badge {
   background: #16a34a;
   color: white;
@@ -193,14 +233,13 @@ h1 {
   display: inline-block;
   margin-bottom: 24px;
   font-size: 14px;
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2);
 }
 
 .card {
   background: white;
   padding: 24px;
   border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   margin-bottom: 24px;
 }
 
@@ -220,13 +259,10 @@ h1 {
 }
 
 /* =========================
-   TABLES
+   TABLE CONFIGURATION
 ========================= */
 .table-wrapper {
   width: 100%;
-  overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
 }
 
 table {
@@ -242,7 +278,6 @@ th {
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
   border-bottom: 2px solid #e2e8f0;
 }
 
@@ -251,20 +286,13 @@ td {
   border-bottom: 1px solid #e2e8f0;
   font-size: 14px;
   color: #334155;
-  white-space: nowrap;
-}
-
-tr:last-child td {
-  border-bottom: none;
 }
 
 tr:hover {
   background: #f8fafc;
 }
 
-/* =========================
-   STATUS BADGES
-========================= */
+/* Badges */
 .status-badge {
   padding: 4px 10px;
   border-radius: 12px;
@@ -272,16 +300,11 @@ tr:hover {
   font-weight: 500;
   color: white;
   display: inline-block;
-  text-align: center;
 }
-
 .status-approved { background: #16a34a; }
 .status-rejected { background: #ef4444; }
 .status-pending { background: #f59e0b; }
 
-/* =========================
-   NOTICES
-========================= */
 .warning-box {
   background: #fffbeb;
   color: #b45309;
@@ -294,83 +317,103 @@ tr:hover {
 }
 
 /* ==================================
-   RESPONSIVE MEDIA QUERIES (FIXED)
+   RESPONSIVE DESIGN SYSTEM
 ================================== */
 
-/* Tablets and small laptops */
 @media (max-width: 992px) {
   .layout {
     flex-direction: column;
   }
 
+  .mobile-top-bar {
+    display: flex; /* Shows top navigation header bar */
+  }
+
+  /* Morphing sidebar into off-canvas side drawer */
   .sidebar {
-    width: 100%;
-    height: auto;
-    position: relative;
-    padding: 20px;
-    gap: 8px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 280px;
+    transform: translateX(-100%); /* Hides offscreen initially */
+    box-shadow: 5px 0 15px rgba(0,0,0,0.2);
   }
 
-  .sidebar h2 {
-    margin-bottom: 15px;
+  /* Triggered via JS toggle setup */
+  .sidebar.active {
+    transform: translateX(0);
   }
 
-  .sidebar-menu {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .sidebar a {
-    margin: 0;
-    flex: 1 1 calc(33.33% - 8px);
-    text-align: center;
-    font-size: 13px;
-    padding: 10px;
+  .sidebar.active + .sidebar-overlay {
+    display: block;
   }
 
   .sidebar .logout {
-    margin-top: 0;
+    margin-top: 40px; 
   }
 
   .main {
-    padding: 24px;
+    padding: 20px;
   }
 }
 
-/* Mobile Screens */
-@media (max-width: 600px) {
-  .sidebar a {
-    flex: 1 1 calc(50% - 8px);
-  }
-  
-  .main {
-    padding: 16px;
+/* CRITICAL BREAKPOINT FOR TABLE ADJUSTMENTS */
+@media (max-width: 768px) {
+  h1 { font-size: 22px; }
+  .card { padding: 16px; }
+
+  /* Force table structures to behave like block layouts */
+  table, thead, tbody, th, td, tr {
+    display: block;
   }
 
-  h1 {
-    font-size: 22px;
+  /* Hide traditional header lines visually */
+  thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
   }
 
-  .card {
-    padding: 16px;
+  tr {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    padding: 8px 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
   }
 
-  .card h2 {
-    font-size: 16px;
+  tr:hover {
+    background: #ffffff;
   }
 
-  th, td {
-    padding: 10px 12px;
-    font-size: 13px;
+  td {
+    border: none;
+    border-bottom: 1px dashed #f1f5f9;
+    position: relative;
+    padding-left: 45% !important; /* Forces whitespace segment for custom row targets */
+    text-align: left;
+    white-space: normal;
+    min-height: 40px;
   }
-}
 
-/* Tiny Mobile Devices */
-@media (max-width: 400px) {
-  .sidebar a {
-    flex: 1 1 100%;
+  td:last-child {
+    border-bottom: none;
+  }
+
+  /* Feed pseudo-headers inline leveraging data attributes */
+  td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 16px;
+    width: 40%;
+    padding-right: 10px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    font-size: 11px;
+    white-space: nowrap;
   }
 }
 </style>
@@ -378,21 +421,25 @@ tr:hover {
 
 <body>
 
+<div class="mobile-top-bar">
+  <h2>Employee Panel</h2>
+  <button class="hamburger-btn" id="menuToggle">☰</button>
+</div>
+
 <div class="layout">
 
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
     <h2>Employee Panel</h2>
-    <div class="sidebar-menu">
-      <a href="#">Dashboard</a>
-      <a href="apply_leave.php">Apply Leave</a>
-      <a href="../auth/logout.php" class="logout">Logout</a>
-    </div>
+    <a href="#">Dashboard</a>
+    <a href="apply_leave.php">Apply Leave</a>
+    <a href="../auth/logout.php" class="logout">Logout</a>
   </div>
+  
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <div class="main">
 
     <h1>Welcome back, <?= htmlspecialchars($user['name']) ?></h1>
-    
     <div class="emp-id-text">
       Employee ID: <strong><?= htmlspecialchars($user['employee_id']) ?></strong>
     </div>
@@ -403,7 +450,6 @@ tr:hover {
 
     <div class="card">
       <h2>Today's Attendance</h2>
-
       <?php if ($attendance) { 
         $checkInTime = date("H:i:s", strtotime($attendance['check_in']));
         $isLateWarning = ($checkInTime >= "09:40:00" && $checkInTime <= "10:00:00");
@@ -418,7 +464,6 @@ tr:hover {
         <p><strong>Status:</strong> <?= htmlspecialchars($attendance['status']); ?></p>
         <p><strong>Check In:</strong> <?= date("h:i A", strtotime($attendance['check_in'])) ?></p>
         <p><strong>Check Out:</strong> <?= $attendance['check_out'] ? date("h:i A", strtotime($attendance['check_out'])) : "Not yet" ?></p>
-
       <?php } else { ?>
         <p>No attendance marked today</p>
       <?php } ?>
@@ -439,10 +484,10 @@ tr:hover {
           <tbody>
             <?php while ($row = $leaves->fetch_assoc()) { ?>
             <tr>
-              <td><?= htmlspecialchars($row['date']) ?></td>
-              <td><?= htmlspecialchars($row['type']) ?></td>
-              <td><?= htmlspecialchars($row['reason']) ?></td>
-              <td>
+              <td data-label="Date"><?= htmlspecialchars($row['date']) ?></td>
+              <td data-label="Type"><?= htmlspecialchars($row['type']) ?></td>
+              <td data-label="Reason"><?= htmlspecialchars($row['reason']) ?></td>
+              <td data-label="Status">
                 <span class="status-badge status-<?= strtolower($row['status']) ?>">
                   <?= ucfirst(htmlspecialchars($row['status'])) ?>
                 </span>
@@ -472,9 +517,9 @@ tr:hover {
                 $isUpcoming = ($leave['leave_date'] > $today);
               ?>
               <tr>
-                <td><?= date("d M Y", strtotime($leave['leave_date'])) ?></td>
-                <td><?= htmlspecialchars($leave['title']) ?></td>
-                <td>
+                <td data-label="Leave Date"><?= date("d M Y", strtotime($leave['leave_date'])) ?></td>
+                <td data-label="Title"><?= htmlspecialchars($leave['title']) ?></td>
+                <td data-label="Status">
                   <?php if($isToday): ?>
                     <span class="status-badge" style="background:#7c3aed;">Today</span>
                   <?php elseif($isUpcoming): ?>
@@ -487,7 +532,7 @@ tr:hover {
               <?php endwhile; ?>
             <?php else: ?>
               <tr>
-                <td colspan="3">No company leaves available</td>
+                <td colspan="3" style="text-align: center; padding-left: 16px !important;">No company leaves available</td>
               </tr>
             <?php endif; ?>
           </tbody>
@@ -512,16 +557,16 @@ tr:hover {
             <?php if ($allAttendance && $allAttendance->num_rows > 0) { ?>
               <?php while ($row = $allAttendance->fetch_assoc()) { ?>
               <tr>
-                <td><?= htmlspecialchars($row['employee_id']) ?></td>
-                <td><?= htmlspecialchars($row['date']) ?></td>
-                <td><?= $row['check_in'] ? date("h:i A", strtotime($row['check_in'])) : '-' ?></td>
-                <td><?= $row['check_out'] ? date("h:i A", strtotime($row['check_out'])) : '-' ?></td>
-                <td><?= htmlspecialchars($row['status'] ?? '-') ?></td>
+                <td data-label="Employee ID"><?= htmlspecialchars($row['employee_id']) ?></td>
+                <td data-label="Date"><?= htmlspecialchars($row['date']) ?></td>
+                <td data-label="Check In"><?= $row['check_in'] ? date("h:i A", strtotime($row['check_in'])) : '-' ?></td>
+                <td data-label="Check Out"><?= $row['check_out'] ? date("h:i A", strtotime($row['check_out'])) : '-' ?></td>
+                <td data-label="Status"><?= htmlspecialchars($row['status'] ?? '-') ?></td>
               </tr>
               <?php } ?>
             <?php } else { ?>
               <tr>
-                <td colspan="5">No attendance records found</td>
+                <td colspan="5" style="text-align: center; padding-left: 16px !important;">No attendance records found</td>
               </tr>
             <?php } ?>
           </tbody>
@@ -531,6 +576,19 @@ tr:hover {
 
   </div>
 </div>
+
+<script>
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+  function toggleMenu() {
+    sidebar.classList.toggle('active');
+  }
+
+  menuToggle.addEventListener('click', toggleMenu);
+  sidebarOverlay.addEventListener('click', toggleMenu);
+</script>
 
 </body>
 </html>
