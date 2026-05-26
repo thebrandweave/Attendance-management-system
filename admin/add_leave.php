@@ -223,7 +223,7 @@ th{
 <input type="date" name="leave_date" required>
 
 <label>Leave Title</label>
-<input type="text" name="title" placeholder="Example: Bakrid Holiday" required>
+<input type="text" name="title" placeholder="Leave Title" required>
 
 <!-- <label>Description</label>
 <textarea name="description" rows="4" placeholder="Optional"></textarea> -->
