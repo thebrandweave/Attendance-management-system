@@ -233,13 +233,17 @@ $employees = $conn->query("
         users.employee_id,
 
         SUM(
-            CASE
-                WHEN attendance.status='Present'
-                    OR attendance.status='Overtime'
-                THEN 1
-                ELSE 0
-            END
-        ) as present_count,
+    CASE
+        WHEN attendance.status='Present'
+            OR attendance.status='Overtime'
+            OR (
+                attendance.total_hours >= 6.75
+                AND attendance.total_hours <= 7
+            )
+        THEN 1
+        ELSE 0
+    END
+) as present_count,
 
         SUM(
             CASE
@@ -921,29 +925,76 @@ $history = $conn->query("
                         <?= $row['employee_id'] ?>
                     </td>
 
-                    <td>
+               <td>
 
-                        <?php if($row['status'] == 'Present'): ?>
+<?php
 
-                            <span class="badge present">
-                                Present
-                            </span>
+/*
+=========================================
+AUTO PRESENT IF HOURS BETWEEN
+6:45 hrs AND 7 hrs
+=========================================
+*/
 
-                        <?php elseif($row['status'] == 'Absent'): ?>
+$displayStatus = $row['status'];
 
-                            <span class="badge absent">
-                                Absent
-                            </span>
+if (
+    !empty($row['check_in']) &&
+    !empty($row['check_out'])
+) {
 
-                        <?php elseif($row['status'] == 'Half Day'): ?>
+    $checkIn  = strtotime($row['check_in']);
+    $checkOut = strtotime($row['check_out']);
 
-                            <span class="badge half">
-                                Half Day
-                            </span>
-<?php elseif($row['status'] == 'Overtime'): ?>
+    $totalSeconds = $checkOut - $checkIn;
+
+    $lunchSeconds = 0;
+
+    if (
+        !empty($row['lunch_out']) &&
+        !empty($row['lunch_in'])
+    ) {
+
+        $lunchSeconds =
+            strtotime($row['lunch_in']) -
+            strtotime($row['lunch_out']);
+    }
+
+    $workingHours =
+        ($totalSeconds - $lunchSeconds) / 3600;
+
+    if (
+        $workingHours >= 6.75 &&
+        $workingHours <= 7
+    ) {
+        $displayStatus = "Present";
+    }
+}
+
+?>
+
+<?php if($displayStatus == 'Present'): ?>
 
     <span class="badge present">
         Present
+    </span>
+
+<?php elseif($displayStatus == 'Absent'): ?>
+
+    <span class="badge absent">
+        Absent
+    </span>
+
+<?php elseif($displayStatus == 'Half Day'): ?>
+
+    <span class="badge half">
+        Half Day
+    </span>
+
+<?php elseif($displayStatus == 'Overtime'): ?>
+
+    <span class="badge present">
+        Overtime
     </span>
 
 <?php else: ?>
@@ -953,8 +1004,6 @@ $history = $conn->query("
     </span>
 
 <?php endif; ?>
-
-                    </td>
 
                 <td>
     <?= !empty($row['check_in'])
