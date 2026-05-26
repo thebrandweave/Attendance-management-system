@@ -70,7 +70,7 @@ $user = $_SESSION['user'];
       cursor: pointer;
       display: flex;
       align-items: center;
-      /* justify-content:end; */
+      justify-content:end;
     }
 
     /* ===== SIDEBAR (MATCHED) ===== */
