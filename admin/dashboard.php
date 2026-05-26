@@ -255,8 +255,7 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
   </select>
 
 </div>
-<div id="tableContainer">
-    <?php if($isCompanyLeave): ?>
+<?php if($isCompanyLeave): ?>
 
 <div style="
     background:#fef3c7;
@@ -271,6 +270,8 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
 </div>
 
 <?php endif; ?>
+<div id="tableContainer">
+    
 <table id="employeeTable">
 
    
