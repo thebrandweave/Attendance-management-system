@@ -445,6 +445,133 @@ $todayAtt = $attStmt
     ->get_result()
     ->fetch_assoc();
 
+    /*
+============================================
+AUTO CHECKOUT + OVERTIME LOGIC
+============================================
+*/
+
+$currentDateTime = date("Y-m-d H:i:s");
+$currentTimeOnly = date("H:i:s");
+
+$autoCheckoutTime = $today . " 17:30:00";
+$overtimeStart = "17:35:00";
+$overtimeEnd = "21:00:00";
+
+/*
+============================================
+AUTO CHECKOUT AT 9PM
+If employee forgot checkout
+============================================
+*/
+
+if (
+    $todayAtt &&
+    !empty($todayAtt['check_in']) &&
+    empty($todayAtt['check_out']) &&
+    $currentTimeOnly >= "21:00:00"
+) {
+
+    $checkInTime = strtotime($todayAtt['check_in']);
+    $autoOutTime = strtotime($autoCheckoutTime);
+
+    $totalSeconds = $autoOutTime - $checkInTime;
+
+    $lunchSeconds = 0;
+
+    if (
+        !empty($todayAtt['lunch_out']) &&
+        !empty($todayAtt['lunch_in'])
+    ) {
+
+        $lunchSeconds =
+            strtotime($todayAtt['lunch_in']) -
+            strtotime($todayAtt['lunch_out']);
+    }
+
+    $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
+
+    $status = "Present";
+
+    $updateAutoCheckout = $conn->prepare("
+        UPDATE attendance
+        SET
+            check_out=?,
+            total_hours=?,
+            status=?
+        WHERE id=?
+    ");
+
+    $updateAutoCheckout->bind_param(
+        "sdsi",
+        $autoCheckoutTime,
+        $workingHours,
+        $status,
+        $todayAtt['id']
+    );
+
+    $updateAutoCheckout->execute();
+
+    // refresh attendance
+    $attStmt = $conn->prepare("
+        SELECT *
+        FROM attendance
+        WHERE user_id=?
+        AND date=?
+    ");
+
+    $attStmt->bind_param("is", $empId, $today);
+    $attStmt->execute();
+
+    $todayAtt = $attStmt
+        ->get_result()
+        ->fetch_assoc();
+}
+
+/*
+============================================
+OVERTIME STATUS
+Checkout between 5:35 PM and 9 PM
+============================================
+*/
+
+if (
+    $todayAtt &&
+    !empty($todayAtt['check_out'])
+) {
+
+    $checkoutOnly = date(
+        "H:i:s",
+        strtotime($todayAtt['check_out'])
+    );
+
+    if (
+        $checkoutOnly >= $overtimeStart &&
+        $checkoutOnly <= $overtimeEnd
+    ) {
+
+        $status = "Overtime";
+
+    } else {
+
+        $status = "Present";
+    }
+
+    $updateStmt = $conn->prepare("
+        UPDATE attendance
+        SET status=?
+        WHERE id=?
+    ");
+
+    $updateStmt->bind_param(
+        "si",
+        $status,
+        $todayAtt['id']
+    );
+
+    $updateStmt->execute();
+}
+
 if ($isNewEmployee) {
 
     $status = null;

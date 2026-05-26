@@ -97,9 +97,13 @@ while ($row = $summary->fetch_assoc()) {
         $absent = $row['total'];
     }
 
-    elseif ($row['status'] == "Late") {
-        $late = $row['total'];
-    }
+  elseif ($row['status'] == "Late") {
+    $late = $row['total'];
+}
+
+elseif ($row['status'] == "Overtime") {
+    $present += $row['total'];
+}
 }
 
 $totalAttendance = $present + $absent + $half;
@@ -120,6 +124,105 @@ $startDate = $month . "-01";
 $endDate = date("Y-m-t", strtotime($startDate));
 
 $currentDate = date("Y-m-d");
+/*
+=========================================
+AUTO CHECKOUT FOR MISSED EMPLOYEES
+AT 9:00 PM
+=========================================
+*/
+
+$currentTimeOnly = date("H:i:s");
+
+if ($currentTimeOnly >= "21:00:00") {
+
+    $pendingCheckout = $conn->query("
+        SELECT *
+        FROM attendance
+        WHERE date='$currentDate'
+        AND check_in IS NOT NULL
+        AND (
+            check_out IS NULL
+            OR check_out=''
+        )
+    ");
+
+    while ($att = $pendingCheckout->fetch_assoc()) {
+
+        $attendanceId = $att['id'];
+
+        $checkInTime = strtotime($att['check_in']);
+
+        /*
+        =====================================
+        AUTO CHECKOUT TIME = 5:30 PM
+        =====================================
+        */
+
+        $autoCheckoutDateTime =
+            $currentDate . " 17:30:00";
+
+        $autoCheckoutTime =
+            strtotime($autoCheckoutDateTime);
+
+        /*
+        =====================================
+        LUNCH TIME
+        =====================================
+        */
+
+        $lunchSeconds = 0;
+
+        if (
+            !empty($att['lunch_out']) &&
+            !empty($att['lunch_in'])
+        ) {
+
+            $lunchSeconds =
+                strtotime($att['lunch_in']) -
+                strtotime($att['lunch_out']);
+        }
+
+        /*
+        =====================================
+        FINAL WORKING HOURS
+        =====================================
+        */
+
+        $totalSeconds =
+            $autoCheckoutTime -
+            $checkInTime;
+
+        $workingHours =
+            ($totalSeconds - $lunchSeconds) / 3600;
+
+        /*
+        =====================================
+        UPDATE AS PRESENT
+        =====================================
+        */
+
+        $status = "Present";
+
+        $updateAuto = $conn->prepare("
+            UPDATE attendance
+            SET
+                check_out=?,
+                total_hours=?,
+                status=?
+            WHERE id=?
+        ");
+
+        $updateAuto->bind_param(
+            "sdsi",
+            $autoCheckoutDateTime,
+            $workingHours,
+            $status,
+            $attendanceId
+        );
+
+        $updateAuto->execute();
+    }
+}
 
 $employeesAbsent = $conn->query("
     SELECT id, created_at
@@ -736,6 +839,12 @@ $history = $conn->query("
                     >
                         Late
                     </option>
+                    <option
+    value="Overtime"
+    <?= $status_filter == 'Overtime' ? 'selected' : '' ?>
+>
+    Overtime
+</option>
 
                 </select>
 

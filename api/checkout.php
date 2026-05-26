@@ -61,25 +61,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
             $toastColor = "#ef4444";
         } else {
             /* ================= TIME CALCULATION ================= */
-            $checkIn = strtotime($attendance['check_in']);
-            $checkOut = strtotime($currentTime);
-            $totalSeconds = $checkOut - $checkIn;
-            $totalHours = round($totalSeconds / 3600, 2);
 
-            /* ================= STATUS DETERMINATION ================= */
-            if ($totalHours >= 8) {
-                $status = "Present";
-            } elseif ($totalHours >= 6) {
-                $status = "Half Day";
-            } elseif ($totalHours > 0) {
-                $status = "Short Day";
-            } else {
-                $status = "Absent";
-            }
 
-            /* ================= UPDATE DATABASE ================= */
-            $stmt = $conn->prepare("UPDATE attendance SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
-            $stmt->bind_param("sdsi", $currentTime, $totalHours, $status, $attendance['id']);
+$checkIn = strtotime($attendance['check_in']);
+$checkOut = strtotime($currentTime);
+
+$totalSeconds = $checkOut - $checkIn;
+$totalHours = round($totalSeconds / 3600, 2);
+
+/* ================= OVERTIME LOGIC ================= */
+
+$checkoutTimeOnly = date(
+    "H:i",
+    strtotime($currentTime)
+);
+
+if (
+    $checkoutTimeOnly >= "17:35" &&
+    $checkoutTimeOnly <= "21:00"
+) {
+
+    $status = "Overtime";
+
+} else {
+
+    $status = "Present";
+}
+
+/* ================= UPDATE DATABASE ================= */
+
+$stmt = $conn->prepare("
+    UPDATE attendance
+    SET
+        check_out = ?,
+        total_hours = ?,
+        status = ?
+    WHERE id = ?
+");
+
+$stmt->bind_param(
+    "sdsi",
+    $currentTime,
+    $totalHours,
+    $status,
+    $attendance['id']
+);
             
             if ($stmt->execute()) {
                 $toastMessage = "Check-Out Successful ✅ Hours: $totalHours";
