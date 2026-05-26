@@ -232,14 +232,10 @@ $employees = $conn->query("
         users.name,
         users.employee_id,
 
-        SUM(
+     SUM(
     CASE
         WHEN attendance.status='Present'
             OR attendance.status='Overtime'
-            OR (
-                attendance.total_hours >= 6.75
-                AND attendance.total_hours <= 7
-            )
         THEN 1
         ELSE 0
     END
