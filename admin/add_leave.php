@@ -73,11 +73,12 @@ $leaves = $conn->query("
 
 <style>
 
-body{
-    font-family:Poppins,sans-serif;
-    background:#f4f7fb;
-    padding:30px;
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  background: #eef2f7;
 }
+
 
 
 /* ===== LAYOUT ===== */
