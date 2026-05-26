@@ -389,7 +389,7 @@ if ($isNewEmployee) {
     /*
     ============================================
     OVERTIME STATUS
-    IF WORKING HOURS > 7
+    IF WORKING HOURS > 6.75
     ============================================
     */
 if (
@@ -415,9 +415,9 @@ if (
 
     $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
 
-    if ($workingHours > 7) {
+    if ($workingHours > 6.75) {
 
-        $status = "Overtime";
+        $status = "Present";
 
         $updateStmt = $conn->prepare("
             UPDATE attendance
