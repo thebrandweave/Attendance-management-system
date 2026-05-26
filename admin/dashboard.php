@@ -164,6 +164,11 @@ $employees = $stmt->get_result();
   padding:7px;
 }
 
+.status-companyleave{
+    color:#7c3aed;
+    font-weight:700;
+}
+
 .filters input,
 .filters select{
   padding:10px;
@@ -259,17 +264,24 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
 
 <div style="
     background:#fef3c7;
+    border-left:6px solid #f59e0b;
     color:#92400e;
-    padding:15px;
+    padding:16px;
     border-radius:12px;
     margin-bottom:20px;
     font-weight:600;
+    box-shadow:0 4px 10px rgba(0,0,0,0.05);
 ">
-    📅 Today is a company leave:
-    <?= htmlspecialchars($leaveData['title']) ?>
+
+    📅 Today is a Company Leave:
+    <span style="font-weight:700;">
+        <?= htmlspecialchars($leaveData['title']) ?>
+    </span>
+
 </div>
 
 <?php endif; ?>
+
 <div id="tableContainer">
     
 <table id="employeeTable">
@@ -293,7 +305,32 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
           <th>Action</th>
         </tr>
 
-<?php while ($emp = $employees->fetch_assoc()) {
+        
+
+<?php 
+
+/*
+========================================
+CHECK COMPANY LEAVE
+========================================
+*/
+
+$leaveCheck = $conn->prepare("
+    SELECT id, title
+    FROM company_leaves
+    WHERE leave_date=?
+");
+
+$leaveCheck->bind_param("s", $today);
+
+$leaveCheck->execute();
+
+$leaveData = $leaveCheck
+    ->get_result()
+    ->fetch_assoc();
+
+$isCompanyLeave = !empty($leaveData);
+while ($emp = $employees->fetch_assoc()) {
 
   $empId = $emp['id'];
   $attStmt = $conn->prepare("
@@ -414,7 +451,14 @@ if ($isNewEmployee) {
 
 } else {
 
+  if ($isCompanyLeave) {
+
+    $status = "Company Leave";
+
+} else {
+
     $status = $todayAtt['status'] ?? "Pending";
+}
     if ($autoAbsent) {
     $status = "Absent";
 }
