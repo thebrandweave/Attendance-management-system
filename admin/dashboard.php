@@ -42,6 +42,7 @@ $employees = $stmt->get_result();
   <title>Admin Dashboard</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
     body {
@@ -180,6 +181,202 @@ $employees = $stmt->get_result();
     color: #7c3aed;
     font-weight: 600;
 }
+
+
+/* =========================================
+RESPONSIVE DESIGN
+========================================= */
+
+/* LARGE LAPTOPS */
+@media (max-width: 1400px) {
+
+  .main {
+    padding: 20px;
+  }
+
+  table {
+    font-size: 13px;
+  }
+
+  th,
+  td {
+    padding: 10px;
+  }
+}
+
+/* TABLETS */
+@media (max-width: 1024px) {
+
+  .layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    padding: 15px;
+  }
+
+  .sidebar h2 {
+    font-size: 18px;
+  }
+
+  .sidebar a {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .main {
+    padding: 15px;
+  }
+
+  .header {
+    font-size: 15px;
+    padding: 15px;
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters input,
+  .filters select {
+    width: 100%;
+  }
+
+  .card {
+    overflow-x: auto;
+  }
+
+  table {
+    min-width: 1000px;
+  }
+
+  #tableContainer {
+    overflow-x: auto;
+    width: 100%;
+  }
+}
+
+/* MOBILE DEVICES */
+@media (max-width: 768px) {
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .sidebar {
+    padding: 12px;
+  }
+
+  .sidebar h2 {
+    font-size: 16px;
+    margin-bottom: 15px;
+  }
+
+  .sidebar a {
+    font-size: 13px;
+    margin: 5px 0;
+    padding: 10px;
+  }
+
+  .main {
+    padding: 10px;
+  }
+
+  .header {
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .card h3 {
+    font-size: 16px;
+    text-align: center;
+  }
+
+  .filters {
+    gap: 8px;
+  }
+
+  .filters input,
+  .filters select {
+    width: 100%;
+    font-size: 14px;
+  }
+
+  table {
+    min-width: 1100px;
+  }
+
+  th {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  td {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .status-present,
+  .status-late,
+  .status-halfday,
+  .status-absent,
+  .status-companyleave,
+  .status-overtime {
+    font-size: 12px;
+  }
+
+  button,
+  a {
+    font-size: 12px !important;
+  }
+
+  #editModal > div {
+    width: 95% !important;
+    padding: 18px !important;
+  }
+}
+
+/* SMALL MOBILE */
+@media (max-width: 480px) {
+
+  .sidebar h2 {
+    font-size: 15px;
+  }
+
+  .sidebar a {
+    font-size: 12px;
+    padding: 9px;
+  }
+
+  .header {
+    font-size: 13px;
+    padding: 12px;
+  }
+
+  .card h3 {
+    font-size: 15px;
+  }
+
+  th,
+  td {
+    padding: 8px;
+    font-size: 11px;
+  }
+
+  .filters input,
+  .filters select {
+    padding: 9px;
+    font-size: 13px;
+  }
+
+  #editModal > div {
+    width: 96% !important;
+  }
+}
   </style>
 </head>
 
@@ -282,7 +479,7 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
 
 <?php endif; ?>
 
-<div id="tableContainer">
+<div id="tableContainer" style="overflow-x:auto; width:100%;">
     
 <table id="employeeTable">
 

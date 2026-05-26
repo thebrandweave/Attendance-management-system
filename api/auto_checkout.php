@@ -51,22 +51,60 @@ if ($currentTime >= "21:00") {
         $autoCheckoutTime =
             $today . " 17:30:00";
 
-        /*
-        ==================================================
-        CALCULATE TOTAL HOURS
-        ==================================================
-        */
+       /*
+==================================================
+CALCULATE WORKING HOURS
+(5:30 PM AUTO CHECKOUT)
+==================================================
+*/
 
-        $checkIn = strtotime($row['check_in']);
+$checkIn = strtotime($row['check_in']);
 
-        $checkOut = strtotime($autoCheckoutTime);
+$checkOut = strtotime($autoCheckoutTime);
 
-        $totalSeconds = $checkOut - $checkIn;
+$totalSeconds = $checkOut - $checkIn;
 
-        $totalHours = round(
-            $totalSeconds / 3600,
-            2
-        );
+/*
+==================================================
+SUBTRACT LUNCH TIME
+==================================================
+*/
+
+$lunchSeconds = 0;
+
+if (
+    !empty($row['lunch_out']) &&
+    !empty($row['lunch_in'])
+) {
+
+    $lunchOut = strtotime($row['lunch_out']);
+
+    $lunchIn = strtotime($row['lunch_in']);
+
+    if ($lunchIn > $lunchOut) {
+
+        $lunchSeconds =
+            $lunchIn - $lunchOut;
+    }
+}
+
+/*
+==================================================
+FINAL WORKING SECONDS
+==================================================
+*/
+
+$workingSeconds =
+    $totalSeconds - $lunchSeconds;
+
+if ($workingSeconds < 0) {
+    $workingSeconds = 0;
+}
+
+$totalHours = round(
+    $workingSeconds / 3600,
+    2
+);
 
         /*
         ==================================================
