@@ -256,6 +256,21 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
 
 </div>
 <div id="tableContainer">
+    <?php if($isCompanyLeave): ?>
+
+<div style="
+    background:#fef3c7;
+    color:#92400e;
+    padding:15px;
+    border-radius:12px;
+    margin-bottom:20px;
+    font-weight:600;
+">
+    📅 Today is a company leave:
+    <?= htmlspecialchars($leaveData['title']) ?>
+</div>
+
+<?php endif; ?>
 <table id="employeeTable">
 
    
@@ -298,10 +313,26 @@ $currentHour = (int)date("H");
 
 $isSunday = (date("w") == 0);
 
+$leaveCheck = $conn->prepare("
+    SELECT id, title
+    FROM company_leaves
+    WHERE leave_date=?
+");
+
+$leaveCheck->bind_param("s", $today);
+$leaveCheck->execute();
+
+$leaveData = $leaveCheck
+    ->get_result()
+    ->fetch_assoc();
+
+$isCompanyLeave = !empty($leaveData);
+
 $autoAbsent = false;
 
 if (
     !$isSunday && // SKIP SUNDAYS
+    !$isCompanyLeave &&
     !$isNewEmployee &&
     empty($todayAtt['check_in']) &&
     empty($todayAtt['check_out']) &&
