@@ -415,9 +415,16 @@ if (
 
     $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
 
-    if ($workingHours > 7) {
+   if ($workingHours >= 6.75 && $workingHours <= 7) {
 
-        $status = "Overtime";
+    // 6 hrs 45 mins to 7 hrs
+    $status = "Present";
+
+} elseif ($workingHours > 7) {
+
+    // More than 7 hrs
+    $status = "Overtime";
+}
 
         $updateStmt = $conn->prepare("
             UPDATE attendance
