@@ -70,6 +70,16 @@ $leaves = $conn->query("
   WHERE employee_id = $userId
   ORDER BY date DESC
 ");
+
+/* =======================
+   COMPANY LEAVES
+======================= */
+
+$companyLeaves = $conn->query("
+    SELECT *
+    FROM company_leaves
+    ORDER BY leave_date DESC
+");
 ?>
 
 <!DOCTYPE html>
@@ -557,7 +567,92 @@ $isLateWarning =
   </div>
 </div>
 
+<!-- COMPANY LEAVES -->
+<div class="card">
 
+  <h2>Company Leave Announcements</h2>
+
+  <div class="table-wrapper">
+
+  <table>
+
+    <tr>
+      <th>Leave Date</th>
+      <th>Title</th>
+      <th>Status</th>
+    </tr>
+
+    <?php if($companyLeaves->num_rows > 0): ?>
+
+      <?php while($leave = $companyLeaves->fetch_assoc()): ?>
+
+      <?php
+        $isToday =
+            ($leave['leave_date'] == $today);
+
+        $isUpcoming =
+            ($leave['leave_date'] > $today);
+      ?>
+
+      <tr>
+
+        <td>
+          <?= date(
+                "d M Y",
+                strtotime($leave['leave_date'])
+          ) ?>
+        </td>
+
+        <td>
+          <?= htmlspecialchars($leave['title']) ?>
+        </td>
+
+        <td>
+
+          <?php if($isToday): ?>
+
+            <span class="status-badge"
+              style="background:#7c3aed;">
+              Today
+            </span>
+
+          <?php elseif($isUpcoming): ?>
+
+            <span class="status-badge"
+              style="background:#2563eb;">
+              Upcoming
+            </span>
+
+          <?php else: ?>
+
+            <span class="status-badge"
+              style="background:#6b7280;">
+              Completed
+            </span>
+
+          <?php endif; ?>
+
+        </td>
+
+      </tr>
+
+      <?php endwhile; ?>
+
+    <?php else: ?>
+
+      <tr>
+        <td colspan="3">
+          No company leaves available
+        </td>
+      </tr>
+
+    <?php endif; ?>
+
+  </table>
+
+  </div>
+
+</div>
 <!-- HISTORY -->
 <div class="card">
 
