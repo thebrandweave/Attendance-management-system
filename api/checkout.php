@@ -179,7 +179,33 @@ $checkIn = strtotime($attendance['check_in']);
 $checkOut = strtotime($currentTime);
 
 $totalSeconds = $checkOut - $checkIn;
-$totalHours = round($totalSeconds / 3600, 2);
+
+/* ================= LUNCH DEDUCTION ================= */
+
+$lunchSeconds = 0;
+
+if (
+    !empty($attendance['lunch_out']) &&
+    !empty($attendance['lunch_in'])
+) {
+
+    $lunchOut = strtotime($attendance['lunch_out']);
+    $lunchIn  = strtotime($attendance['lunch_in']);
+
+    if ($lunchIn > $lunchOut) {
+        $lunchSeconds = $lunchIn - $lunchOut;
+    }
+}
+
+/* ================= FINAL WORKING HOURS ================= */
+
+$workingSeconds = $totalSeconds - $lunchSeconds;
+
+if ($workingSeconds < 0) {
+    $workingSeconds = 0;
+}
+
+$totalHours = round($workingSeconds / 3600, 2);
 
 /* ================= OVERTIME LOGIC ================= */
 
