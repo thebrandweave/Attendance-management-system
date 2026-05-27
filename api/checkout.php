@@ -6,6 +6,118 @@ session_start();
 include("../config/db.php");
 
 date_default_timezone_set("Asia/Kolkata");
+/* =====================================================
+   AUTO CHECKOUT AFTER 9:00 PM
+===================================================== */
+
+$currentTimeOnly = date("H:i");
+
+if ($currentTimeOnly >= "21:00") {
+
+    $today = date("Y-m-d");
+
+    $autoCheckoutQuery = $conn->query("
+        SELECT *
+        FROM attendance
+        WHERE date='$today'
+        AND check_in IS NOT NULL
+        AND (
+            check_out IS NULL
+            OR check_out=''
+        )
+    ");
+
+    while ($row = $autoCheckoutQuery->fetch_assoc()) {
+
+        $attendanceId = $row['id'];
+
+        /*
+        ============================================
+        AUTO CHECKOUT TIME
+        ============================================
+        */
+
+        $autoCheckoutTime =
+            $today . " 17:30:00";
+
+        $checkIn = strtotime($row['check_in']);
+        $checkOut = strtotime($autoCheckoutTime);
+
+        $totalSeconds = $checkOut - $checkIn;
+
+        /*
+        ============================================
+        LUNCH BREAK CALCULATION
+        ============================================
+        */
+
+        $lunchSeconds = 0;
+
+        if (
+            !empty($row['lunch_out']) &&
+            !empty($row['lunch_in'])
+        ) {
+
+            $lunchOut = strtotime($row['lunch_out']);
+            $lunchIn = strtotime($row['lunch_in']);
+
+            if ($lunchIn > $lunchOut) {
+                $lunchSeconds = $lunchIn - $lunchOut;
+            }
+        }
+
+        /*
+        ============================================
+        FINAL WORKING HOURS
+        ============================================
+        */
+
+        $workingSeconds =
+            $totalSeconds - $lunchSeconds;
+
+        if ($workingSeconds < 0) {
+            $workingSeconds = 0;
+        }
+
+        $totalHours = round(
+            $workingSeconds / 3600,
+            2
+        );
+
+        /*
+        ============================================
+        STATUS
+        ============================================
+        */
+
+        $status = "Present";
+
+        /*
+        ============================================
+        UPDATE ATTENDANCE
+        ============================================
+        */
+
+        $updateStmt = $conn->prepare("
+            UPDATE attendance
+            SET
+                check_out=?,
+                total_hours=?,
+                status=?
+            WHERE id=?
+        ");
+
+        $updateStmt->bind_param(
+            "sdsi",
+            $autoCheckoutTime,
+            $totalHours,
+            $status,
+            $attendanceId
+        );
+
+        $updateStmt->execute();
+    }
+}
 
 if (!isset($_SESSION['user'])) {
     header("Location: ../index.php");
