@@ -1027,7 +1027,30 @@ $history = $conn->query("
 
                 <?php while($row = $history->fetch_assoc()): ?>
 
-                <tr>
+              <?php
+
+$currentRowDate = date("Y-m-d", strtotime($row['date']));
+
+$lightColors = [
+    "#fef2f2", // light red
+    "#eff6ff", // light blue
+    "#f0fdf4", // light green
+    "#fff7ed", // light orange
+    "#faf5ff", // light purple
+    "#fdf2f8", // light pink
+    "#ecfeff", // light cyan
+    "#f9fafb"  // light gray
+];
+
+$colorIndex =
+    abs(crc32($currentRowDate))
+    % count($lightColors);
+
+$rowBgColor = $lightColors[$colorIndex];
+
+?>
+
+<tr style="background: <?= $rowBgColor ?>;">
 
                     <td>
                         <?= date("d M Y", strtotime($row['date'])) ?>
