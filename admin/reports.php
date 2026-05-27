@@ -21,6 +21,7 @@ $month = $_GET['month'] ?? date("Y-m");
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status'] ?? '';
 $branch = $_SESSION['user']['branch'];
+$isMudipuBranch = strtolower($branch) == "mudipu";
 
 /* =========================
    TOTAL DAYS IN MONTH
@@ -51,9 +52,12 @@ for ($day = 1; $day <= $totalCalendarDays; $day++) {
         str_pad($day, 2, "0", STR_PAD_LEFT);
 
     // SKIP SUNDAY
-    if (date("N", strtotime($currentDateCheck)) == 7) {
-        continue;
-    }
+   if (
+    !$isMudipuBranch &&
+    date("N", strtotime($currentDateCheck)) == 7
+) {
+    continue;
+}
 
     $totalDaysInMonth++;
 }
@@ -273,10 +277,13 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         =====================================
         */
 
-        if (date("N", strtotime($loopDate)) == 7) {
-            $dateLoop = strtotime("+1 day", $dateLoop);
-            continue;
-        }
+        if (
+    !$isMudipuBranch &&
+    date("N", strtotime($loopDate)) == 7
+) {
+    $dateLoop = strtotime("+1 day", $dateLoop);
+    continue;
+}
 
         /*
         =====================================
@@ -374,7 +381,7 @@ $employees = $conn->query("
     LEFT JOIN attendance
     ON users.id = attendance.user_id
     AND attendance.date LIKE '$month%'
-    AND DAYOFWEEK(attendance.date) != 1
+    " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
 
     WHERE $whereEmployee
 
@@ -389,10 +396,14 @@ $employees = $conn->query("
 
 $whereHistory = "
 attendance.date LIKE '$month%'
-AND DAYOFWEEK(attendance.date) != 1
 AND users.role='employee'
 AND users.branch='$branch'
 ";
+
+if (!$isMudipuBranch) {
+    $whereHistory .= "
+    AND DAYOFWEEK(attendance.date) != 1";
+}
 
 if (!empty($search)) {
 
