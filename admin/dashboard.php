@@ -349,7 +349,10 @@ $todayAtt = $attStmt->get_result()->fetch_assoc();
   $isNewEmployee = ($empCreatedDate == $today);
 $currentHour = (int)date("H");
 
-$isSunday = (date("w") == 0);
+$isSunday = (
+    date("w") == 0 &&
+    strtolower($adminBranch) != "mudipu"
+);
 
 $leaveCheck = $conn->prepare("
     SELECT id, title
