@@ -27,11 +27,24 @@ $isMudipuBranch = strtolower($branch) == "mudipu";
    FETCH COMPANY LEAVES
 ========================= */
 $companyLeaves = [];
-$leaveQuery = $conn->query("SELECT leave_date FROM company_leaves WHERE leave_date LIKE '$month%'");
-while ($lRow = $leaveQuery->fetch_assoc()) {
+
+// Extract year and month safely from the $month variable (e.g., "2026-05")
+$filterYear = date('Y', strtotime($month));
+$filterMonth = date('m', strtotime($month));
+
+// Using explicit YEAR() and MONTH() SQL functions instead of LIKE
+$leaveQuery = $conn->prepare("
+    SELECT leave_date 
+    FROM company_leaves 
+    WHERE YEAR(leave_date) = ? AND MONTH(leave_date) = ?
+");
+$leaveQuery->bind_param("ss", $filterYear, $filterMonth);
+$leaveQuery->execute();
+$result = $leaveQuery->get_result();
+
+while ($lRow = $result->fetch_assoc()) {
     $companyLeaves[] = $lRow['leave_date'];
 }
-
 /* =========================
    TOTAL DAYS IN MONTH
 ========================= */
