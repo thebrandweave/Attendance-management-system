@@ -191,25 +191,31 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
             continue;
         }
 
-        // Determine correct status default strategy
-        $defaultStatus = in_array($loopDate, $companyLeaves) ? 'CL' : 'Absent';
+        // Determine correct status based on company leave list
+        $isCompanyLeave = in_array($loopDate, $companyLeaves);
+        $defaultStatus = $isCompanyLeave ? 'CL' : 'Absent';
 
         $check = $conn->query("SELECT id, status FROM attendance WHERE user_id='$empId' AND date='$loopDate'");
         
         if ($check->num_rows == 0) {
+            // Insert missing date records normally
             $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', '$defaultStatus')");
         } else {
-            // If it exists but it was registered as absent on a company leave day mistakenly, fix it
             $existing = $check->fetch_assoc();
-            if ($defaultStatus == 'CL' && $existing['status'] == 'Absent') {
+            
+            // FIX: If a company leave day is currently recorded as 'Absent', force update it to 'CL'
+            if ($isCompanyLeave && $existing['status'] == 'Absent') {
                 $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
+            }
+            // ALTERNATIVE FIX: If a date is NO LONGER a company leave but marked as CL, revert back to Absent
+            elseif (!$isCompanyLeave && $existing['status'] == 'CL') {
+                $conn->query("UPDATE attendance SET status='Absent' WHERE id=" . $existing['id']);
             }
         }
 
         $dateLoop = strtotime("+1 day", $dateLoop);
     }
 }
-
 /* =========================
    EMPLOYEE SUMMARY REPORT
 ========================= */
