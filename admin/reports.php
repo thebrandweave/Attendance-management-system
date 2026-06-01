@@ -362,7 +362,7 @@ $history = $conn->query("
             placeholder="Search Employee Name / ID" 
             value="<?= htmlspecialchars($search) ?>"
         >
-                <input type="text" name="search" placeholder="Search Employee Name / ID" value="<?= $search ?>">
+                <!-- <input type="text" name="search" placeholder="Search Employee Name / ID" value="<?= $search ?>"> -->
                 <select name="status">
                     <option value="">All Status</option>
                     <option value="Present" <?= $status_filter == 'Present' ? 'selected' : '' ?>>Present</option>
