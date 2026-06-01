@@ -14,88 +14,83 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
 }
 
 /* =========================
-   FILTERS
+   FILTERS & CUSTOM DATE RANGE (21st to 20th)
 ========================= */
 
-$month = $_GET['month'] ?? date("Y-m");
+$month = $_GET['month'] ?? date("Y-m"); // Selected/Current month (e.g., "2026-05")
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status'] ?? '';
 $branch = $_SESSION['user']['branch'];
 $isMudipuBranch = strtolower($branch) == "mudipu";
 
+// Calculate custom start and end dates for the 21st to 20th cycle
+$startDate = date("Y-m-21", strtotime("-1 month", strtotime($month . "-01")));
+$endDate   = date("Y-m-20", strtotime($month . "-01"));
+
 /* =========================
-   FETCH COMPANY LEAVES
+   FETCH COMPANY LEAVES IN CUSTOM WINDOW
 ========================= */
 $companyLeaves = [];
-$companyLeaveTitles = []; // New array to store titles
+$companyLeaveTitles = [];
 
-$filterYear = date('Y', strtotime($month));
-$filterMonth = date('m', strtotime($month));
-
+// Fetch company leaves that fall explicitly within our custom 21st to 20th range
 $leaveQuery = $conn->prepare("
     SELECT leave_date, title 
     FROM company_leaves 
-    WHERE YEAR(leave_date) = ? AND MONTH(leave_date) = ?
+    WHERE leave_date BETWEEN ? AND ?
 ");
-$leaveQuery->bind_param("ss", $filterYear, $filterMonth);
+$leaveQuery->bind_param("ss", $startDate, $endDate);
 $leaveQuery->execute();
 $result = $leaveQuery->get_result();
 
 while ($lRow = $result->fetch_assoc()) {
     $companyLeaves[] = $lRow['leave_date'];
-    // Map the date directly to its custom title
     $companyLeaveTitles[$lRow['leave_date']] = $lRow['title']; 
 }
 
 /* =========================
-   TOTAL DAYS IN MONTH
+   TOTAL DAYS IN THE CUSTOM WORK CYCLE
 ========================= */
 
 $totalDaysInMonth = 0;
+$dateLoopRunner = strtotime($startDate);
 
-$year = date('Y', strtotime($month));
-$monthNumber = date('m', strtotime($month));
-
-$totalCalendarDays = cal_days_in_month(
-    CAL_GREGORIAN,
-    $monthNumber,
-    $year
-);
-
-for ($day = 1; $day <= $totalCalendarDays; $day++) {
-
-    $currentDateCheck = $year . "-" .
-        str_pad($monthNumber, 2, "0", STR_PAD_LEFT) .
-        "-" .
-        str_pad($day, 2, "0", STR_PAD_LEFT);
+while ($dateLoopRunner <= strtotime($endDate)) {
+    $currentDateCheck = date("Y-m-d", $dateLoopRunner);
 
     // SKIP SUNDAY
     if (!$isMudipuBranch && date("N", strtotime($currentDateCheck)) == 7) {
+        $dateLoopRunner = strtotime("+1 day", $dateLoopRunner);
         continue;
     }
 
     // SKIP COMPANY LEAVES FROM TOTAL WORKING DAYS
     if (in_array($currentDateCheck, $companyLeaves)) {
+        $dateLoopRunner = strtotime("+1 day", $dateLoopRunner);
         continue;
     }
 
     $totalDaysInMonth++;
+    $dateLoopRunner = strtotime("+1 day", $dateLoopRunner);
 }
 
 /* =========================
    DASHBOARD SUMMARY
 ========================= */
 
-$summary = $conn->query("
+$summary = $conn->prepare("
     SELECT
         attendance.status,
         COUNT(*) as total
     FROM attendance
     INNER JOIN users ON users.id = attendance.user_id
-    WHERE attendance.date LIKE '$month%'
-    AND users.branch = '$branch'
+    WHERE attendance.date BETWEEN ? AND ?
+    AND users.branch = ?
     GROUP BY attendance.status
 ");
+$summary->bind_param("sss", $startDate, $endDate, $branch);
+$summary->execute();
+$summaryResult = $summary->get_result();
 
 $present = 0;
 $half = 0;
@@ -103,7 +98,7 @@ $absent = 0;
 $late = 0;
 $cl_count = 0;
 
-while ($row = $summary->fetch_assoc()) {
+while ($row = $summaryResult->fetch_assoc()) {
     if ($row['status'] == "Present") {
         $present = $row['total'];
     } elseif ($row['status'] == "Half Day") {
@@ -127,8 +122,6 @@ $attendancePercent = $totalAttendance ? round((($present + ($half * 0.5)) / $tot
 AUTO CHECKOUT FOR MISSED EMPLOYEES AT 9:00 PM
 =========================================
 */
-$startDate = $month . "-01";
-$endDate = date("Y-m-t", strtotime($startDate));
 $currentDate = date("Y-m-d");
 $currentTimeOnly = date("H:i:s");
 
@@ -193,23 +186,18 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
             continue;
         }
 
-        // Determine correct status based on company leave list
         $isCompanyLeave = in_array($loopDate, $companyLeaves);
         $defaultStatus = $isCompanyLeave ? 'CL' : 'Absent';
 
         $check = $conn->query("SELECT id, status FROM attendance WHERE user_id='$empId' AND date='$loopDate'");
         
         if ($check->num_rows == 0) {
-            // Insert missing date records normally
             $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', '$defaultStatus')");
         } else {
             $existing = $check->fetch_assoc();
-            
-            // FIX: If a company leave day is currently recorded as 'Absent', force update it to 'CL'
             if ($isCompanyLeave && $existing['status'] == 'Absent') {
                 $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
             }
-            // ALTERNATIVE FIX: If a date is NO LONGER a company leave but marked as CL, revert back to Absent
             elseif (!$isCompanyLeave && $existing['status'] == 'CL') {
                 $conn->query("UPDATE attendance SET status='Absent' WHERE id=" . $existing['id']);
             }
@@ -218,6 +206,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         $dateLoop = strtotime("+1 day", $dateLoop);
     }
 }
+
 /* =========================
    EMPLOYEE SUMMARY REPORT
 ========================= */
@@ -231,13 +220,13 @@ $employees = $conn->query("
         users.id,
         users.name,
         users.employee_id,
-        SUM(CASE WHEN attendance.status='Present' OR attendance.status='Overtime' THEN 1 ELSE 0 END) as present_count,
-        SUM(CASE WHEN attendance.status='Absent' THEN 1 ELSE 0 END) as absent_count,
-        SUM(CASE WHEN attendance.status='Half Day' THEN 1 ELSE 0 END) as halfday_count,
-        SUM(CASE WHEN attendance.status='Late' THEN 1 ELSE 0 END) as late_count,
-        SUM(CASE WHEN attendance.status='CL' THEN 1 ELSE 0 END) as cl_count
+        SUM(CASE WHEN (attendance.status='Present' OR attendance.status='Overtime') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as present_count,
+        SUM(CASE WHEN attendance.status='Absent' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as absent_count,
+        SUM(CASE WHEN attendance.status='Half Day' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_count,
+        SUM(CASE WHEN attendance.status='Late' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as late_count,
+        SUM(CASE WHEN attendance.status='CL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as cl_count
     FROM users
-    LEFT JOIN attendance ON users.id = attendance.user_id AND attendance.date LIKE '$month%' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
+    LEFT JOIN attendance ON users.id = attendance.user_id AND attendance.date BETWEEN '$startDate' AND '$endDate' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
     WHERE $whereEmployee
     GROUP BY users.id
     ORDER BY users.name ASC
@@ -246,7 +235,7 @@ $employees = $conn->query("
 /* =========================
    HISTORY SECTION
 ========================= */
-$whereHistory = "attendance.date LIKE '$month%' AND users.role='employee' AND users.branch='$branch'";
+$whereHistory = "attendance.date BETWEEN '$startDate' AND '$endDate' AND users.role='employee' AND users.branch='$branch'";
 if (!$isMudipuBranch) {
     $whereHistory .= " AND DAYOFWEEK(attendance.date) != 1";
 }
@@ -299,8 +288,7 @@ $history = $conn->query("
         button { border: none; padding: 12px 18px; border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 500; transition: 0.3s; }
         .btn-primary { background: #4f46e5; color: white; }
         .btn-print { background: #111827; color: white; }
-        .btn-reset { background: #ef4444; color: white; padding:10px; font-family: inherit; font-weight: 400; border-radius: 10px; text-decoration: none; display: inline-flex; align-items: center; }
-        button:hover, .btn-reset:hover { opacity: 0.9; transform: translateY(-2px); }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
         .table-wrapper { background: white; border-radius: 18px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); margin-bottom: 30px; }
         .table-title { padding: 20px; font-size: 18px; font-weight: 600; border-bottom: 1px solid #eee; }
         table { width: 100%; border-collapse: collapse; }
@@ -312,15 +300,13 @@ $history = $conn->query("
         .badge.absent { background: #dc2626; }
         .badge.half { background: #f59e0b; }
         .badge.late { background: #2563eb; }
-        .badge.cl { background: #7c3aed; } /* Purple color for Company Leave */
+        .badge.cl { background: #7c3aed; }
         @media print {
-            .sidebar, .filter-box, button, .btn-reset { display: none !important; }
+            .sidebar, .filter-box, button { display: none !important; }
             body { background: white; }
             .main { padding: 0; }
             .table-wrapper, .header { box-shadow: none; }
         }
-        @media(max-width:900px) { .layout { flex-direction: column; } .sidebar { width: 100%; height: auto; position: relative; } }
-        @media(max-width:700px) { table { display: block; overflow-x: auto; } .filter-form { flex-direction: column; } }
     </style>
 </head>
 <body>
@@ -342,6 +328,7 @@ $history = $conn->query("
     <div class="main">
         <div class="header">
             <h1>Attendance Reports</h1>
+            <p>Cycle window: <b><?= date("d M Y", strtotime($startDate)) ?></b> to <b><?= date("d M Y", strtotime($endDate)) ?></b></p>
         </div>
 
         <div class="filter-box">
@@ -363,7 +350,7 @@ $history = $conn->query("
         </div>
 
         <div class="table-wrapper" id="employeeSummary">
-            <div class="table-title">👨‍💼 Employee Monthly Report</div>
+            <div class="table-title">👨‍💼 Employee Monthly Report (21st - 20th)</div>
             <table>
                 <tr>
                     <th>Name</th>
@@ -417,44 +404,19 @@ $history = $conn->query("
                     <td><?= $row['name'] ?></td>
                     <td><?= $row['employee_id'] ?></td>
                     <td>
-                     <?php if($row['status'] == 'Present'): ?>
-
-    <span class="badge present">
-        Present
-    </span>
-
-<?php elseif($row['status'] == 'Absent'): ?>
-
-    <span class="badge absent">
-        Absent
-    </span>
-
-<?php elseif($row['status'] == 'Half Day'): ?>
-
-    <span class="badge half">
-        Half Day
-    </span>
-
-<?php elseif($row['status'] == 'CL'): ?>
-
-    <!-- Dynamic replacement: prints the Title if found, otherwise falls back to CL -->
-    <span class="badge cl">
-        <?= htmlspecialchars($companyLeaveTitles[$currentRowDate] ?? 'Company Leave') ?>
-    </span>
-
-<?php elseif($row['status'] == 'Overtime'): ?>
-
-    <span class="badge present">
-        Present
-    </span>
-
-<?php else: ?>
-
-    <span class="badge late">
-        Late
-    </span>
-
-<?php endif; ?>
+                        <?php if($row['status'] == 'Present'): ?>
+                            <span class="badge present">Present</span>
+                        <?php elseif($row['status'] == 'Absent'): ?>
+                            <span class="badge absent">Absent</span>
+                        <?php elseif($row['status'] == 'Half Day'): ?>
+                            <span class="badge half">Half Day</span>
+                        <?php elseif($row['status'] == 'CL'): ?>
+                            <span class="badge cl"><?= htmlspecialchars($companyLeaveTitles[$currentRowDate] ?? 'Company Leave') ?></span>
+                        <?php elseif($row['status'] == 'Overtime'): ?>
+                            <span class="badge present">Present</span>
+                        <?php else: ?>
+                            <span class="badge late">Late</span>
+                        <?php endif; ?>
                     </td>
                     <td><?= !empty($row['check_in']) ? date("h:i A", strtotime($row['check_in'])) : '-' ?></td>
                     <td><?= !empty($row['lunch_out']) ? date("h:i A", strtotime($row['lunch_out'])) : '-' ?></td>
@@ -493,7 +455,6 @@ $history = $conn->query("
 <script>
 function printSummary() {
     const printContent = document.getElementById("employeeSummary").innerHTML;
-    const originalContent = document.body.innerHTML;
     document.body.innerHTML = `
         <html>
         <head>
