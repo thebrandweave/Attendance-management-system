@@ -27,14 +27,13 @@ $isMudipuBranch = strtolower($branch) == "mudipu";
    FETCH COMPANY LEAVES
 ========================= */
 $companyLeaves = [];
+$companyLeaveTitles = []; // New array to store titles
 
-// Extract year and month safely from the $month variable (e.g., "2026-05")
 $filterYear = date('Y', strtotime($month));
 $filterMonth = date('m', strtotime($month));
 
-// Using explicit YEAR() and MONTH() SQL functions instead of LIKE
 $leaveQuery = $conn->prepare("
-    SELECT leave_date 
+    SELECT leave_date, title 
     FROM company_leaves 
     WHERE YEAR(leave_date) = ? AND MONTH(leave_date) = ?
 ");
@@ -44,6 +43,8 @@ $result = $leaveQuery->get_result();
 
 while ($lRow = $result->fetch_assoc()) {
     $companyLeaves[] = $lRow['leave_date'];
+    // Map the date directly to its custom title
+    $companyLeaveTitles[$lRow['leave_date']] = $lRow['title']; 
 }
 
 /* =========================
@@ -416,19 +417,44 @@ $history = $conn->query("
                     <td><?= $row['name'] ?></td>
                     <td><?= $row['employee_id'] ?></td>
                     <td>
-                        <?php if($row['status'] == 'Present'): ?>
-                            <span class="badge present">Present</span>
-                        <?php elseif($row['status'] == 'Absent'): ?>
-                            <span class="badge absent">Absent</span>
-                        <?php elseif($row['status'] == 'Half Day'): ?>
-                            <span class="badge half">Half Day</span>
-                        <?php elseif($row['status'] == 'CL'): ?>
-                            <span class="badge cl">CL</span>
-                        <?php elseif($row['status'] == 'Overtime'): ?>
-                            <span class="badge present">Present</span>
-                        <?php else: ?>
-                            <span class="badge late">Late</span>
-                        <?php endif; ?>
+                     <?php if($row['status'] == 'Present'): ?>
+
+    <span class="badge present">
+        Present
+    </span>
+
+<?php elseif($row['status'] == 'Absent'): ?>
+
+    <span class="badge absent">
+        Absent
+    </span>
+
+<?php elseif($row['status'] == 'Half Day'): ?>
+
+    <span class="badge half">
+        Half Day
+    </span>
+
+<?php elseif($row['status'] == 'CL'): ?>
+
+    <!-- Dynamic replacement: prints the Title if found, otherwise falls back to CL -->
+    <span class="badge cl">
+        <?= htmlspecialchars($companyLeaveTitles[$currentRowDate] ?? 'Company Leave') ?>
+    </span>
+
+<?php elseif($row['status'] == 'Overtime'): ?>
+
+    <span class="badge present">
+        Present
+    </span>
+
+<?php else: ?>
+
+    <span class="badge late">
+        Late
+    </span>
+
+<?php endif; ?>
                     </td>
                     <td><?= !empty($row['check_in']) ? date("h:i A", strtotime($row['check_in'])) : '-' ?></td>
                     <td><?= !empty($row['lunch_out']) ? date("h:i A", strtotime($row['lunch_out'])) : '-' ?></td>
