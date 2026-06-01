@@ -328,7 +328,7 @@ $history = $conn->query("
     <div class="main">
         <div class="header">
             <h1>Attendance Reports</h1>
-            <p>Cycle window: <b><?= date("d M Y", strtotime($startDate)) ?></b> to <b><?= date("d M Y", strtotime($endDate)) ?></b></p>
+            <p>Month Dates: <b><?= date("d M Y", strtotime($startDate)) ?></b> - <b><?= date("d M Y", strtotime($endDate)) ?></b></p>
         </div>
 
         <div class="filter-box">
