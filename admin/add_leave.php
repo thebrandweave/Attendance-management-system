@@ -2,489 +2,327 @@
 session_start();
 include("../config/db.php");
 
-date_default_timezone_set("Asia/Kolkata");
-
-/* =========================
-   AUTH CHECK
-========================= */
-
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
+if (
+    !isset($_SESSION['user']) ||
+    $_SESSION['user']['role'] != 'admin'
+) {
     header("Location: ../index.php");
     exit();
 }
 
-/* =========================
-   FILTERS
-========================= */
+$message = "";
 
-$month = $_GET['month'] ?? date("Y-m");
-$search = $_GET['search'] ?? '';
-$status_filter = $_GET['status'] ?? '';
-$branch = $_SESSION['user']['branch'];
-$isMudipuBranch = strtolower($branch) == "mudipu";
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
-/* =========================
-   FETCH COMPANY LEAVES
-========================= */
-$companyLeaves = [];
+    $leaveDate = $_POST['leave_date'];
+    $title = trim($_POST['title']);
+    $description = trim($_POST['description']);
 
-// Extract year and month safely from the $month variable (e.g., "2026-05")
-$filterYear = date('Y', strtotime($month));
-$filterMonth = date('m', strtotime($month));
-
-// Using explicit YEAR() and MONTH() SQL functions instead of LIKE
-$leaveQuery = $conn->prepare("
-    SELECT leave_date 
-    FROM company_leaves 
-    WHERE YEAR(leave_date) = ? AND MONTH(leave_date) = ?
-");
-$leaveQuery->bind_param("ss", $filterYear, $filterMonth);
-$leaveQuery->execute();
-$result = $leaveQuery->get_result();
-
-while ($lRow = $result->fetch_assoc()) {
-    $companyLeaves[] = $lRow['leave_date'];
-}
-/* =========================
-   TOTAL DAYS IN MONTH
-========================= */
-
-$totalDaysInMonth = 0;
-
-$year = date('Y', strtotime($month));
-$monthNumber = date('m', strtotime($month));
-
-$totalCalendarDays = cal_days_in_month(
-    CAL_GREGORIAN,
-    $monthNumber,
-    $year
-);
-
-for ($day = 1; $day <= $totalCalendarDays; $day++) {
-
-    $currentDateCheck = $year . "-" .
-        str_pad($monthNumber, 2, "0", STR_PAD_LEFT) .
-        "-" .
-        str_pad($day, 2, "0", STR_PAD_LEFT);
-
-    // SKIP SUNDAY
-    if (!$isMudipuBranch && date("N", strtotime($currentDateCheck)) == 7) {
-        continue;
-    }
-
-    // SKIP COMPANY LEAVES FROM TOTAL WORKING DAYS
-    if (in_array($currentDateCheck, $companyLeaves)) {
-        continue;
-    }
-
-    $totalDaysInMonth++;
-}
-
-/* =========================
-   DASHBOARD SUMMARY
-========================= */
-
-$summary = $conn->query("
-    SELECT
-        attendance.status,
-        COUNT(*) as total
-    FROM attendance
-    INNER JOIN users ON users.id = attendance.user_id
-    WHERE attendance.date LIKE '$month%'
-    AND users.branch = '$branch'
-    GROUP BY attendance.status
-");
-
-$present = 0;
-$half = 0;
-$absent = 0;
-$late = 0;
-$cl_count = 0;
-
-while ($row = $summary->fetch_assoc()) {
-    if ($row['status'] == "Present") {
-        $present = $row['total'];
-    } elseif ($row['status'] == "Half Day") {
-        $half = $row['total'];
-    } elseif ($row['status'] == "Absent") {
-        $absent = $row['total'];
-    } elseif ($row['status'] == "Late") {
-        $late = $row['total'];
-    } elseif ($row['status'] == "CL") {
-        $cl_count = $row['total'];
-    } elseif ($row['status'] == "Overtime") {
-        $present += $row['total'];
-    }
-}
-
-$totalAttendance = $present + $absent + $half;
-$attendancePercent = $totalAttendance ? round((($present + ($half * 0.5)) / $totalAttendance) * 100, 2) : 0;
-
-/*
-=========================================
-AUTO CHECKOUT FOR MISSED EMPLOYEES AT 9:00 PM
-=========================================
-*/
-$startDate = $month . "-01";
-$endDate = date("Y-m-t", strtotime($startDate));
-$currentDate = date("Y-m-d");
-$currentTimeOnly = date("H:i:s");
-
-if ($currentTimeOnly >= "21:00:00") {
-    $pendingCheckout = $conn->query("
-        SELECT *
-        FROM attendance
-        WHERE date='$currentDate'
-        AND check_in IS NOT NULL
-        AND (check_out IS NULL OR check_out='')
+    $check = $conn->prepare("
+        SELECT id
+        FROM company_leaves
+        WHERE leave_date=?
     ");
 
-    while ($att = $pendingCheckout->fetch_assoc()) {
-        $attendanceId = $att['id'];
-        $checkInTime = strtotime($att['check_in']);
-        $autoCheckoutDateTime = $currentDate . " 17:30:00";
-        $autoCheckoutTime = strtotime($autoCheckoutDateTime);
+    $check->bind_param("s", $leaveDate);
+    $check->execute();
 
-        $lunchSeconds = 0;
-        if (!empty($att['lunch_out']) && !empty($att['lunch_in'])) {
-            $lunchSeconds = strtotime($att['lunch_in']) - strtotime($att['lunch_out']);
+    $exists = $check->get_result()->fetch_assoc();
+
+    if ($exists) {
+
+        $message = "Leave already added for this date.";
+
+    } else {
+
+        $stmt = $conn->prepare("
+            INSERT INTO company_leaves (
+                leave_date,
+                title,
+                description
+            ) VALUES (?, ?, ?)
+        ");
+
+        $stmt->bind_param(
+            "sss",
+            $leaveDate,
+            $title,
+            $description
+        );
+
+        if ($stmt->execute()) {
+            $message = "Leave added successfully.";
         }
-
-        $totalSeconds = $autoCheckoutTime - $checkInTime;
-        $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
-        $status = "Present";
-
-        $updateAuto = $conn->prepare("UPDATE attendance SET check_out=?, total_hours=?, status=? WHERE id=?");
-        $updateAuto->bind_param("sdsi", $autoCheckoutDateTime, $workingHours, $status, $attendanceId);
-        $updateAuto->execute();
     }
 }
 
-/*
-=========================================
-AUTO INSERT ABSENT OR COMPANY LEAVE (CL) FOR MISSING DAYS
-=========================================
-*/
-$employeesAbsent = $conn->query("
-    SELECT id, created_at
-    FROM users
-    WHERE role='employee' AND branch='$branch'
-");
-
-while ($emp = $employeesAbsent->fetch_assoc()) {
-    $empId = $emp['id'];
-    $joinDate = date("Y-m-d", strtotime($emp['created_at']));
-    $dateLoop = strtotime($startDate);
-
-    while ($dateLoop <= strtotime($endDate)) {
-        $loopDate = date("Y-m-d", $dateLoop);
-
-        if ($loopDate >= $currentDate) {
-            break;
-        }
-        if ($loopDate < $joinDate) {
-            $dateLoop = strtotime("+1 day", $dateLoop);
-            continue;
-        }
-        if (!$isMudipuBranch && date("N", strtotime($loopDate)) == 7) {
-            $dateLoop = strtotime("+1 day", $dateLoop);
-            continue;
-        }
-
-        // Determine correct status based on company leave list
-        $isCompanyLeave = in_array($loopDate, $companyLeaves);
-        $defaultStatus = $isCompanyLeave ? 'CL' : 'Absent';
-
-        $check = $conn->query("SELECT id, status FROM attendance WHERE user_id='$empId' AND date='$loopDate'");
-        
-        if ($check->num_rows == 0) {
-            // Insert missing date records normally
-            $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', '$defaultStatus')");
-        } else {
-            $existing = $check->fetch_assoc();
-            
-            // FIX: If a company leave day is currently recorded as 'Absent', force update it to 'CL'
-            if ($isCompanyLeave && $existing['status'] == 'Absent') {
-                $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
-            }
-            // ALTERNATIVE FIX: If a date is NO LONGER a company leave but marked as CL, revert back to Absent
-            elseif (!$isCompanyLeave && $existing['status'] == 'CL') {
-                $conn->query("UPDATE attendance SET status='Absent' WHERE id=" . $existing['id']);
-            }
-        }
-
-        $dateLoop = strtotime("+1 day", $dateLoop);
-    }
-}
-/* =========================
-   EMPLOYEE SUMMARY REPORT
-========================= */
-$whereEmployee = "users.role='employee' AND users.branch='$branch'";
-if (!empty($search)) {
-    $whereEmployee .= " AND (users.employee_id LIKE '%$search%' OR users.name LIKE '%$search%')";
-}
-
-$employees = $conn->query("
-    SELECT
-        users.id,
-        users.name,
-        users.employee_id,
-        SUM(CASE WHEN attendance.status='Present' OR attendance.status='Overtime' THEN 1 ELSE 0 END) as present_count,
-        SUM(CASE WHEN attendance.status='Absent' THEN 1 ELSE 0 END) as absent_count,
-        SUM(CASE WHEN attendance.status='Half Day' THEN 1 ELSE 0 END) as halfday_count,
-        SUM(CASE WHEN attendance.status='Late' THEN 1 ELSE 0 END) as late_count,
-        SUM(CASE WHEN attendance.status='CL' THEN 1 ELSE 0 END) as cl_count
-    FROM users
-    LEFT JOIN attendance ON users.id = attendance.user_id AND attendance.date LIKE '$month%' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
-    WHERE $whereEmployee
-    GROUP BY users.id
-    ORDER BY users.name ASC
-");
-
-/* =========================
-   HISTORY SECTION
-========================= */
-$whereHistory = "attendance.date LIKE '$month%' AND users.role='employee' AND users.branch='$branch'";
-if (!$isMudipuBranch) {
-    $whereHistory .= " AND DAYOFWEEK(attendance.date) != 1";
-}
-if (!empty($search)) {
-    $whereHistory .= " AND (users.employee_id LIKE '%$search%' OR users.name LIKE '%$search%')";
-}
-if (!empty($status_filter)) {
-    $whereHistory .= " AND attendance.status='$status_filter'";
-}
-
-$history = $conn->query("
-    SELECT
-        users.name,
-        users.employee_id,
-        attendance.date,
-        attendance.status,
-        attendance.check_in,
-        attendance.lunch_out,
-        attendance.lunch_in,
-        attendance.check_out,
-        attendance.total_hours
-    FROM attendance
-    INNER JOIN users ON users.id = attendance.user_id
-    WHERE $whereHistory
-    ORDER BY attendance.date DESC
+$leaves = $conn->query("
+    SELECT *
+    FROM company_leaves
+    ORDER BY leave_date DESC
 ");
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Attendance Reports</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: #f4f7fb; color: #111827; }
-        .layout { display: flex; min-height: 100vh; }
-        .sidebar { width: 260px; background: linear-gradient(180deg,#111827,#1f2937); color: white; padding: 25px; position: sticky; top: 0; height: 100vh; }
-        .sidebar h2 { text-align: center; margin-bottom: 30px; font-size: 20px; }
-        .sidebar a { display: block; color: white; text-decoration: none; padding: 13px 15px; border-radius: 10px; margin-bottom: 10px; transition: 0.3s; font-size: 14px; }
-        .sidebar a:hover { background: rgba(255,255,255,0.1); transform: translateX(5px); }
-        .logout { background: #ef4444; }
-        .main { flex: 1; padding: 25px; }
-        .header { background: white; padding: 22px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
-        .header h1 { font-size: 26px; }
-        .header p { color: #6b7280; margin-top: 5px; }
-        .filter-box { background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
-        .filter-form { display: flex; gap: 12px; flex-wrap: wrap; }
-        input, select { padding: 12px; border-radius: 10px; border: 1px solid #d1d5db; font-family: inherit; min-width: 180px; }
-        button { border: none; padding: 12px 18px; border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 500; transition: 0.3s; }
-        .btn-primary { background: #4f46e5; color: white; }
-        .btn-print { background: #111827; color: white; }
-        .btn-reset { background: #ef4444; color: white; padding:10px; font-family: inherit; font-weight: 400; border-radius: 10px; text-decoration: none; display: inline-flex; align-items: center; }
-        button:hover, .btn-reset:hover { opacity: 0.9; transform: translateY(-2px); }
-        .table-wrapper { background: white; border-radius: 18px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); margin-bottom: 30px; }
-        .table-title { padding: 20px; font-size: 18px; font-weight: 600; border-bottom: 1px solid #eee; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #111827; color: white; padding: 14px; font-size: 14px; position: sticky; top: 0; }
-        td { padding: 14px; border: 1px solid #eee; text-align: center; font-size: 14px; }
-        tr:hover { background: #f9fafb; }
-        .badge { padding: 6px 10px; border-radius: 30px; color: white; font-size: 12px; font-weight: 600; }
-        .badge.present { background: #16a34a; }
-        .badge.absent { background: #dc2626; }
-        .badge.half { background: #f59e0b; }
-        .badge.late { background: #2563eb; }
-        .badge.cl { background: #7c3aed; } /* Purple color for Company Leave */
-        @media print {
-            .sidebar, .filter-box, button, .btn-reset { display: none !important; }
-            body { background: white; }
-            .main { padding: 0; }
-            .table-wrapper, .header { box-shadow: none; }
-        }
-        @media(max-width:900px) { .layout { flex-direction: column; } .sidebar { width: 100%; height: auto; position: relative; } }
-        @media(max-width:700px) { table { display: block; overflow-x: auto; } .filter-form { flex-direction: column; } }
-    </style>
+
+<title>Add Leave</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  background: #eef2f7;
+}
+
+
+
+/* ===== LAYOUT ===== */
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  width: 250px;
+  background: linear-gradient(180deg, #111827, #1f2937);
+  color: white;
+  padding: 20px;
+}
+
+.sidebar h2 {
+  margin-bottom: 25px;
+  font-size: 20px;
+  text-align: center;
+}
+
+.sidebar a {
+  display: block;
+  padding: 12px 14px;
+  margin: 8px 0;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: 0.3s;
+  font-size: 14px;
+}
+
+.sidebar a:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateX(4px);
+}
+
+.sidebar .logout {
+  background: #ef4444;
+}
+
+.sidebar .logout:hover {
+  background: #dc2626;
+}
+
+
+.card{
+    max-width:700px;
+    margin:auto;
+    background:white;
+    padding:25px;
+    border-radius:16px;
+    box-shadow:0 4px 15px rgba(0,0,0,0.08);
+}
+
+h2{
+    margin-bottom:20px;
+}
+
+input,
+textarea{
+    width:100%;
+    padding:12px;
+    margin-top:8px;
+    margin-bottom:18px;
+    border:1px solid #ddd;
+    border-radius:10px;
+    font-family:inherit;
+}
+
+button{
+    background:#4f46e5;
+    color:white;
+    border:none;
+    padding:12px 18px;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:25px;
+}
+
+th,td{
+    border:1px solid #ddd;
+    padding:12px;
+    text-align:center;
+}
+
+th{
+    background:#111827;
+    color:white;
+}
+
+.message{
+    background:#dcfce7;
+    color:#166534;
+    padding:12px;
+    border-radius:10px;
+    margin-bottom:15px;
+}
+
+</style>
 </head>
+
 <body>
+    <div class="layout">
 
-<div class="layout">
-    <div class="sidebar">
-        <h2 style="text-align:center;"><?= htmlspecialchars($_SESSION['user']['branch']) ?> Admin</h2>
-        <a href="dashboard.php">🏠 Dashboard</a>
-        <a href="create_employee.php">👤 Create Employee</a>
-        <a href="../api/checkin.php">🟢 Check In- Morning</a>
-        <a href="../api/lunch.php">🍽️ Lunch Break</a>
-        <a href="../api/checkout.php">🔴 Check Out- Evening</a>
-        <a href="leave_requests.php">📩 Manage Leaves</a>
-        <a href="add_leave.php">📅 Company Leaves</a>
-        <a href="reports.php">📊 Reports</a>
-        <a href="../auth/logout.php" class="logout">🚪 Logout</a>
-    </div>
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+   <h2 style="text-align:center;">
+  <?= htmlspecialchars($_SESSION['user']['branch']) ?> Admin 
+</h2>
 
-    <div class="main">
-        <div class="header">
-            <h1>Attendance Reports</h1>
-        </div>
+    <a href="dashboard.php">🏠 Dashboard</a>
+    <a href="create_employee.php">👤 Create Employee</a>
+    <a href="../api/checkin.php">🟢 Check In- Morning</a>
+     <a href="../api/lunch.php">🍽️ Lunch Break</a>
+    <a href="../api/checkout.php">🔴 Check Out- Evening</a>
+    <a href="leave_requests.php">📩 Manage Leaves</a>
+    <a href="add_leave.php">📅 Company Leaves</a>
+    <a href="reports.php">📊 Reports</a>
+    <a href="../auth/logout.php" class="logout">🚪 Logout</a>
+  </div>
 
-        <div class="filter-box">
-            <form method="GET" class="filter-form">
-                <input type="month" name="month" value="<?= $month ?>">
-                <input type="text" name="search" placeholder="Search Employee Name / ID" value="<?= $search ?>">
-                <select name="status">
-                    <option value="">All Status</option>
-                    <option value="Present" <?= $status_filter == 'Present' ? 'selected' : '' ?>>Present</option>
-                    <option value="Absent" <?= $status_filter == 'Absent' ? 'selected' : '' ?>>Absent</option>
-                    <option value="Half Day" <?= $status_filter == 'Half Day' ? 'selected' : '' ?>>Half Day</option>
-                    <option value="Late" <?= $status_filter == 'Late' ? 'selected' : '' ?>>Late</option>
-                    <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leave (CL)</option>
-                    <option value="Overtime" <?= $status_filter == 'Overtime' ? 'selected' : '' ?>>Overtime</option>
-                </select>
-                <button type="submit" class="btn-primary">Filter</button>
-                <button type="button" class="btn-print" onclick="printSummary()">Print Report</button>
-            </form>
-        </div>
+<div class="card">
 
-        <div class="table-wrapper" id="employeeSummary">
-            <div class="table-title">👨‍💼 Employee Monthly Report</div>
-            <table>
-                <tr>
-                    <th>Name</th>
-                    <th>Employee ID</th>
-                    <th>Present</th>
-                    <th>Absent</th>
-                    <th>Half Day</th>
-                    <th>Late</th>
-                    <th>CL</th>
-                    <th>Total Attendance</th>
-                </tr>
-                <?php while($emp = $employees->fetch_assoc()): 
-                    $finalAttendance = $emp['present_count'] + ($emp['halfday_count'] * 0.5);
-                ?>
-                <tr>
-                    <td><?= $emp['name'] ?></td>
-                    <td><?= $emp['employee_id'] ?></td>
-                    <td class="green"><?= $emp['present_count'] ?? 0 ?></td>
-                    <td class="red"><?= $emp['absent_count'] ?? 0 ?></td>
-                    <td class="orange"><?= $emp['halfday_count'] ?? 0 ?></td>
-                    <td class="blue"><?= $emp['late_count'] ?? 0 ?></td>
-                    <td style="color: #7c3aed; font-weight: 600;"><?= $emp['cl_count'] ?? 0 ?></td>
-                    <td style="font-weight:600;"><?= $finalAttendance ?> / <?= $totalDaysInMonth ?> Days</td>
-                </tr>
-                <?php endwhile; ?>
-            </table>
-        </div>
+<h2>📅 Add Company Leave</h2>
 
-        <div class="table-wrapper">
-            <div class="table-title">🕒 Recent Attendance History</div>
-            <table>
-                <tr>
-                    <th>Date</th>
-                    <th>Name</th>
-                    <th>Employee ID</th>
-                    <th>Status</th>
-                    <th>Check In</th>
-                    <th>Lunch Out</th>
-                    <th>Lunch In</th>
-                    <th>Check Out</th>
-                    <th>Total Hours</th>
-                </tr>
-                <?php while($row = $history->fetch_assoc()): 
-                    $currentRowDate = date("Y-m-d", strtotime($row['date']));
-                    $lightColors = ["#fef2f2", "#eff6ff", "#f0fdf4", "#fff7ed", "#faf5ff", "#fdf2f8", "#ecfeff", "#f9fafb"];
-                    $colorIndex = abs(crc32($currentRowDate)) % count($lightColors);
-                    $rowBgColor = $lightColors[$colorIndex];
-                ?>
-                <tr style="background: <?= $rowBgColor ?>;">
-                    <td><?= date("d M Y", strtotime($row['date'])) ?></td>
-                    <td><?= $row['name'] ?></td>
-                    <td><?= $row['employee_id'] ?></td>
-                    <td>
-                        <?php if($row['status'] == 'Present'): ?>
-                            <span class="badge present">Present</span>
-                        <?php elseif($row['status'] == 'Absent'): ?>
-                            <span class="badge absent">Absent</span>
-                        <?php elseif($row['status'] == 'Half Day'): ?>
-                            <span class="badge half">Half Day</span>
-                        <?php elseif($row['status'] == 'CL'): ?>
-                            <span class="badge cl">CL</span>
-                        <?php elseif($row['status'] == 'Overtime'): ?>
-                            <span class="badge present">Present</span>
-                        <?php else: ?>
-                            <span class="badge late">Late</span>
-                        <?php endif; ?>
-                    </td>
-                    <td><?= !empty($row['check_in']) ? date("h:i A", strtotime($row['check_in'])) : '-' ?></td>
-                    <td><?= !empty($row['lunch_out']) ? date("h:i A", strtotime($row['lunch_out'])) : '-' ?></td>
-                    <td><?= !empty($row['lunch_in']) ? date("h:i A", strtotime($row['lunch_in'])) : '-' ?></td>
-                    <td><?= !empty($row['check_out']) ? date("h:i A", strtotime($row['check_out'])) : '-' ?></td>
-                    <td style="font-weight:600;color:#16a34a;">
-                        <?php
-                        $workingHours = "-";
-                        if (!empty($row['check_in']) && !empty($row['check_out'])) {
-                            $checkIn  = strtotime($row['check_in']);
-                            $checkOut = strtotime($row['check_out']);
-                            $totalSeconds = $checkOut - $checkIn;
+<?php if($message): ?>
+<div class="message">
+    <?= $message ?>
+</div>
+<?php endif; ?>
 
-                            $lunchSeconds = 0;
-                            if (!empty($row['lunch_out']) && !empty($row['lunch_in'])) {
-                                $lunchSeconds = strtotime($row['lunch_in']) - strtotime($row['lunch_out']);
-                            }
+<form method="POST">
 
-                            $finalSeconds = $totalSeconds - $lunchSeconds;
-                            if ($finalSeconds < 0) $finalSeconds = 0;
+<label>Leave Date</label>
+<input type="date" name="leave_date" required>
 
-                            $hours = floor($finalSeconds / 3600);
-                            $minutes = floor(($finalSeconds % 3600) / 60);
-                            $workingHours = $hours . "." . $minutes . " hrs";
-                        }
-                        echo $workingHours;
-                        ?>
-                    </td>
-                </tr>
-                <?php endwhile; ?>
-            </table>
-        </div>
-    </div>
+<label>Leave Title</label>
+<input type="text" name="title" placeholder="Leave Title" required>
+
+<!-- <label>Description</label>
+<textarea name="description" rows="4" placeholder="Optional"></textarea> -->
+
+<button type="submit">
+    Add Leave
+</button>
+
+</form>
+
+<h2 style="margin-top:30px;">
+    Leave List
+</h2>
+
+<table>
+<tr>
+    <th>Date</th>
+    <th>Title</th>
+    <!-- <th>Description</th> -->
+    <th>Status</th>
+</tr>
+
+<?php while($row = $leaves->fetch_assoc()): ?>
+<tr>
+
+    <td>
+        <?= date("d M Y", strtotime($row['leave_date'])) ?>
+    </td>
+
+    <td>
+        <?= htmlspecialchars($row['title']) ?>
+    </td>
+
+    <!-- <td>
+        <?= htmlspecialchars($row['description']) ?>
+    </td> -->
+
+    <td>
+
+<?php
+
+$today = date("Y-m-d");
+
+if ($row['leave_date'] == $today) {
+
+    echo '
+    <span style="
+        background:#f59e0b;
+        color:white;
+        padding:6px 12px;
+        border-radius:20px;
+        font-size:12px;
+        font-weight:600;
+    ">
+        Today
+    </span>
+    ';
+
+} elseif ($row['leave_date'] > $today) {
+
+    echo '
+    <span style="
+        background:#16a34a;
+        color:white;
+        padding:6px 12px;
+        border-radius:20px;
+        font-size:12px;
+        font-weight:600;
+    ">
+        Upcoming
+    </span>
+    ';
+
+} else {
+
+    echo '
+    <span style="
+        background:#6b7280;
+        color:white;
+        padding:6px 12px;
+        border-radius:20px;
+        font-size:12px;
+        font-weight:600;
+    ">
+        Completed
+    </span>
+    ';
+}
+
+?>
+
+    </td>
+
+</tr>
+<?php endwhile; ?>
+
+</table>
+
 </div>
 
-<script>
-function printSummary() {
-    const printContent = document.getElementById("employeeSummary").innerHTML;
-    const originalContent = document.body.innerHTML;
-    document.body.innerHTML = `
-        <html>
-        <head>
-            <title>Employee Monthly Summary</title>
-            <style>
-                body{ font-family:Poppins,sans-serif; padding:20px; }
-                table{ width:100%; border-collapse:collapse; }
-                th{ background:#111827; color:white; padding:12px; border:1px solid #ddd; }
-                td{ padding:12px; border:1px solid #ddd; text-align:center; }
-                .table-title{ font-size:22px; font-weight:600; margin-bottom:20px; }
-            </style>
-        </head>
-        <body>${printContent}</body>
-        </html>
-    `;
-    window.print();
-    location.reload();
-}
-</script>
 </body>
 </html>
