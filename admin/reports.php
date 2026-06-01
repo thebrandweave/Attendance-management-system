@@ -330,10 +330,38 @@ $history = $conn->query("
             <h1>Attendance Reports</h1>
             <p>Month Dates: <b><?= date("d M Y", strtotime($startDate)) ?></b> - <b><?= date("d M Y", strtotime($endDate)) ?></b></p>
         </div>
+<div class="filter-box">
+    <form method="GET" class="filter-form">
+        
+        <select name="month">
+            <?php
+            // Generate a list of cycles (e.g., 3 months back, 3 months forward)
+            for ($i = -3; $i <= 3; $i++) {
+                // Determine baseline tracking target
+                $targetTime = strtotime("$i month", strtotime(date("Y-m-01")));
+                $valueAttr  = date("Y-m", $targetTime); // e.g., "2026-06"
+                
+                // Construct labels: For '2026-06', the cycle is May 21 - Jun 20
+                $prevMonthLabel = date("M", strtotime("-1 month", $targetTime)); // "May"
+                $currMonthLabel = date("M", $targetTime);                        // "Jun"
+                $yearLabel      = date("Y", $targetTime);                        // "2026"
+                
+                $displayLabel = $prevMonthLabel . " - " . $currMonthLabel . " " . $yearLabel;
+                
+                // Maintain selected state on page reload
+                $selected = ($valueAttr == $month) ? 'selected' : '';
+                
+                echo "<option value='{$valueAttr}' {$selected}>{$displayLabel}</option>";
+            }
+            ?>
+        </select>
 
-        <div class="filter-box">
-            <form method="GET" class="filter-form">
-                <input type="month" name="month" value="<?= $month ?>">
+        <input 
+            type="text" 
+            name="search" 
+            placeholder="Search Employee Name / ID" 
+            value="<?= htmlspecialchars($search) ?>"
+        >
                 <input type="text" name="search" placeholder="Search Employee Name / ID" value="<?= $search ?>">
                 <select name="status">
                     <option value="">All Status</option>
