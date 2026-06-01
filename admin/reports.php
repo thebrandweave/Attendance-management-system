@@ -291,17 +291,6 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         =====================================
         */
 
-        $leaveCheck = $conn->query("
-    SELECT id
-    FROM company_leaves
-    WHERE leave_date='$loopDate'
-");
-
-if ($leaveCheck->num_rows > 0) {
-    $dateLoop = strtotime("+1 day", $dateLoop);
-    continue;
-}
-
         $check = $conn->query("
             SELECT id
             FROM attendance
