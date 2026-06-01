@@ -336,7 +336,7 @@ $history = $conn->query("
         <select name="month">
             <?php
             // Generate a list of cycles (e.g., 3 months back, 3 months forward)
-            for ($i = -4; $i <= 4; $i++) {
+            for ($i = -4; $i <= 6; $i++) {
                 // Determine baseline tracking target
                 $targetTime = strtotime("$i month", strtotime(date("Y-m-01")));
                 $valueAttr  = date("Y-m", $targetTime); // e.g., "2026-06"
