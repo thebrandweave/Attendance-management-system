@@ -291,6 +291,17 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         =====================================
         */
 
+        $leaveCheck = $conn->query("
+    SELECT id
+    FROM company_leaves
+    WHERE leave_date='$loopDate'
+");
+
+if ($leaveCheck->num_rows > 0) {
+    $dateLoop = strtotime("+1 day", $dateLoop);
+    continue;
+}
+
         $check = $conn->query("
             SELECT id
             FROM attendance
@@ -426,15 +437,19 @@ $history = $conn->query("
         attendance.date,
         attendance.status,
         attendance.check_in,
-       attendance.lunch_out,
-    attendance.lunch_in,
-    attendance.check_out,
-    attendance.total_hours
+        attendance.lunch_out,
+        attendance.lunch_in,
+        attendance.check_out,
+        attendance.total_hours,
+        company_leaves.title AS leave_title
 
     FROM attendance
 
     INNER JOIN users
     ON users.id = attendance.user_id
+
+    LEFT JOIN company_leaves
+    ON company_leaves.leave_date = attendance.date
 
     WHERE $whereHistory
 
@@ -1066,7 +1081,54 @@ $rowBgColor = $lightColors[$colorIndex];
 
                     <td>
 
-                        <?php if($row['status'] == 'Present'): ?>
+                       <?php
+
+$isCompanyLeave =
+    !empty($row['leave_title']);
+
+if ($isCompanyLeave):
+
+?>
+
+    <span
+        class="badge"
+        style="background:#8b5cf6;"
+        title="<?= htmlspecialchars($row['leave_title']) ?>"
+    >
+        Company Leave
+    </span>
+
+<?php elseif($row['status'] == 'Present'): ?>
+
+    <span class="badge present">
+        Present
+    </span>
+
+<?php elseif($row['status'] == 'Absent'): ?>
+
+    <span class="badge absent">
+        Absent
+    </span>
+
+<?php elseif($row['status'] == 'Half Day'): ?>
+
+    <span class="badge half">
+        Half Day
+    </span>
+
+<?php elseif($row['status'] == 'Overtime'): ?>
+
+    <span class="badge present">
+        Present
+    </span>
+
+<?php else: ?>
+
+    <span class="badge late">
+        Late
+    </span>
+
+<?php endif; ?>
 
                             <span class="badge present">
                                 Present
