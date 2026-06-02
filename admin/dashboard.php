@@ -373,7 +373,6 @@ $autoAbsent = false;
 if (
     !$isSunday && // SKIP SUNDAYS
     !$isCompanyLeave &&
-    !$isNewEmployee &&
     empty($todayAtt['check_in']) &&
     empty($todayAtt['check_out']) &&
     empty($todayAtt['lunch_out']) &&
