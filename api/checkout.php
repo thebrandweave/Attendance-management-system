@@ -214,7 +214,13 @@ $checkoutTimeOnly = date(
     strtotime($currentTime)
 );
 
-if (
+/* ================= STATUS LOGIC ================= */
+
+if ($totalHours < 4.5) {
+
+    $status = "Half Day";
+
+} elseif (
     $checkoutTimeOnly >= "17:35" &&
     $checkoutTimeOnly <= "21:00"
 ) {
