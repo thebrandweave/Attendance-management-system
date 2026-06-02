@@ -1,7 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 $lifetime = 60 * 60 * 24 * 30;
 
 session_set_cookie_params($lifetime);
@@ -348,7 +345,8 @@ $attStmt->execute();
 
 $todayAtt = $attStmt->get_result()->fetch_assoc();
 
-
+  $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
+  $isNewEmployee = ($empCreatedDate == $today);
 $currentHour = (int)date("H");
 
 $isSunday = (
@@ -376,6 +374,7 @@ $autoAbsent = false;
 if (
     !$isSunday && // SKIP SUNDAYS
     !$isCompanyLeave &&
+    !$isNewEmployee &&
     empty($todayAtt['check_in']) &&
     empty($todayAtt['check_out']) &&
     empty($todayAtt['lunch_out']) &&
@@ -576,7 +575,13 @@ if (
     $updateStmt->execute();
 }
 
-if ($isCompanyLeave) {
+if ($isNewEmployee) {
+
+    $status = null;
+
+} else {
+
+  if ($isCompanyLeave) {
 
     $status = "Company Leave";
 
@@ -584,17 +589,16 @@ if ($isCompanyLeave) {
 
     $status = $todayAtt['status'] ?? "Pending";
 }
-
-if ($autoAbsent) {
+    if ($autoAbsent) {
     $status = "Absent";
 }
 
-/*
-============================================
-OVERTIME STATUS
-IF WORKING HOURS > 6.75
-============================================
-*/
+    /*
+    ============================================
+    OVERTIME STATUS
+    IF WORKING HOURS > 6.75
+    ============================================
+    */
 if (
     $todayAtt &&
     !empty($todayAtt['check_in']) &&
@@ -642,7 +646,7 @@ $present = 0;
 $half = 0;
 $absent = 0;
 
-if ($todayAtt) {
+if (!$isNewEmployee && $todayAtt) {
 
  if (
     $status == "Present" ||
@@ -786,9 +790,13 @@ if (
   <td><?= $today ?></td>
 
   <td style=" border-right: 1px solid #7e7c7c;">
-<span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
-    <?= $status ?>
-</span>
+    <?php if ($isNewEmployee) { ?>
+      <span style="color:gray;">Not Started</span>
+    <?php } else { ?>
+      <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
+        <?= $status ?>
+      </span>
+    <?php } ?>
   </td>
 
   <td style="background-color:#c5c2c0; color:black; border: 1px solid #7e7c7c;">
