@@ -112,7 +112,6 @@ $employees = $stmt->get_result();
     /* ===== CARD ===== */
     .card {
       background: white;
-      /* padding: 7px; */
       border-radius: 12px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.08);
     }
@@ -126,7 +125,6 @@ $employees = $stmt->get_result();
     table {
       width: 100%;
       border-collapse: collapse;
-      /* border-radius: 10px; */
       overflow: hidden;
       border:1px solid black;
     }
@@ -155,6 +153,7 @@ $employees = $stmt->get_result();
     .status-late { color: orange; font-weight: 600; }
     .status-halfday { color: #d97706; font-weight: 600; }
     .status-absent { color: red; font-weight: 600; }
+    .status-pending { color: gray; font-weight: 600; }
     
     .filters{
   display:flex;
@@ -187,7 +186,6 @@ $employees = $stmt->get_result();
 
 <div class="layout">
 
-  <!-- SIDEBAR (UPDATED STYLE MATCHED) -->
   <div class="sidebar">
 <h2>
   <?= htmlspecialchars($adminBranch) ?> Admin
@@ -195,9 +193,9 @@ $employees = $stmt->get_result();
 
     <a href="#">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
-      <a href="../api/checkin.php">🟢 Check In- Morning</a>
-      <a href="../api/lunch.php">🍽️ Lunch Break</a>
-  <a href="../api/checkout.php">🔴 Check Out- Evening</a>
+    <a href="../api/checkin.php">🟢 Check In- Morning</a>
+    <a href="../api/lunch.php">🍽️ Lunch Break</a>
+    <a href="../api/checkout.php">🔴 Check Out- Evening</a>
   <?php
 
   $branch = $_SESSION['user']['branch'];
@@ -233,7 +231,6 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
   </div>
 
-  <!-- MAIN -->
   <div class="main">
 
  <div class="header">
@@ -257,10 +254,11 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
     <option value="Present">Present</option>
     <option value="Absent">Absent</option>
     <option value="Half Day">Half Day</option>
+    <option value="Pending">Pending</option>
   </select>
 
 </div>
-<?php if($isCompanyLeave): ?>
+<?php if(isset($isCompanyLeave) && $isCompanyLeave): ?>
 
 <div style="
     background:#fef3c7;
@@ -286,17 +284,14 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
     
 <table id="employeeTable">
 
-   
-          <tr>
-     
+         <tr>
           <th>Name</th>
           <th>ID</th>
           <th>Date</th>
           <th>Status</th>
-          <th >Check In</th>
-          <!-- <th>Lunch Out</th> -->
-<th>Lunch Break</th>
-<th>Lunch Hours</th>
+          <th>Check In</th>
+          <th>Lunch Break</th>
+          <th>Lunch Hours</th>
           <th>Check Out</th>
           <th>Hours</th>
           <th>Present</th>
@@ -304,8 +299,6 @@ $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
           <th>Absent</th>
           <th>Action</th>
         </tr>
-
-        
 
 <?php 
 
@@ -330,6 +323,7 @@ $leaveData = $leaveCheck
     ->fetch_assoc();
 
 $isCompanyLeave = !empty($leaveData);
+
 while ($emp = $employees->fetch_assoc()) {
 
   $empId = $emp['id'];
@@ -345,8 +339,6 @@ $attStmt->execute();
 
 $todayAtt = $attStmt->get_result()->fetch_assoc();
 
-  $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
-  $isNewEmployee = ($empCreatedDate == $today);
 $currentHour = (int)date("H");
 
 $isSunday = (
@@ -354,27 +346,11 @@ $isSunday = (
     strtolower($adminBranch) != "mudipu"
 );
 
-$leaveCheck = $conn->prepare("
-    SELECT id, title
-    FROM company_leaves
-    WHERE leave_date=?
-");
-
-$leaveCheck->bind_param("s", $today);
-$leaveCheck->execute();
-
-$leaveData = $leaveCheck
-    ->get_result()
-    ->fetch_assoc();
-
-$isCompanyLeave = !empty($leaveData);
-
 $autoAbsent = false;
 
 if (
     !$isSunday && // SKIP SUNDAYS
     !$isCompanyLeave &&
-    !$isNewEmployee &&
     empty($todayAtt['check_in']) &&
     empty($todayAtt['check_out']) &&
     empty($todayAtt['lunch_out']) &&
@@ -382,7 +358,6 @@ if (
     $currentHour >= 16
 ) {
     $autoAbsent = true;
-
     $status = "Absent";
 
     // update DB automatically once
@@ -396,39 +371,33 @@ if (
         $checkAuto->bind_param("is", $empId, $today);
         $checkAuto->execute();
         $res = $checkAuto->get_result()->fetch_assoc();
-if ($res) {
+        if ($res) {
+            // UPDATE existing attendance row
+            $updateAuto = $conn->prepare("
+                UPDATE attendance
+                SET status='Absent'
+                WHERE id=?
+            ");
 
-    // UPDATE existing attendance row
-    $updateAuto = $conn->prepare("
-        UPDATE attendance
-        SET status='Absent'
-        WHERE id=?
-    ");
+            $updateAuto->bind_param("i", $res['id']);
+            $updateAuto->execute();
+        } else {
+            // INSERT absent record if no attendance row exists
+            $insertAbsent = $conn->prepare("
+                INSERT INTO attendance (
+                    user_id,
+                    date,
+                    status
+                ) VALUES (?, ?, 'Absent')
+            ");
 
-    $updateAuto->bind_param("i", $res['id']);
-    $updateAuto->execute();
-
-} else {
-
-    // INSERT absent record if no attendance row exists
-    $insertAbsent = $conn->prepare("
-        INSERT INTO attendance (
-            user_id,
-            date,
-            status
-        ) VALUES (?, ?, 'Absent')
-    ");
-
-    $insertAbsent->bind_param(
-        "is",
-        $empId,
-        $today
-    );
-
-    $insertAbsent->execute();
-}
+            $insertAbsent->bind_param("is", $empId, $today);
+            $insertAbsent->execute();
+        }
     }
 }
+
+// Refresh attendance data if mutated by auto-absent logic
 $attStmt = $conn->prepare("
     SELECT *
     FROM attendance
@@ -436,19 +405,11 @@ $attStmt = $conn->prepare("
     AND date=?
 ");
 
-$attStmt->bind_param(
-    "is",
-    $empId,
-    $today
-);
-
+$attStmt->bind_param("is", $empId, $today);
 $attStmt->execute();
+$todayAtt = $attStmt->get_result()->fetch_assoc();
 
-$todayAtt = $attStmt
-    ->get_result()
-    ->fetch_assoc();
-
-    /*
+/*
 ============================================
 AUTO CHECKOUT + OVERTIME LOGIC
 ============================================
@@ -479,7 +440,6 @@ if (
     $autoOutTime = strtotime($autoCheckoutTime);
 
     $totalSeconds = $autoOutTime - $checkInTime;
-
     $lunchSeconds = 0;
 
     if (
@@ -493,7 +453,6 @@ if (
     }
 
     $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
-
     $status = "Present";
 
     $updateAutoCheckout = $conn->prepare("
@@ -525,10 +484,7 @@ if (
 
     $attStmt->bind_param("is", $empId, $today);
     $attStmt->execute();
-
-    $todayAtt = $attStmt
-        ->get_result()
-        ->fetch_assoc();
+    $todayAtt = $attStmt->get_result()->fetch_assoc();
 }
 
 /*
@@ -552,11 +508,8 @@ if (
         $checkoutOnly >= $overtimeStart &&
         $checkoutOnly <= $overtimeEnd
     ) {
-
         $status = "Overtime";
-
     } else {
-
         $status = "Present";
     }
 
@@ -566,39 +519,26 @@ if (
         WHERE id=?
     ");
 
-    $updateStmt->bind_param(
-        "si",
-        $status,
-        $todayAtt['id']
-    );
-
+    $updateStmt->bind_param("si", $status, $todayAtt['id']);
     $updateStmt->execute();
 }
 
-if ($isNewEmployee) {
-
-    $status = null;
-
-} else {
-
-  if ($isCompanyLeave) {
-
+if ($isCompanyLeave) {
     $status = "Company Leave";
-
 } else {
-
     $status = $todayAtt['status'] ?? "Pending";
 }
-    if ($autoAbsent) {
+
+if ($autoAbsent) {
     $status = "Absent";
 }
 
-    /*
-    ============================================
-    OVERTIME STATUS
-    IF WORKING HOURS > 6.75
-    ============================================
-    */
+/*
+============================================
+OVERTIME STATUS
+IF WORKING HOURS > 6.75
+============================================
+*/
 if (
     $todayAtt &&
     !empty($todayAtt['check_in']) &&
@@ -623,7 +563,6 @@ if (
     $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
 
     if ($workingHours > 6.75) {
-
         $status = "Present";
 
         $updateStmt = $conn->prepare("
@@ -632,42 +571,26 @@ if (
             WHERE id=?
         ");
 
-        $updateStmt->bind_param(
-            "si",
-            $status,
-            $todayAtt['id']
-        );
-
+        $updateStmt->bind_param("si", $status, $todayAtt['id']);
         $updateStmt->execute();
     }
 }
-}
+
 $present = 0;
 $half = 0;
 $absent = 0;
 
-if (!$isNewEmployee && $todayAtt) {
-
- if (
-    $status == "Present" ||
-    $status == "Late" ||
-    $status == "Overtime"
-) {
+if ($status == "Present" || $status == "Late" || $status == "Overtime") {
     $present = 1;
-} elseif (
-    $status == "Half Day"
-) {
+} elseif ($status == "Half Day") {
     $half = 1;
-} elseif (
-    $status == "Absent" ||
-    $status == "Absent"
-) {
+} elseif ($status == "Absent") {
     $absent = 1;
 }
-}
 
-  $perDay = 500;
-  $salary = ($present * $perDay) + ($half * ($perDay / 2));
+$perDay = 500;
+$salary = ($present * $perDay) + ($half * ($perDay / 2));
+
 /*
 ============================================
 TOTAL HOURS
@@ -688,7 +611,6 @@ if (
         strtotime($todayAtt['check_in']);
 
     $totalHoursValue = $totalSeconds / 3600;
-
     $totalHours = round($totalHoursValue, 2);
 }
 
@@ -715,14 +637,15 @@ if (
         $lunchSeconds = $lunchIn - $lunchOut;
         $lunchHoursValue = $lunchSeconds / 3600;
 
-     $hours = floor($lunchSeconds / 3600);
-$minutes = floor(($lunchSeconds % 3600) / 60);
+        $hours = floor($lunchSeconds / 3600);
+        $minutes = floor(($lunchSeconds % 3600) / 60);
 
-$lunchHours = $hours . " hrs " . $minutes . " mins";
+        $lunchHours = $hours . " hrs " . $minutes . " mins";
     } else {
         $lunchHours = "0 hrs";
     }
 }
+
 /*
 ============================================
 FINAL WORKING HOURS
@@ -770,7 +693,6 @@ if (
         }
 
     } else {
-
         $workingHours = "0 hrs";
     }
 }
@@ -781,22 +703,16 @@ if (
   data-status="<?= strtolower($status) ?>"
 >
 <td>
-  <?= $emp['name'] ?>
-
- 
+  <?= htmlspecialchars($emp['name']) ?>
 </td>
 
-  <td><?= $emp['employee_id'] ?></td>
-  <td><?= $today ?></td>
+  <td><?= htmlspecialchars($emp['employee_id']) ?></td>
+  <td><?= htmlspecialchars($today) ?></td>
 
   <td style=" border-right: 1px solid #7e7c7c;">
-    <?php if ($isNewEmployee) { ?>
-      <span style="color:gray;">Not Started</span>
-    <?php } else { ?>
-      <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
-        <?= $status ?>
-      </span>
-    <?php } ?>
+    <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
+      <?= htmlspecialchars($status) ?>
+    </span>
   </td>
 
   <td style="background-color:#c5c2c0; color:black; border: 1px solid #7e7c7c;">
@@ -814,22 +730,18 @@ if (
     : '-' ?>
 </td>
 
-<!-- <td>
-
-</td> -->
-
-<td style=" border-right: 1px solid #7e7c7c;"><?= $lunchHours ?></td>
+<td style=" border-right: 1px solid #7e7c7c;"><?= htmlspecialchars($lunchHours) ?></td>
   <td style="background-color:#c5c2c0; color:black; border: 1px solid #7e7c7c;">
     <?= !empty($todayAtt['check_out'])
         ? date(" h:i A", strtotime($todayAtt['check_out']))
         : '-' ?>
   </td>
 
-<td style="color:green; font-weight:700;"><?= $workingHours ?></td>
+<td style="color:green; font-weight:700;"><?= htmlspecialchars($workingHours) ?></td>
   <td><?= $present ?></td>
   <td><?= $half ?></td>
   <td><?= $absent ?></td>
-    <td >
+    <td>
   <a href="delete_employee.php?id=<?= $emp['id'] ?>"
      onclick="return confirm('Are you sure you want to delete this employee?')"
      style="
@@ -841,7 +753,7 @@ if (
         font-size:12px;
         font-weight:600;
      ">
-     Delete
+      Delete
   </a>
 <button
     onclick='openEditModal(
@@ -857,7 +769,6 @@ if (
         border-radius:8px;
         cursor:pointer;
         font-size:13px;
-        
         align-items:center;
         gap:6px;
         font-weight:600;
@@ -876,7 +787,7 @@ if (
  </div>
   </div>
 </div>
-<!-- EDIT MODAL -->
+
 <div id="editModal" style="
     display:none;
     position:fixed;
@@ -909,7 +820,6 @@ if (
 >
       <input type="hidden" name="id" id="editId">
 
-      <!-- NAME -->
       <label>Name</label>
       <input type="text"
              name="name"
@@ -917,7 +827,6 @@ if (
              required
              style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
 
-      <!-- EMPLOYEE ID -->
       <label>Employee ID</label>
       <input type="text"
              name="employee_id"
@@ -925,7 +834,6 @@ if (
              required
              style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
 
-      <!-- STATUS -->
       <label>Status</label>
       <select name="status"
               id="editStatus"
@@ -940,14 +848,12 @@ if (
 
       </select>
 
-      <!-- CHECK IN -->
       <label>Check In</label>
       <input type="datetime-local"
              name="check_in"
              id="editCheckIn"
              style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
 
-      <!-- CHECK OUT -->
       <label>Check Out</label>
       <input type="datetime-local"
              name="check_out"
@@ -996,150 +902,83 @@ if (
 </div>
 
 <script>
-
-
-
 function formatDateTime(dateTime) {
-
     if (!dateTime) return "";
-
     let date = new Date(dateTime);
-
     let year = date.getFullYear();
-
     let month = String(date.getMonth() + 1).padStart(2, '0');
-
     let day = String(date.getDate()).padStart(2, '0');
-
     let hours = String(date.getHours()).padStart(2, '0');
-
     let minutes = String(date.getMinutes()).padStart(2, '0');
-
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function openEditModal(emp, attendance) {
-
     document.getElementById('editModal').style.display = 'flex';
-
     document.getElementById('editId').value = emp.id || '';
-
     document.getElementById('editName').value = emp.name || '';
-
     document.getElementById('editEmployeeId').value = emp.employee_id || '';
-
-
-    document.getElementById('editStatus').value =
-        attendance?.status || 'Pending';
-
-    document.getElementById('editCheckIn').value =
-        formatDateTime(attendance?.check_in);
-
-    document.getElementById('editCheckOut').value =
-        formatDateTime(attendance?.check_out);
+    document.getElementById('editStatus').value = attendance?.status || 'Pending';
+    document.getElementById('editCheckIn').value = formatDateTime(attendance?.check_in);
+    document.getElementById('editCheckOut').value = formatDateTime(attendance?.check_out);
 }
 
 function closeEditModal() {
-
     document.getElementById('editModal').style.display = 'none';
 }
 
 function filterTable() {
-
-    const idFilter = document
-        .getElementById("employeeFilter")
-        .value
-        .toLowerCase();
-
-    const statusFilter = document
-        .getElementById("statusFilter")
-        .value
-        .toLowerCase();
-
+    const idFilter = document.getElementById("employeeFilter").value.toLowerCase();
+    const statusFilter = document.getElementById("statusFilter").value.toLowerCase();
     const rows = document.querySelectorAll("#employeeTable tr[data-id]");
 
     rows.forEach(row => {
-
         const empId = row.getAttribute("data-id");
-
         const status = row.getAttribute("data-status");
-
         const idMatch = empId.includes(idFilter);
+        const statusMatch = statusFilter === "" || status.includes(statusFilter);
 
-        const statusMatch =
-            statusFilter === "" ||
-            status.includes(statusFilter);
-
-        row.style.display =
-            (idMatch && statusMatch)
-            ? ""
-            : "none";
+        row.style.display = (idMatch && statusMatch) ? "" : "none";
     });
 }
-function checkAutoRedirect() {
 
+function checkAutoRedirect() {
     const now = new Date();
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
-    // 9:30 AM to 9:40 AM CHECK-IN (ONLY ONCE)
     if (hours === 9 && minutes >= 30 && minutes <= 40) {
-
         if (!localStorage.getItem("auto_checkin_done")) {
             localStorage.setItem("auto_checkin_done", "1");
             window.location.href = "../api/checkin.php";
         }
     }
 
-    // 5:24 PM CHECK-OUT (ONLY ONCE)
     if (hours === 17 && minutes === 24) {
-
         if (!localStorage.getItem("auto_checkout_done")) {
             localStorage.setItem("auto_checkout_done", "1");
             window.location.href = "../api/checkout.php";
         }
     }
 }
-</script>
-
-<script>
 
 function loadAttendanceTable() {
-
     fetch(window.location.href)
-
     .then(response => response.text())
-
     .then(data => {
-
         let parser = new DOMParser();
-
         let htmlDoc = parser.parseFromString(data, 'text/html');
-
-        let newTable =
-            htmlDoc.querySelector('#tableContainer').innerHTML;
-
-        document.querySelector('#tableContainer').innerHTML =
-            newTable;
+        let newTable = htmlDoc.querySelector('#tableContainer').innerHTML;
+        document.querySelector('#tableContainer').innerHTML = newTable;
     })
-
     .catch(error => {
         console.log("Refresh Error:", error);
     });
 }
 
-/*
-========================================
-AUTO REFRESH EVERY 10 SECONDS
-========================================
-*/
-
 setInterval(() => {
-
     loadAttendanceTable();
-
 }, 10000);
-
 </script>
 </body>
 </html>
