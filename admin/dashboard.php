@@ -345,8 +345,8 @@ $attStmt->execute();
 
 $todayAtt = $attStmt->get_result()->fetch_assoc();
 
-  $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
-  $isNewEmployee = ($empCreatedDate == $today);
+//   $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
+//   $isNewEmployee = ($empCreatedDate == $today);
 $currentHour = (int)date("H");
 
 $isSunday = (
@@ -575,13 +575,7 @@ if (
     $updateStmt->execute();
 }
 
-if ($isNewEmployee) {
-
-    $status = null;
-
-} else {
-
-  if ($isCompanyLeave) {
+if ($isCompanyLeave) {
 
     $status = "Company Leave";
 
@@ -589,16 +583,17 @@ if ($isNewEmployee) {
 
     $status = $todayAtt['status'] ?? "Pending";
 }
-    if ($autoAbsent) {
+
+if ($autoAbsent) {
     $status = "Absent";
 }
 
-    /*
-    ============================================
-    OVERTIME STATUS
-    IF WORKING HOURS > 6.75
-    ============================================
-    */
+/*
+============================================
+OVERTIME STATUS
+IF WORKING HOURS > 6.75
+============================================
+*/
 if (
     $todayAtt &&
     !empty($todayAtt['check_in']) &&
@@ -646,7 +641,7 @@ $present = 0;
 $half = 0;
 $absent = 0;
 
-if (!$isNewEmployee && $todayAtt) {
+if ($todayAtt) {
 
  if (
     $status == "Present" ||
@@ -790,13 +785,9 @@ if (
   <td><?= $today ?></td>
 
   <td style=" border-right: 1px solid #7e7c7c;">
-    <?php if ($isNewEmployee) { ?>
-      <span style="color:gray;">Not Started</span>
-    <?php } else { ?>
-      <span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
-        <?= $status ?>
-      </span>
-    <?php } ?>
+<span class="status-<?= strtolower(str_replace(' ', '', $status)) ?>">
+    <?= $status ?>
+</span>
   </td>
 
   <td style="background-color:#c5c2c0; color:black; border: 1px solid #7e7c7c;">
