@@ -345,8 +345,7 @@ $attStmt->execute();
 
 $todayAtt = $attStmt->get_result()->fetch_assoc();
 
-//   $empCreatedDate = date("Y-m-d", strtotime($emp['created_at']));
-//   $isNewEmployee = ($empCreatedDate == $today);
+
 $currentHour = (int)date("H");
 
 $isSunday = (
