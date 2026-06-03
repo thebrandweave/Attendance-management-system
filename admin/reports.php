@@ -229,7 +229,6 @@ $employees = $conn->query("
     THEN 1 ELSE 0 END) as present_count,
         SUM(CASE WHEN attendance.status='Absent' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as absent_count,
         SUM(CASE WHEN attendance.status='Half Day' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_count,
-        SUM(CASE WHEN attendance.status='Late' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as late_count,
         SUM(CASE WHEN attendance.status='CL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as cl_count
     FROM users
     LEFT JOIN attendance ON users.id = attendance.user_id AND attendance.date BETWEEN '$startDate' AND '$endDate' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
@@ -392,7 +391,7 @@ $history = $conn->query("
                     <th>Present</th>
                     <th>Absent</th>
                     <th>Half Day</th>
-                    <th>Late</th>
+                    <!-- <th>Late</th> -->
                     <th>Occasional Leave</th>
                     <th>Total Attendance</th>
                 </tr>
@@ -405,7 +404,7 @@ $history = $conn->query("
                     <td class="green"><?= $emp['present_count'] ?? 0 ?></td>
                     <td class="red"><?= $emp['absent_count'] ?? 0 ?></td>
                     <td class="orange"><?= $emp['halfday_count'] ?? 0 ?></td>
-                    <td class="blue"><?= $emp['late_count'] ?? 0 ?></td>
+           
                     <td style="color: #7c3aed; font-weight: 600;"><?= $emp['cl_count'] ?? 0 ?></td>
                     <td style="font-weight:600;"><?= $finalAttendance ?> / <?= $totalDaysInMonth ?> Days</td>
                 </tr>
