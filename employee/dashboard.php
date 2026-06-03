@@ -31,6 +31,29 @@ $presentQuery = $conn->query("
 $presentData = $presentQuery->fetch_assoc();
 $totalPresentDays = $presentData['total_present'] ?? 0;
 
+
+$halfQuery = $conn->query("
+  SELECT COUNT(*) AS total_half
+  FROM attendance
+  WHERE user_id = $userId
+  AND DAYOFWEEK(date) != 1
+  AND status = 'Half Day'
+");
+
+$halfData = $halfQuery->fetch_assoc();
+$totalHalfDays = $halfData['total_half'] ?? 0;
+
+$absentQuery = $conn->query("
+  SELECT COUNT(*) AS total_absent
+  FROM attendance
+  WHERE user_id = $userId
+  AND DAYOFWEEK(date) != 1
+  AND status = 'Absent'
+");
+
+$absentData = $absentQuery->fetch_assoc();
+$totalAbsentDays = $absentData['total_absent'] ?? 0;
+
 /* =======================
    TODAY ATTENDANCE
 ======================= */
@@ -444,9 +467,26 @@ tr:hover {
       Employee ID: <strong><?= htmlspecialchars($user['employee_id']) ?></strong>
     </div>
 
-    <div class="present-badge">
-      Total Present Days : <strong><?= $totalPresentDays ?></strong>
-    </div>
+    <div style="
+display:flex;
+gap:12px;
+flex-wrap:wrap;
+margin-bottom:24px;
+">
+
+<div class="present-badge" style="background:#16a34a;">
+  Present : <strong><?= $totalPresentDays ?></strong>
+</div>
+
+<div class="present-badge" style="background:#f59e0b;">
+  Half Day : <strong><?= $totalHalfDays ?></strong>
+</div>
+
+<div class="present-badge" style="background:#dc2626;">
+  Absent : <strong><?= $totalAbsentDays ?></strong>
+</div>
+
+</div>
 
     <div class="card">
       <h2>Today's Attendance</h2>
@@ -550,6 +590,7 @@ tr:hover {
               <th>Date</th>
               <th>Check In</th>
               <th>Check Out</th>
+              <th>Total Hours</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -560,8 +601,68 @@ tr:hover {
                 <td data-label="Employee ID"><?= htmlspecialchars($row['employee_id']) ?></td>
                 <td data-label="Date"><?= htmlspecialchars($row['date']) ?></td>
                 <td data-label="Check In"><?= $row['check_in'] ? date("h:i A", strtotime($row['check_in'])) : '-' ?></td>
-                <td data-label="Check Out"><?= $row['check_out'] ? date("h:i A", strtotime($row['check_out'])) : '-' ?></td>
-                <td data-label="Status"><?= htmlspecialchars($row['status'] ?? '-') ?></td>
+               <td data-label="Check Out">
+<?= $row['check_out']
+? date("h:i A", strtotime($row['check_out']))
+: '-' ?>
+</td>
+
+<td data-label="Total Hours">
+<?php
+if (!empty($row['check_in']) && !empty($row['check_out'])) {
+
+    $seconds =
+        strtotime($row['check_out']) -
+        strtotime($row['check_in']);
+
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+
+    echo $hours . "h " . $minutes . "m";
+
+} else {
+    echo "-";
+}
+?>
+</td>
+
+<td data-label="Status">
+<?php
+$status = $row['status'] ?? '';
+
+$color = '#6b7280';
+
+if ($status == 'Present')
+    $color = '#16a34a';
+
+elseif ($status == 'Absent')
+    $color = '#dc2626';
+
+elseif ($status == 'Half Day')
+    $color = '#f59e0b';
+
+elseif ($status == 'Late')
+    $color = '#2563eb';
+
+elseif ($status == 'Overtime')
+    $color = '#7c3aed';
+
+elseif ($status == 'CL')
+    $color = '#0891b2';
+?>
+
+<span style="
+background:<?= $color ?>;
+color:white;
+padding:5px 12px;
+border-radius:20px;
+font-size:12px;
+font-weight:600;
+">
+<?= htmlspecialchars($status) ?>
+</span>
+
+</td>
               </tr>
               <?php } ?>
             <?php } else { ?>
