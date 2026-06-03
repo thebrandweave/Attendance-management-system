@@ -56,7 +56,7 @@ if (isset($_POST['token'])) {
       if (!$attendance) {
 
     // Determine Status
-    if ($timeOnly <= "09:45:00") {
+    if ($timeOnly <= "09:46:00") {
 
         $status = "Present";
 
