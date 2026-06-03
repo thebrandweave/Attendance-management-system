@@ -220,7 +220,13 @@ $employees = $conn->query("
         users.id,
         users.name,
         users.employee_id,
-        SUM(CASE WHEN (attendance.status='Present' OR attendance.status='Overtime') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as present_count,
+       SUM(CASE WHEN (
+        attendance.status='Present'
+        OR attendance.status='Overtime'
+        OR attendance.status='Late'
+    )
+    AND attendance.date BETWEEN '$startDate' AND '$endDate'
+    THEN 1 ELSE 0 END) as present_count,
         SUM(CASE WHEN attendance.status='Absent' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as absent_count,
         SUM(CASE WHEN attendance.status='Half Day' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_count,
         SUM(CASE WHEN attendance.status='Late' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as late_count,
