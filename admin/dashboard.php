@@ -420,7 +420,7 @@ $currentTimeOnly = date("H:i:s");
 
 $autoCheckoutTime = $today . " 17:30:00";
 $overtimeStart = "17:35:00";
-$overtimeEnd = "21:00:00";
+$overtimeEnd   = "20:59:59";
 
 /*
 ============================================
@@ -504,14 +504,24 @@ if (
         strtotime($todayAtt['check_out'])
     );
 
+ if (
+    strtotime($todayAtt['check_out']) >
+    strtotime($today . " 17:30:00")
+) {
+
     if (
-        $checkoutOnly >= $overtimeStart &&
-        $checkoutOnly <= $overtimeEnd
+        $checkoutOnly >= "17:35:00" &&
+        $checkoutOnly <= "20:59:59"
     ) {
         $status = "Overtime";
     } else {
         $status = "Present";
     }
+
+} else {
+
+    $status = "Present";
+}
 
     $updateStmt = $conn->prepare("
         UPDATE attendance
