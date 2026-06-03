@@ -7,6 +7,70 @@ session_start();
 include("../config/db.php");
 
 date_default_timezone_set("Asia/Kolkata");
+/*
+=========================================
+FIX MISSED CHECKOUTS
+If employee checked in but never checked out
+for a previous day, auto-close at 5:30 PM
+=========================================
+*/
+
+$fixCheckout = $conn->query("
+    SELECT *
+    FROM attendance
+    WHERE check_in IS NOT NULL
+    AND (check_out IS NULL OR check_out = '')
+    AND date < CURDATE()
+");
+
+while ($att = $fixCheckout->fetch_assoc()) {
+
+    $autoCheckoutTime =
+        $att['date'] . " 17:30:00";
+
+    $checkIn = strtotime($att['check_in']);
+    $checkOut = strtotime($autoCheckoutTime);
+
+    $totalSeconds = $checkOut - $checkIn;
+
+    $lunchSeconds = 0;
+
+    if (
+        !empty($att['lunch_out']) &&
+        !empty($att['lunch_in'])
+    ) {
+
+        $lunchSeconds =
+            strtotime($att['lunch_in']) -
+            strtotime($att['lunch_out']);
+    }
+
+    $workingHours =
+        max(0, ($totalSeconds - $lunchSeconds) / 3600);
+
+    $status = ($workingHours < 4.5)
+        ? "Half Day"
+        : "Present";
+
+    $stmt = $conn->prepare("
+        UPDATE attendance
+        SET
+            check_out = ?,
+            total_hours = ?,
+            status = ?
+        WHERE id = ?
+    ");
+
+    $stmt->bind_param(
+        "sdsi",
+        $autoCheckoutTime,
+        $workingHours,
+        $status,
+        $att['id']
+    );
+
+    $stmt->execute();
+}
 
 if (
     !isset($_SESSION['user']) ||
