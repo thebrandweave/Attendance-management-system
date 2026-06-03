@@ -55,19 +55,25 @@ if (isset($_POST['token'])) {
 
       if (!$attendance) {
 
-    // Determine Status
-    if ($timeOnly <= "09:46:00") {
+ if (
+    $timeOnly >= "13:00:00" &&
+    $timeOnly <= "14:00:00"
+) {
 
-        $status = "Present";
+    $status = "Half Day";
 
-    } elseif ($timeOnly <= "10:00:00") {
+} elseif ($timeOnly <= "09:46:00") {
 
-        $status = "Late";
+    $status = "Present";
 
-    } else {
+} elseif ($timeOnly <= "10:00:00") {
 
-        $status = "Half Day";
-    }
+    $status = "Late";
+
+} else {
+
+    $status = "Half Day";
+}
 
             $stmt = $conn->prepare("INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, ?)");
             $stmt->bind_param("isss", $userId, $today, $currentTime, $status);
