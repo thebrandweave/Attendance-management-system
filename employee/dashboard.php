@@ -71,11 +71,20 @@ $allAttendance = $conn->query("
     a.date,
     a.check_in,
     a.check_out,
-    a.status
+    a.status,
+    a.lunch_out,
+a.lunch_in,
+    cl.title AS leave_title
   FROM attendance a
-  INNER JOIN users u ON a.user_id = u.id
+  INNER JOIN users u
+      ON a.user_id = u.id
+
+  LEFT JOIN company_leaves cl
+      ON cl.leave_date = a.date
+
   WHERE a.user_id = $userId
   AND DAYOFWEEK(a.date) != 1
+
   ORDER BY a.date DESC
 ");
 
@@ -607,19 +616,37 @@ margin-bottom:24px;
 : '-' ?>
 </td>
 
-<td data-label="Total Hours">
+<td
+data-label="Total Hours"
+style="
+font-weight:600;
+color:#16a34a;
+">
 <?php
 if (!empty($row['check_in']) && !empty($row['check_out'])) {
 
-    $seconds =
-        strtotime($row['check_out']) -
-        strtotime($row['check_in']);
+    $checkIn = strtotime($row['check_in']);
+    $checkOut = strtotime($row['check_out']);
 
-    $hours = floor($seconds / 3600);
-    $minutes = floor(($seconds % 3600) / 60);
+    $totalSeconds = $checkOut - $checkIn;
+
+    $lunchSeconds = 0;
+
+    if (
+        !empty($row['lunch_out']) &&
+        !empty($row['lunch_in'])
+    ) {
+        $lunchSeconds =
+            strtotime($row['lunch_in']) -
+            strtotime($row['lunch_out']);
+    }
+
+    $finalSeconds = $totalSeconds - $lunchSeconds;
+
+    $hours = floor($finalSeconds / 3600);
+    $minutes = floor(($finalSeconds % 3600) / 60);
 
     echo $hours . "h " . $minutes . "m";
-
 } else {
     echo "-";
 }
@@ -630,37 +657,56 @@ if (!empty($row['check_in']) && !empty($row['check_out'])) {
 <?php
 $status = $row['status'] ?? '';
 
-$color = '#6b7280';
+if ($status == 'CL') {
 
-if ($status == 'Present')
-    $color = '#16a34a';
+    $leaveTitle = !empty($row['leave_title'])
+        ? $row['leave_title']
+        : 'Company Leave';
+?>
+    <span style="
+    background:#7c3aed;
+    color:white;
+    padding:5px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:600;
+    ">
+        <?= htmlspecialchars($leaveTitle) ?>
+    </span>
 
-elseif ($status == 'Absent')
-    $color = '#dc2626';
+<?php
+} else {
 
-elseif ($status == 'Half Day')
-    $color = '#f59e0b';
+    $color = '#6b7280';
 
-elseif ($status == 'Late')
-    $color = '#2563eb';
+    if ($status == 'Present')
+        $color = '#16a34a';
 
-elseif ($status == 'Overtime')
-    $color = '#7c3aed';
+    elseif ($status == 'Absent')
+        $color = '#dc2626';
 
-elseif ($status == 'CL')
-    $color = '#0891b2';
+    elseif ($status == 'Half Day')
+        $color = '#f59e0b';
+
+    elseif ($status == 'Late')
+        $color = '#2563eb';
+
+    elseif ($status == 'Overtime')
+        $color = '#7c3aed';
 ?>
 
-<span style="
-background:<?= $color ?>;
-color:white;
-padding:5px 12px;
-border-radius:20px;
-font-size:12px;
-font-weight:600;
-">
-<?= htmlspecialchars($status) ?>
-</span>
+    <span style="
+    background:<?= $color ?>;
+    color:white;
+    padding:5px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:600;
+    ">
+        <?= htmlspecialchars($status) ?>
+    </span>
+
+<?php } ?>
 
 </td>
               </tr>
