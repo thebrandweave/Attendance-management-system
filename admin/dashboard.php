@@ -636,18 +636,22 @@ if (
 
     $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
 
-    if ($workingHours > 6.75) {
-        $status = "Present";
+if (
+    $workingHours > 6.75 &&
+    $todayAtt['status'] != 'Half Day'
+) {
 
-        $updateStmt = $conn->prepare("
-            UPDATE attendance
-            SET status=?
-            WHERE id=?
-        ");
+    $status = "Present";
 
-        $updateStmt->bind_param("si", $status, $todayAtt['id']);
-        $updateStmt->execute();
-    }
+    $updateStmt = $conn->prepare("
+        UPDATE attendance
+        SET status=?
+        WHERE id=?
+    ");
+
+    $updateStmt->bind_param("si", $status, $todayAtt['id']);
+    $updateStmt->execute();
+}
 }
 
 $present = 0;

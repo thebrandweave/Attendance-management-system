@@ -218,13 +218,16 @@ $checkoutTimeOnly = date(
 
 /* ================= STATUS LOGIC ================= */
 
+$checkinTimestamp  = strtotime($attendance['check_in']);
 $checkoutTimestamp = strtotime($currentTime);
+
 $onePM = strtotime(date("Y-m-d") . " 13:00:00");
 $twoPM = strtotime(date("Y-m-d") . " 14:00:00");
 
 if (
-    $checkoutTimestamp >= $onePM &&
-    $checkoutTimestamp <= $twoPM
+    ($checkinTimestamp >= $onePM && $checkinTimestamp <= $twoPM)
+    ||
+    ($checkoutTimestamp >= $onePM && $checkoutTimestamp <= $twoPM)
 ) {
 
     $status = "Half Day";
