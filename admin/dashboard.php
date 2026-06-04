@@ -48,7 +48,7 @@ while ($att = $fixCheckout->fetch_assoc()) {
     $workingHours =
         max(0, ($totalSeconds - $lunchSeconds) / 3600);
 
-    $status = ($workingHours < 4)
+    $status = ($workingHours < 4.5)
         ? "Half Day"
         : "Present";
 
@@ -636,22 +636,18 @@ if (
 
     $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
 
-if (
-    $workingHours > 6.75 &&
-    $todayAtt['status'] != 'Half Day'
-) {
+    if ($workingHours > 6.75) {
+        $status = "Present";
 
-    $status = "Present";
+        $updateStmt = $conn->prepare("
+            UPDATE attendance
+            SET status=?
+            WHERE id=?
+        ");
 
-    $updateStmt = $conn->prepare("
-        UPDATE attendance
-        SET status=?
-        WHERE id=?
-    ");
-
-    $updateStmt->bind_param("si", $status, $todayAtt['id']);
-    $updateStmt->execute();
-}
+        $updateStmt->bind_param("si", $status, $todayAtt['id']);
+        $updateStmt->execute();
+    }
 }
 
 $present = 0;
