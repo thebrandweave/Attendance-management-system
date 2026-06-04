@@ -48,7 +48,7 @@ while ($att = $fixCheckout->fetch_assoc()) {
     $workingHours =
         max(0, ($totalSeconds - $lunchSeconds) / 3600);
 
-    $status = ($workingHours < 4.5)
+    $status = ($workingHours < 4)
         ? "Half Day"
         : "Present";
 
