@@ -232,7 +232,7 @@ if (
 
     $status = "Half Day";
 
-} elseif ($totalHours < 4.5) {
+} elseif ($totalHours < 4) {
 
     $status = "Half Day";
 
