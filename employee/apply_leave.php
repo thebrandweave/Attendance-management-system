@@ -354,7 +354,7 @@ $user = $_SESSION['user'];
 
         $conn->query("
           INSERT INTO leave_requests (employee_id, date, type, reason, status)
-          VALUES ($employee_id, '$date', '$type', '$reason', 'Pending')
+          VALUES ($employee_id, '$date', '$type', '$reason', 'pending')
         ");
 
         echo "<div class='success'>Leave Applied Successfully ✅</div>";

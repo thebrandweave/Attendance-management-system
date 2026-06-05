@@ -240,7 +240,7 @@ $branch = $_SESSION['user']['branch'];
 
           <td id="actions-<?= $row['id'] ?>">
 
-          <?php if ($row['status'] == 'pending') { ?>
+          <?php if (strtolower($row['status']) == 'pending') { ?>
 
             <button
               class="btn btn-green"
