@@ -482,6 +482,10 @@ gap:12px;
 flex-wrap:wrap;
 margin-bottom:24px;
 ">
+<div class="present-badge" style="background:#0f766e;">
+  Worked Today : <strong><?= $todayWorked ?></strong>
+</div>
+
 
 <div class="present-badge" style="background:#16a34a;">
   Present : <strong><?= $totalPresentDays ?></strong>
@@ -496,7 +500,42 @@ margin-bottom:24px;
 </div>
 
 </div>
+<?php
 
+$todayWorked = "-";
+
+if ($attendance && !empty($attendance['check_in'])) {
+
+    $startTime = strtotime($attendance['check_in']);
+
+    if (!empty($attendance['check_out'])) {
+        $endTime = strtotime($attendance['check_out']);
+    } else {
+        $endTime = time(); // current time if still working
+    }
+
+    $totalSeconds = $endTime - $startTime;
+
+    // subtract lunch time if taken
+    $lunchSeconds = 0;
+
+    if (
+        !empty($attendance['lunch_out']) &&
+        !empty($attendance['lunch_in'])
+    ) {
+        $lunchSeconds =
+            strtotime($attendance['lunch_in']) -
+            strtotime($attendance['lunch_out']);
+    }
+
+    $finalSeconds = $totalSeconds - $lunchSeconds;
+
+    $hours = floor($finalSeconds / 3600);
+    $minutes = floor(($finalSeconds % 3600) / 60);
+
+    $todayWorked = $hours . "h " . $minutes . "m";
+}
+?>
     <div class="card">
       <h2>Today's Attendance</h2>
       <?php if ($attendance) { 
