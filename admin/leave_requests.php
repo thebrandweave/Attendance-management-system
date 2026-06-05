@@ -338,20 +338,7 @@ function showToast(message, error = false) {
     }, 2500);
 }
 
-function loadLeaveRequests() {
 
-   fetch("fetch_leave_requests.php?branch=<?= urlencode($branch) ?>")
-    .then(res => res.text())
-    .then(data => {
-
-        document.getElementById("leaveTableBody").innerHTML = data;
-
-    });
-
-}
-
-/* Auto refresh every 5 seconds */
-setInterval(loadLeaveRequests, 5000);
 function checkAutoRedirect() {
 
     const now = new Date();

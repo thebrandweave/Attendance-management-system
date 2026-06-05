@@ -321,7 +321,7 @@ $user = $_SESSION['user'];
 
       <h2>Apply Leave</h2>
 
-      <form method="POST">
+      <form id="leaveForm" method="POST">
         <div class="form-group">
           <label>Select Date</label>
           <input type="date" name="date" required>
@@ -340,7 +340,7 @@ $user = $_SESSION['user'];
           <input type="text" name="reason" placeholder="Reason (optional)">
         </div>
 
-        <button name="apply">Apply Leave</button>
+        <button type="submit">Apply Leave</button>
       </form>
 
       <?php
@@ -352,10 +352,27 @@ $user = $_SESSION['user'];
 
         $employee_id = (int)$user['id'];
 
-        $conn->query("
-          INSERT INTO leave_requests (employee_id, date, type, reason, status)
-          VALUES ($employee_id, '$date', '$type', '$reason', 'pending')
-        ");
+       if(isset($_POST['ajax'])){
+
+    $date = $conn->real_escape_string($_POST['date']);
+    $type = $conn->real_escape_string($_POST['type']);
+    $reason = $conn->real_escape_string($_POST['reason']);
+
+    $employee_id = (int)$user['id'];
+
+    $conn->query("
+        INSERT INTO leave_requests
+        (employee_id,date,type,reason,status)
+        VALUES
+        ($employee_id,'$date','$type','$reason','pending')
+    ");
+
+    echo json_encode([
+        "success" => true
+    ]);
+
+    exit;
+}
 
         echo "<div class='success'>Leave Applied Successfully ✅</div>";
       }
@@ -381,6 +398,33 @@ $user = $_SESSION['user'];
   menuToggle.addEventListener('click', toggleMenu);
   sidebarOverlay.addEventListener('click', toggleMenu);
 </script>
+<script>document
+.getElementById("leaveForm")
+.addEventListener("submit", async function(e){
+
+    e.preventDefault();
+
+    const formData = new FormData(this);
+
+    formData.append("ajax", "1");
+
+    const res = await fetch(
+        "apply_leave.php",
+        {
+            method: "POST",
+            body: formData
+        }
+    );
+
+    const data = await res.json();
+
+    if(data.success){
+
+        showToast("Leave Applied Successfully ✅");
+
+        this.reset();
+    }
+});</script>
 
 </body>
 </html>
