@@ -449,68 +449,49 @@ function showToast(message, error = false) {
 }
 
 
-<script>
 
-document
-.getElementById("leaveForm")
-.addEventListener(
-"submit",
-async function(e){
+</script>
+
+<script>
+document.getElementById("leaveForm")
+.addEventListener("submit", async function(e){
 
     e.preventDefault();
 
-    const formData =
-        new FormData(this);
-
-    formData.append(
-        "ajax",
-        "1"
-    );
+    const formData = new FormData(this);
+    formData.append("ajax", "1");
 
     try {
 
-        const response =
-            await fetch(
-                "apply_leave.php",
-                {
-                    method: "POST",
-                    body: formData
-                }
-            );
+        const response = await fetch(
+            "apply_leave.php",
+            {
+                method: "POST",
+                body: formData
+            }
+        );
 
-        const data =
-            await response.json();
+        const data = await response.json();
 
         if(data.success){
 
-            showToast(
-                "Leave Applied Successfully ✅"
-            );
+            showToast("Leave Applied Successfully ✅");
 
             this.reset();
 
         } else {
 
-            showToast(
-                "Failed to Apply Leave",
-                true
-            );
-
+            showToast("Failed to Apply Leave", true);
         }
 
     } catch(error){
 
         console.error(error);
 
-        showToast(
-            "Something went wrong",
-            true
-        );
+        showToast("Something went wrong", true);
     }
 
 });
-
-</script>
 </script>
 </body>
 </html>
