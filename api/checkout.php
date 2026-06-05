@@ -217,7 +217,7 @@ $checkoutTimeOnly = date(
 /* ================= STATUS LOGIC ================= */
 
 /* ================= STATUS LOGIC ================= */
-if ($totalHours < 4.5) {
+if ($totalHours < 5) {
 
     $status = "Half Day";
 
