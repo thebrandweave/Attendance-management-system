@@ -63,8 +63,6 @@ $attendance = $conn->query("
 ")->fetch_assoc();
   
 
-<?php
-
 $todayWorked = "-";
 
 if ($attendance && !empty($attendance['check_in'])) {
@@ -98,7 +96,7 @@ if ($attendance && !empty($attendance['check_in'])) {
 
     $todayWorked = $hours . "h " . $minutes . "m";
 }
-?>
+
 
 
 /* =======================
