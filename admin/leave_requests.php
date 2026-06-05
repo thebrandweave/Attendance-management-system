@@ -148,7 +148,9 @@ $branch = $_SESSION['user']['branch'];
       color: white;
       font-size: 12px;
       margin: 2px;
-      display: inline-block;
+      display: inline-block; 
+      border:none;
+      outline:none;
     }
 
     .btn-green { background: #22c55e; }
