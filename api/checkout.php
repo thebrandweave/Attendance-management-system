@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
             $checkoutTimeOnly = date("H:i", $checkOut);
 
             // Unified Status Resolution Logic
-            if ($totalHours < 5) {
+            if ($totalHours < 4) {
                 $status = "Half Day";
             } elseif ($checkoutTimeOnly >= "17:35") {
                 $status = "Overtime";
