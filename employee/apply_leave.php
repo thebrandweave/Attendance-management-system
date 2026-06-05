@@ -1,16 +1,52 @@
-<?php 
+<?php
 include("../config/db.php");
 
 if (session_status() === PHP_SESSION_NONE) {
-  session_start();
+    session_start();
 }
 
 if (!isset($_SESSION['user'])) {
-  header("Location: ../index.php");
-  exit();
+    header("Location: ../index.php");
+    exit();
 }
 
 $user = $_SESSION['user'];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
+
+    $date = $conn->real_escape_string($_POST['date']);
+    $type = $conn->real_escape_string($_POST['type']);
+    $reason = $conn->real_escape_string($_POST['reason']);
+
+    $employee_id = (int)$user['id'];
+
+    $insert = $conn->query("
+        INSERT INTO leave_requests
+        (
+            employee_id,
+            date,
+            type,
+            reason,
+            status
+        )
+        VALUES
+        (
+            $employee_id,
+            '$date',
+            '$type',
+            '$reason',
+            'pending'
+        )
+    ");
+
+    header('Content-Type: application/json');
+
+    echo json_encode([
+        'success' => $insert ? true : false
+    ]);
+
+    exit();
+}
 ?>
 
 <!DOCTYPE html>
@@ -321,62 +357,39 @@ $user = $_SESSION['user'];
 
       <h2>Apply Leave</h2>
 
-      <form id="leaveForm" method="POST">
-        <div class="form-group">
-          <label>Select Date</label>
-          <input type="date" name="date" required>
-        </div>
+    <form id="leaveForm">
 
-        <div class="form-group">
-          <label>Leave Type</label>
-          <select name="type">
+    <div class="form-group">
+        <label>Select Date</label>
+        <input type="date" name="date" required>
+    </div>
+
+    <div class="form-group">
+        <label>Leave Type</label>
+
+        <select name="type">
             <option value="Full Day">Full Day</option>
             <option value="Half Day">Half Day</option>
-          </select>
-        </div>
+        </select>
+    </div>
 
-        <div class="form-group">
-          <label>Reason for Leave</label>
-          <input type="text" name="reason" placeholder="Reason (optional)">
-        </div>
+    <div class="form-group">
+        <label>Reason for Leave</label>
 
-        <button type="submit">Apply Leave</button>
-      </form>
+        <input
+            type="text"
+            name="reason"
+            placeholder="Reason (optional)"
+        >
+    </div>
 
-      <?php
-      if (isset($_POST['apply'])) {
+    <button type="submit">
+        Apply Leave
+    </button>
 
-        $date = $conn->real_escape_string($_POST['date']);
-        $type = $conn->real_escape_string($_POST['type']);
-        $reason = $conn->real_escape_string($_POST['reason']);
+</form>
 
-        $employee_id = (int)$user['id'];
-
-       if(isset($_POST['ajax'])){
-
-    $date = $conn->real_escape_string($_POST['date']);
-    $type = $conn->real_escape_string($_POST['type']);
-    $reason = $conn->real_escape_string($_POST['reason']);
-
-    $employee_id = (int)$user['id'];
-
-    $conn->query("
-        INSERT INTO leave_requests
-        (employee_id,date,type,reason,status)
-        VALUES
-        ($employee_id,'$date','$type','$reason','pending')
-    ");
-
-    echo json_encode([
-        "success" => true
-    ]);
-
-    exit;
-}
-
-        echo "<div class='success'>Leave Applied Successfully ✅</div>";
-      }
-      ?>
+   
 
       <a href="dashboard.php" class="back-btn">⬅ Go Back</a>
 
@@ -398,33 +411,106 @@ $user = $_SESSION['user'];
   menuToggle.addEventListener('click', toggleMenu);
   sidebarOverlay.addEventListener('click', toggleMenu);
 </script>
-<script>document
+<script>
+function showToast(message, error = false) {
+
+    const toast = document.createElement("div");
+
+    toast.innerText = message;
+
+    toast.style.position = "fixed";
+    toast.style.top = "20px";
+    toast.style.right = "20px";
+    toast.style.padding = "12px 18px";
+    toast.style.borderRadius = "10px";
+    toast.style.color = "white";
+    toast.style.fontWeight = "600";
+    toast.style.zIndex = "9999";
+    toast.style.background =
+        error ? "#ef4444" : "#22c55e";
+
+    toast.style.boxShadow =
+        "0 5px 15px rgba(0,0,0,0.15)";
+
+    toast.style.animation =
+        "slideIn 0.3s ease";
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+
+        toast.style.opacity = "0";
+
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+
+    }, 2500);
+}
+
+
+<script>
+
+document
 .getElementById("leaveForm")
-.addEventListener("submit", async function(e){
+.addEventListener(
+"submit",
+async function(e){
 
     e.preventDefault();
 
-    const formData = new FormData(this);
+    const formData =
+        new FormData(this);
 
-    formData.append("ajax", "1");
-
-    const res = await fetch(
-        "apply_leave.php",
-        {
-            method: "POST",
-            body: formData
-        }
+    formData.append(
+        "ajax",
+        "1"
     );
 
-    const data = await res.json();
+    try {
 
-    if(data.success){
+        const response =
+            await fetch(
+                "apply_leave.php",
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
 
-        showToast("Leave Applied Successfully ✅");
+        const data =
+            await response.json();
 
-        this.reset();
+        if(data.success){
+
+            showToast(
+                "Leave Applied Successfully ✅"
+            );
+
+            this.reset();
+
+        } else {
+
+            showToast(
+                "Failed to Apply Leave",
+                true
+            );
+
+        }
+
+    } catch(error){
+
+        console.error(error);
+
+        showToast(
+            "Something went wrong",
+            true
+        );
     }
-});</script>
 
+});
+
+</script>
+</script>
 </body>
 </html>
