@@ -94,9 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
         if (!$attendance) {
             $toastMessage = "Please Check-In First ❌";
             $toastColor = "#f59e0b";
-        } elseif (!empty($attendance['check_out'])) {
-            $toastMessage = "Already Checked-Out ❌";
-            $toastColor = "#f59e0b";
+        } elseif (
+    isset($attendance['check_out']) &&
+    trim((string)$attendance['check_out']) !== '' &&
+    $attendance['check_out'] !== '0000-00-00 00:00:00'
+) {
+    $toastMessage = "Already Checked-Out ❌";
+    $toastColor = "#f59e0b";
         } elseif (empty($attendance['check_in'])) {
             $toastMessage = "Invalid Check-In Record ❌";
             $toastColor = "#ef4444";
