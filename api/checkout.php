@@ -119,8 +119,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
             }
 
             $workingSeconds = max(0, $totalSeconds - $lunchSeconds);
-            $totalHours = round($workingSeconds / 3600, 2);
-            $checkoutTimeOnly = date("H:i", $checkOut);
+
+// Decimal hours for database and status calculation
+$totalHours = round($workingSeconds / 3600, 2);
+
+// Display format (8.30 hrs)
+$hours = floor($workingSeconds / 3600);
+$minutes = floor(($workingSeconds % 3600) / 60);
+$displayHours = $hours . "." . str_pad($minutes, 2, "0", STR_PAD_LEFT) . " hrs";
+
+$checkoutTimeOnly = date("H:i", $checkOut);
 
             // Unified Status Resolution Logic
             if ($totalHours < 6.75) {
@@ -135,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
             $stmt->bind_param("sdsi", $currentTime, $totalHours, $status, $attendance['id']);
             
             if ($stmt->execute()) {
-                $toastMessage = "Check-Out Successful ✅ Hours: $totalHours";
+                $toastMessage = "Check-Out Successful ✅ Hours: $displayHours";
                 $toastColor = "#16a34a";
             }
             $stmt->close();
