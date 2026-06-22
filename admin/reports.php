@@ -572,8 +572,8 @@ $history = $conn->query("
                     <th>Absent</th>
                     <th>Half Day</th>
                     <!-- <th>Late</th> -->
-                    <th>Occasional Leave</th>
-                    <th>Personal Leave</th>
+                    <th>Company Leave</th>
+                    <th>Monthly Leaves</th>
                     <th>Total Attendance</th>
                 </tr>
                 <?php while($emp = $employees->fetch_assoc()): 
