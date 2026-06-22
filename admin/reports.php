@@ -17,7 +17,17 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
    FILTERS & CUSTOM DATE RANGE (21st to 20th)
 ========================= */
 
-$month = $_GET['month'] ?? date("Y-m"); // Selected/Current month (e.g., "2026-05")
+if (isset($_GET['month'])) {
+    $month = $_GET['month'];
+} else {
+    $todayDay = date('d');
+
+    if ($todayDay >= 21) {
+        $month = date('Y-m', strtotime('+1 month'));
+    } else {
+        $month = date('Y-m');
+    }
+}
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status'] ?? '';
 $branch = $_SESSION['user']['branch'];
