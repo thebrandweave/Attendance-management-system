@@ -17,7 +17,7 @@ if ($_SERVER['HTTP_HOST'] == "localhost" || $_SERVER['HTTP_HOST'] == "127.0.0.1"
     $host = "localhost";
     $user = "root";
     $pass = "";
-    $db   = "attendance";
+    $db   = "attendance1";
 
 } else {
 
