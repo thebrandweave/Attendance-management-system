@@ -483,6 +483,9 @@ $history = $conn->query("
         .badge.pl { background: #0e2725; }
         .badge.half-pl { background: #0ea5a8; }
         .badge.half-absent { background: #94644a; }
+        .red{
+            background: #fff44f;
+        }
         @media print {
             .sidebar, .filter-box, button { display: none !important; }
             body { background: white; }
