@@ -560,7 +560,7 @@ $history = $conn->query("
                     <option value="PL" <?= $status_filter == 'PL' ? 'selected' : '' ?>>Monthly CL</option>
                     <option value="Overtime" <?= $status_filter == 'Overtime' ? 'selected' : '' ?>>Overtime</option>
                 </select>
-                <button type="submit" class="btn-primary">Filter</button>
+                <button type="submit" class="btn-primary">Search</button>
                 <button type="button" class="btn-print" onclick="printSummary()">Print Report</button>
             </form>
         </div>
