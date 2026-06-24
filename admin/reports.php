@@ -612,7 +612,7 @@ $history = $conn->query("
                     <td class="red " ><?= $emp['absent_count'] ?? 0 ?></td>
                     <td class="orange"><?= $emp['halfday_count'] ?? 0 ?></td>
 
-                    <td class="red"><?= $absentDisplay ?></td>
+                    <td class=""><?= $absentDisplay ?></td>
                     <td class="orange"><?= $halfDayDisplay ?></td>
 
            
