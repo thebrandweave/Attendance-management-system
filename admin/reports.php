@@ -104,28 +104,40 @@ $summaryResult = $summary->get_result();
 
 $present = 0;
 $half = 0;
+$halfCredit = 0; // half-days that actually earn 0.5 attendance credit (excludes Half Day Absent)
 $absent = 0;
 $late = 0;
 $cl_count = 0;
+$pl_count = 0;
 
 while ($row = $summaryResult->fetch_assoc()) {
     if ($row['status'] == "Present") {
         $present = $row['total'];
     } elseif ($row['status'] == "Half Day") {
-        $half = $row['total'];
+        $half += $row['total'];
+        $halfCredit += $row['total'];
+    } elseif ($row['status'] == "Half Day PL") {
+        $half += $row['total'];
+        $halfCredit += $row['total'];
+        $pl_count += $row['total'] * 0.5;
+    } elseif ($row['status'] == "Half Day Absent") {
+        $half += $row['total'];
+        // No attendance credit for an uncovered half-day-absent.
     } elseif ($row['status'] == "Absent") {
         $absent = $row['total'];
     } elseif ($row['status'] == "Late") {
         $late = $row['total'];
     } elseif ($row['status'] == "CL") {
         $cl_count = $row['total'];
+    } elseif ($row['status'] == "PL") {
+        $pl_count += $row['total'];
     } elseif ($row['status'] == "Overtime") {
         $present += $row['total'];
     }
 }
 
 $totalAttendance = $present + $absent + $half;
-$attendancePercent = $totalAttendance ? round((($present + ($half * 0.5)) / $totalAttendance) * 100, 2) : 0;
+$attendancePercent = $totalAttendance ? round((($present + ($halfCredit * 0.5)) / $totalAttendance) * 100, 2) : 0;
 
 /*
 =========================================
@@ -261,23 +273,104 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         }
 
         $isCompanyLeave = in_array($loopDate, $companyLeaves);
-        $defaultStatus = $isCompanyLeave ? 'CL' : 'Absent';
 
         $check = $conn->query("SELECT id, status FROM attendance WHERE user_id='$empId' AND date='$loopDate'");
-        
-        if ($check->num_rows == 0) {
-            $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', '$defaultStatus')");
+
+        if ($isCompanyLeave) {
+            // Occasional / company leave days are ALWAYS driven by the
+            // company_leaves table and use the 'CL' status. This is kept
+            // completely separate from the personal leave ('PL') quota below.
+            if ($check->num_rows == 0) {
+                $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', 'CL')");
+            } else {
+                $existing = $check->fetch_assoc();
+                if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day PL'])) {
+                    $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
+                }
+            }
         } else {
-            $existing = $check->fetch_assoc();
-            if ($isCompanyLeave && $existing['status'] == 'Absent') {
-                $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
+            // Not a Sunday, not a company leave day. If there's no record
+            // yet for this day, insert it as a plain 'Absent' placeholder.
+            // The actual PL/Absent/Half-Day-PL/Half-Day-Absent classification
+            // is decided afterwards by the shared quota pass below, which
+            // looks at the whole cycle together in date order.
+            if ($check->num_rows == 0) {
+                $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', 'Absent')");
             }
-            elseif (!$isCompanyLeave && $existing['status'] == 'CL') {
-                $conn->query("UPDATE attendance SET status='Absent' WHERE id=" . $existing['id']);
-            }
+            // Existing rows of any status are left as-is here; reclassified below.
         }
 
         $dateLoop = strtotime("+1 day", $dateLoop);
+    }
+
+    /*
+    =========================================
+    CLEAN UP STALE SUNDAY ROWS (non-Mudipu branches)
+    -----------------------------------------
+    Sundays are not working days for non-Mudipu branches and should never
+    be counted as Absent/PL/Half Day/etc. Older data (inserted before the
+    Sunday-skip rule existed, or by another code path) can still have such
+    rows sitting in the table. Remove them so they don't pollute the
+    quota pass or the displayed report.
+    =========================================
+    */
+    if (!$isMudipuBranch) {
+        $cleanupSunday = $conn->prepare("
+            DELETE FROM attendance
+            WHERE user_id = ?
+            AND date BETWEEN ? AND ?
+            AND DAYOFWEEK(date) = 1
+            AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
+        ");
+        $cleanupSunday->bind_param("iss", $empId, $startDate, $endDate);
+        $cleanupSunday->execute();
+    }
+
+    /*
+    =========================================
+    SHARED PERSONAL LEAVE (PL) QUOTA PASS
+    -----------------------------------------
+    Pool = 2 units per cycle, shared between full-day absences (1 unit
+    each) and half-days (0.5 unit each). Walk every 'Absent', 'PL',
+    'Half Day', 'Half Day PL', and 'Half Day Absent' row for this
+    employee in date order within the cycle, and reapply the quota from
+    scratch each time so the report stays correct no matter what state
+    the rows were already in (manual edits, earlier partial runs, etc).
+    Company-leave 'CL' days are never touched here. Sundays are excluded
+    for non-Mudipu branches (they're never working days and were already
+    cleaned up above, but DAYOFWEEK is filtered here too as a safety net).
+    =========================================
+    */
+    $quotaRows = $conn->prepare("
+        SELECT id, date, status
+        FROM attendance
+        WHERE user_id = ?
+        AND date BETWEEN ? AND ?
+        AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
+        " . (!$isMudipuBranch ? "AND DAYOFWEEK(date) != 1" : "") . "
+        ORDER BY date ASC
+    ");
+    $quotaRows->bind_param("iss", $empId, $startDate, $endDate);
+    $quotaRows->execute();
+    $quotaResult = $quotaRows->get_result();
+
+    $poolRemaining = 2.0; // shared PL units available this cycle
+
+    while ($qRow = $quotaResult->fetch_assoc()) {
+        $isHalfDay = ($qRow['status'] == 'Half Day' || $qRow['status'] == 'Half Day PL' || $qRow['status'] == 'Half Day Absent');
+        $unitCost = $isHalfDay ? 0.5 : 1.0;
+
+        if ($poolRemaining >= $unitCost) {
+            $newStatus = $isHalfDay ? 'Half Day PL' : 'PL';
+            $poolRemaining -= $unitCost;
+        } else {
+            // Not enough quota left for this day -> falls back to absent.
+            $newStatus = $isHalfDay ? 'Half Day Absent' : 'Absent';
+        }
+
+        if ($qRow['status'] != $newStatus) {
+            $conn->query("UPDATE attendance SET status='$newStatus' WHERE id=" . $qRow['id']);
+        }
     }
 }
 
@@ -301,9 +394,16 @@ $employees = $conn->query("
     )
     AND attendance.date BETWEEN '$startDate' AND '$endDate'
     THEN 1 ELSE 0 END) as present_count,
-        SUM(CASE WHEN attendance.status='Absent' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as absent_count,
-        SUM(CASE WHEN attendance.status='Half Day' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_count,
-        SUM(CASE WHEN attendance.status='CL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as cl_count
+        SUM(CASE WHEN (attendance.status='Absent') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as absent_count,
+        SUM(CASE WHEN (attendance.status='Half Day Absent') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_absent_count,
+        SUM(CASE WHEN (attendance.status='Half Day' OR attendance.status='Half Day PL' OR attendance.status='Half Day Absent') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_count,
+        SUM(CASE WHEN (attendance.status='Half Day' OR attendance.status='Half Day PL') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_credit_count,
+        SUM(CASE WHEN attendance.status='CL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as cl_count,
+        SUM(CASE
+            WHEN attendance.status='PL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1
+            WHEN attendance.status='Half Day PL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 0.5
+            ELSE 0
+        END) as pl_count
     FROM users
     LEFT JOIN attendance ON users.id = attendance.user_id AND attendance.date BETWEEN '$startDate' AND '$endDate' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
     WHERE $whereEmployee
@@ -380,9 +480,15 @@ $history = $conn->query("
         .badge.half { background: #f59e0b; }
         .badge.late { background: #2563eb; }
         .badge.cl { background: #7c3aed; }
+
         .red{
             background: #ffee00;
         }
+
+        .badge.pl { background: #0e2725; }
+        .badge.half-pl { background: #0ea5a8; }
+        .badge.half-absent { background: #94644a; }
+
         @media print {
             .sidebar, .filter-box, button { display: none !important; }
             body { background: white; }
@@ -450,8 +556,11 @@ $history = $conn->query("
                     <option value="Present" <?= $status_filter == 'Present' ? 'selected' : '' ?>>Present</option>
                     <option value="Absent" <?= $status_filter == 'Absent' ? 'selected' : '' ?>>Absent</option>
                     <option value="Half Day" <?= $status_filter == 'Half Day' ? 'selected' : '' ?>>Half Day</option>
+                    <option value="Half Day PL" <?= $status_filter == 'Half Day PL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
+                    <option value="Half Day Absent" <?= $status_filter == 'Half Day Absent' ? 'selected' : '' ?>>Half Day (Absent)</option>
                     <option value="Late" <?= $status_filter == 'Late' ? 'selected' : '' ?>>Late</option>
-                    <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leave (CL)</option>
+                    <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leaves</option>
+                    <option value="PL" <?= $status_filter == 'PL' ? 'selected' : '' ?>>Monthly CL</option>
                     <option value="Overtime" <?= $status_filter == 'Overtime' ? 'selected' : '' ?>>Overtime</option>
                 </select>
                 <button type="submit" class="btn-primary">Filter</button>
@@ -469,20 +578,46 @@ $history = $conn->query("
                     <th>Absent</th>
                     <th>Half Day</th>
                     <!-- <th>Late</th> -->
-                    <th>Occasional Leave</th>
+                    <th>Company Leave</th>
+                    <th>Monthly CL</th>
                     <th>Total Attendance</th>
                 </tr>
                 <?php while($emp = $employees->fetch_assoc()): 
-                    $finalAttendance = $emp['present_count'] + ($emp['halfday_count'] * 0.5);
+                    // A 'Half Day Absent' row is still a half-day worked
+                    // (the employee was physically present for half the
+                    // day) — it's just that the leave half of that day
+                    // fell outside the PL quota. So its 0.5 worked-half
+                    // still counts toward Total Attendance, the same way
+                    // halfday_credit_count's 0.5 does for Half Day / Half
+                    // Day PL. The uncovered leave-half is what gets shown
+                    // as 0.5 in the Absent column below.
+                    $finalAttendance = $emp['present_count']
+                        + ($emp['halfday_credit_count'] * 0.5)
+                        + ($emp['halfday_absent_count'] * 0.5);
+                    // Absent display = pure Absent rows + 0.5 credit for each
+                    // Half Day Absent row (the uncovered leave-half of that
+                    // day, once the PL quota ran out).
+                    $absentDisplay = $emp['absent_count'] + ($emp['halfday_absent_count'] * 0.5);
+                    // Half Day display = only the "covered" half days
+                    // (Half Day worked normally + Half Day PL). The
+                    // quota-exhausted Half Day Absent rows have been moved
+                    // into the Absent column above instead of living here.
+                    $halfDayDisplay = $emp['halfday_count'] - $emp['halfday_absent_count'];
                 ?>
                 <tr>
                     <td><?= $emp['name'] ?></td>
                     <td><?= $emp['employee_id'] ?></td>
                     <td class="green"><?= $emp['present_count'] ?? 0 ?></td>
+
                     <td class="red " ><?= $emp['absent_count'] ?? 0 ?></td>
                     <td class="orange"><?= $emp['halfday_count'] ?? 0 ?></td>
+
+                    <td class="red"><?= $absentDisplay ?></td>
+                    <td class="orange"><?= $halfDayDisplay ?></td>
+
            
                     <td style="color: #7c3aed; font-weight: 600;"><?= $emp['cl_count'] ?? 0 ?></td>
+                    <td style="color: #0d9488; font-weight: 600;"><?= $emp['pl_count'] ?? 0 ?></td>
                     <td style="font-weight:600;"><?= $finalAttendance ?> / <?= $totalDaysInMonth ?> Days</td>
                 </tr>
                 <?php endwhile; ?>
@@ -520,8 +655,14 @@ $history = $conn->query("
                             <span class="badge absent">Absent</span>
                         <?php elseif($row['status'] == 'Half Day'): ?>
                             <span class="badge half">Half Day</span>
+                        <?php elseif($row['status'] == 'Half Day PL'): ?>
+                            <span class="badge half-pl">Half Day (CL)</span>
+                        <?php elseif($row['status'] == 'Half Day Absent'): ?>
+                            <span class="badge half-absent">Half Day (Absent)</span>
                         <?php elseif($row['status'] == 'CL'): ?>
-                            <span class="badge cl"><?= htmlspecialchars($companyLeaveTitles[$currentRowDate] ?? 'Company Leave') ?></span>
+                            <span class="badge cl"><?= htmlspecialchars($companyLeaveTitles[$currentRowDate] ?? 'Occasional Leave') ?></span>
+                        <?php elseif($row['status'] == 'PL'): ?>
+                            <span class="badge pl">Monthly CL</span>
                         <?php elseif($row['status'] == 'Overtime'): ?>
                             <span class="badge present">Present</span>
                         <?php else: ?>
