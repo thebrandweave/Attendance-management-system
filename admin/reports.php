@@ -482,7 +482,7 @@ $history = $conn->query("
         .badge.cl { background: #7c3aed; }
 
         .red{
-            background: #ffee00;
+            background: #fff44f;
         }
 
         .badge.pl { background: #0e2725; }
