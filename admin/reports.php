@@ -34,7 +34,7 @@ $branch = $_SESSION['user']['branch'];
 $isMudipuBranch = strtolower($branch) == "mudipu";
 
 // Calculate custom start and end dates for the 21st to 20th cycle
-$startDate = date("Y-m-21", strtotime("-1 month", strtotime($month . "-01")) );
+$startDate = date("Y-m-21", strtotime("-1 month", strtotime($month . "-01")));
 $endDate   = date("Y-m-20", strtotime($month . "-01"));
 
 /* =========================
@@ -480,15 +480,9 @@ $history = $conn->query("
         .badge.half { background: #f59e0b; }
         .badge.late { background: #2563eb; }
         .badge.cl { background: #7c3aed; }
-
-        .red{
-            background: #fff44f;
-        }
-
         .badge.pl { background: #0e2725; }
         .badge.half-pl { background: #0ea5a8; }
         .badge.half-absent { background: #94644a; }
-
         @media print {
             .sidebar, .filter-box, button { display: none !important; }
             body { background: white; }
@@ -608,13 +602,8 @@ $history = $conn->query("
                     <td><?= $emp['name'] ?></td>
                     <td><?= $emp['employee_id'] ?></td>
                     <td class="green"><?= $emp['present_count'] ?? 0 ?></td>
-
-                    <td class="red " ><?= $emp['absent_count'] ?? 0 ?></td>
-                    <td class="orange"><?= $emp['halfday_count'] ?? 0 ?></td>
-
-                    <td class=""><?= $absentDisplay ?></td>
+                    <td class="red"><?= $absentDisplay ?></td>
                     <td class="orange"><?= $halfDayDisplay ?></td>
-
            
                     <td style="color: #7c3aed; font-weight: 600;"><?= $emp['cl_count'] ?? 0 ?></td>
                     <td style="color: #0d9488; font-weight: 600;"><?= $emp['pl_count'] ?? 0 ?></td>
