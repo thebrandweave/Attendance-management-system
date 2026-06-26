@@ -116,7 +116,7 @@ while ($row = $summaryResult->fetch_assoc()) {
     } elseif ($row['status'] == "Half Day") {
         $half += $row['total'];
         $halfCredit += $row['total'];
-    } elseif ($row['status'] == "Half Day PL") {
+    } elseif ($row['status'] == "Half Dayy PL") {
         $half += $row['total'];
         $halfCredit += $row['total'];
         $pl_count += $row['total'] * 0.5;
