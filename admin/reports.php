@@ -650,7 +650,7 @@ $history = $conn->query("
                     // Day PL. The uncovered leave-half is what gets shown
                     // as 0.5 in the Absent column below.
                     $finalAttendance = $emp['present_count']
-                        // + ($emp['halfday_credit_count'] * 0.5)
+                        + ($emp['halfday_credit_count'] * 0.5)
                         // + ($emp['halfday_absent_count'] * 0.5)
                         + $emp['pl_count']
                         ;
