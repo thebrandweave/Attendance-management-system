@@ -480,9 +480,12 @@ $history = $conn->query("
         .badge.half { background: #f59e0b; }
         .badge.late { background: #2563eb; }
         .badge.cl { background: #7c3aed; }
-        .badge.pl { background: #0d9488; }
+        .badge.pl { background: #0e2725; }
         .badge.half-pl { background: #0ea5a8; }
-        .badge.half-absent { background: #ea580c; }
+        .badge.half-absent { background: #94644a; }
+        .red{
+            background: #fff44f;
+        }
         @media print {
             .sidebar, .filter-box, button { display: none !important; }
             body { background: white; }
@@ -550,14 +553,14 @@ $history = $conn->query("
                     <option value="Present" <?= $status_filter == 'Present' ? 'selected' : '' ?>>Present</option>
                     <option value="Absent" <?= $status_filter == 'Absent' ? 'selected' : '' ?>>Absent</option>
                     <option value="Half Day" <?= $status_filter == 'Half Day' ? 'selected' : '' ?>>Half Day</option>
-                    <option value="Half Day PL" <?= $status_filter == 'Half Day PL' ? 'selected' : '' ?>>Half Day (Personal Leave)</option>
+                    <option value="Half Day PL" <?= $status_filter == 'Half Day PL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
                     <option value="Half Day Absent" <?= $status_filter == 'Half Day Absent' ? 'selected' : '' ?>>Half Day (Absent)</option>
                     <option value="Late" <?= $status_filter == 'Late' ? 'selected' : '' ?>>Late</option>
-                    <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Occasional Leave (CL)</option>
-                    <option value="PL" <?= $status_filter == 'PL' ? 'selected' : '' ?>>Personal Leave (PL)</option>
+                    <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leaves</option>
+                    <option value="PL" <?= $status_filter == 'PL' ? 'selected' : '' ?>>Monthly CL</option>
                     <option value="Overtime" <?= $status_filter == 'Overtime' ? 'selected' : '' ?>>Overtime</option>
                 </select>
-                <button type="submit" class="btn-primary">Filter</button>
+                <button type="submit" class="btn-primary">Search</button>
                 <button type="button" class="btn-print" onclick="printSummary()">Print Report</button>
             </form>
         </div>
@@ -572,8 +575,8 @@ $history = $conn->query("
                     <th>Absent</th>
                     <th>Half Day</th>
                     <!-- <th>Late</th> -->
-                    <th>Occasional Leave</th>
-                    <th>Personal Leave</th>
+                    <th>Company Leave</th>
+                    <th>Monthly CL</th>
                     <th>Total Attendance</th>
                 </tr>
                 <?php while($emp = $employees->fetch_assoc()): 
@@ -587,7 +590,9 @@ $history = $conn->query("
                     // as 0.5 in the Absent column below.
                     $finalAttendance = $emp['present_count']
                         + ($emp['halfday_credit_count'] * 0.5)
-                        + ($emp['halfday_absent_count'] * 0.5);
+                        + ($emp['halfday_absent_count'] * 0.5)
+                        + $emp['pl_count']
+                        ;
                     // Absent display = pure Absent rows + 0.5 credit for each
                     // Half Day Absent row (the uncovered leave-half of that
                     // day, once the PL quota ran out).
@@ -645,13 +650,13 @@ $history = $conn->query("
                         <?php elseif($row['status'] == 'Half Day'): ?>
                             <span class="badge half">Half Day</span>
                         <?php elseif($row['status'] == 'Half Day PL'): ?>
-                            <span class="badge half-pl">Half Day (PL)</span>
+                            <span class="badge half-pl">Half Day (CL)</span>
                         <?php elseif($row['status'] == 'Half Day Absent'): ?>
                             <span class="badge half-absent">Half Day (Absent)</span>
                         <?php elseif($row['status'] == 'CL'): ?>
                             <span class="badge cl"><?= htmlspecialchars($companyLeaveTitles[$currentRowDate] ?? 'Occasional Leave') ?></span>
                         <?php elseif($row['status'] == 'PL'): ?>
-                            <span class="badge pl">Personal Leave</span>
+                            <span class="badge pl">Monthly CL</span>
                         <?php elseif($row['status'] == 'Overtime'): ?>
                             <span class="badge present">Present</span>
                         <?php else: ?>

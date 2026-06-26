@@ -1,0 +1,160 @@
+[33m1213494[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: commit: updated
+[33m7023ab0[m HEAD@{1}: reset: moving to origin/main
+[33m7023ab0[m HEAD@{2}: reset: moving to origin/main
+[33m7023ab0[m HEAD@{3}: reset: moving to origin/main
+[33m7023ab0[m HEAD@{4}: reset: moving to origin/main
+[33m7023ab0[m HEAD@{5}: reset: moving to origin/main
+[33m7023ab0[m HEAD@{6}: reset: moving to origin/main
+[33ma946d51[m HEAD@{7}: reset: moving to HEAD~1
+[33m7023ab0[m HEAD@{8}: reset: moving to origin/main
+[33m7023ab0[m HEAD@{9}: reset: moving to origin/main
+[33m7023ab0[m HEAD@{10}: commit: main
+[33ma946d51[m HEAD@{11}: commit: main
+[33mdcaf1e5[m HEAD@{12}: commit: main
+[33m00ce457[m HEAD@{13}: commit: main
+[33m2955fec[m HEAD@{14}: commit: main
+[33m760bc49[m HEAD@{15}: commit: main
+[33m6e54477[m HEAD@{16}: commit: main
+[33m2494c6e[m HEAD@{17}: commit: main
+[33mba2e4bf[m HEAD@{18}: commit: main
+[33m74bf912[m HEAD@{19}: commit: main
+[33m08e9b56[m HEAD@{20}: commit: main
+[33m8dcf9c5[m HEAD@{21}: commit: main
+[33m8a1287a[m HEAD@{22}: commit: main
+[33m6e49ce6[m HEAD@{23}: commit: main
+[33m8afd3cd[m HEAD@{24}: commit (merge): main
+[33m9f2dfd7[m HEAD@{25}: commit: main
+[33mdaaaa1d[m HEAD@{26}: commit: updated
+[33m9c109e2[m HEAD@{27}: commit: updated checkout logic to hours format
+[33mbb5b893[m HEAD@{28}: commit: updated checkout logic
+[33ma9bdab9[m HEAD@{29}: commit: updated leave page
+[33m99f96da[m HEAD@{30}: commit: updated leave page
+[33md952eb4[m HEAD@{31}: commit: updated leave page
+[33m8b09c1d[m HEAD@{32}: commit: updated leave page
+[33m46f7cf7[m HEAD@{33}: commit: updated leave page
+[33ma8cc2db[m HEAD@{34}: commit: updated leave page
+[33m6ea4a0f[m HEAD@{35}: commit: updated leave page
+[33m76f955c[m HEAD@{36}: commit: updated leave page
+[33ma5a8326[m HEAD@{37}: commit: updated leave page
+[33maac3288[m HEAD@{38}: commit: updated leave page
+[33m8a0061a[m HEAD@{39}: pull origin main: Fast-forward
+[33m85c85eb[m HEAD@{40}: pull origin main: Fast-forward
+[33m6908200[m HEAD@{41}: pull origin main: Fast-forward
+[33m0661f0c[m HEAD@{42}: commit: updated overtime logic
+[33m18c54dd[m HEAD@{43}: commit: updated overtime logic
+[33m22e3d39[m HEAD@{44}: commit: updated overtime logic
+[33m52a5381[m HEAD@{45}: commit: updated overtime logic
+[33md40afdd[m HEAD@{46}: commit: updated overtime logic
+[33mdcab6b0[m HEAD@{47}: commit: updated half day logic
+[33me1844a4[m HEAD@{48}: commit: updated half day logic
+[33me4c4bbe[m HEAD@{49}: commit: updated half day logic
+[33mb6ce9ca[m HEAD@{50}: commit: updated half day logic
+[33md3d2709[m HEAD@{51}: commit: updated half day logic
+[33m0407a5a[m HEAD@{52}: commit: updated half day logic
+[33m9f97c9e[m HEAD@{53}: commit: updated half day logic
+[33mb80188e[m HEAD@{54}: commit: main
+[33m08f6350[m HEAD@{55}: commit: main
+[33mec75b9c[m HEAD@{56}: commit: main
+[33m816e689[m HEAD@{57}: commit: main
+[33m16e9823[m HEAD@{58}: commit: main
+[33mc351dab[m HEAD@{59}: commit: main
+[33m3fd32f1[m HEAD@{60}: commit: main
+[33m4e49229[m HEAD@{61}: commit: main
+[33mb83af99[m HEAD@{62}: commit: main
+[33m9c8c48d[m HEAD@{63}: commit: main
+[33m1a98f07[m HEAD@{64}: commit: main
+[33mcfc10b9[m HEAD@{65}: commit: main
+[33mf6613a0[m HEAD@{66}: commit: main
+[33m07d226c[m HEAD@{67}: commit: main
+[33m4691eab[m HEAD@{68}: commit: main
+[33meadfeee[m HEAD@{69}: commit: main
+[33m6ea6cdb[m HEAD@{70}: commit: main
+[33mec95886[m HEAD@{71}: commit: main
+[33m50a7b47[m HEAD@{72}: commit: main
+[33m7f3a479[m HEAD@{73}: commit: main
+[33m3eefabf[m HEAD@{74}: commit: main
+[33m6035175[m HEAD@{75}: commit: main
+[33m2cb230d[m HEAD@{76}: commit: main
+[33m27acea2[m HEAD@{77}: commit: main
+[33mabd7af9[m HEAD@{78}: commit: auto checkout added
+[33mc96a06b[m HEAD@{79}: commit: auto checkout added
+[33mbafa3c0[m HEAD@{80}: commit: auto checkout added
+[33mf03d1de[m HEAD@{81}: commit: auto checkout added
+[33m0421de5[m HEAD@{82}: commit: auto checkout added
+[33m94eb174[m HEAD@{83}: commit: main
+[33m9b0b36f[m HEAD@{84}: commit: main
+[33mde8bcfa[m HEAD@{85}: commit: main
+[33me75087b[m HEAD@{86}: commit: main
+[33m2f1c507[m HEAD@{87}: commit: main
+[33m1e13099[m HEAD@{88}: commit: main
+[33m86f8ea9[m HEAD@{89}: commit: main
+[33md733cf1[m HEAD@{90}: commit: main
+[33m1777a4d[m HEAD@{91}: commit: main
+[33m4f627b7[m HEAD@{92}: commit: main
+[33m7d1ab36[m HEAD@{93}: commit: main
+[33m3ba8c40[m HEAD@{94}: commit: main
+[33mfeedcd2[m HEAD@{95}: commit: main
+[33m949bc11[m HEAD@{96}: commit: main
+[33m8b8126f[m HEAD@{97}: commit: main
+[33md32f42a[m HEAD@{98}: commit: main
+[33m1c85e36[m HEAD@{99}: commit: main
+[33m64facfe[m HEAD@{100}: commit: main
+[33m87d0225[m HEAD@{101}: commit: main
+[33m858bfba[m HEAD@{102}: commit: main
+[33m07baf9d[m HEAD@{103}: commit: main
+[33mecd2880[m HEAD@{104}: commit: updated timings
+[33m26c829e[m HEAD@{105}: commit: updated timings
+[33mfa6c8e9[m HEAD@{106}: commit: updated timings
+[33m76386ae[m HEAD@{107}: commit: updated timings
+[33m440bbb2[m HEAD@{108}: commit: updated timings
+[33m7ed660e[m HEAD@{109}: commit: updated timings
+[33mf1bfb62[m HEAD@{110}: commit: updated timings
+[33m28f04df[m HEAD@{111}: commit: updated timings
+[33m0f4dcd6[m HEAD@{112}: commit: updated timings
+[33m2829e63[m HEAD@{113}: commit: updated skip sundays
+[33m7240349[m HEAD@{114}: commit: updated skip sundays
+[33m4d1a1a8[m HEAD@{115}: commit: updated skip sundays
+[33mf973fb4[m HEAD@{116}: commit: updated skip sundays
+[33m62337f0[m HEAD@{117}: commit: updated skip sundays
+[33me165b2d[m HEAD@{118}: commit: report updated
+[33m6223eab[m HEAD@{119}: commit: report updated
+[33mc1b54c9[m HEAD@{120}: commit: report updated
+[33m04d3c47[m HEAD@{121}: commit: report updated
+[33m63ee79c[m HEAD@{122}: commit: report updated
+[33m36a5ecf[m HEAD@{123}: commit: report updated
+[33m5675bf7[m HEAD@{124}: commit: report updated
+[33m34653fd[m HEAD@{125}: commit: report updated
+[33mc495c7f[m HEAD@{126}: commit: report updated
+[33m399ecbf[m HEAD@{127}: commit: report updated
+[33md8085c7[m HEAD@{128}: commit: ajax
+[33m2dd295a[m HEAD@{129}: commit: main
+[33m01174eb[m HEAD@{130}: commit: main
+[33mabe0e15[m HEAD@{131}: commit: lunch break updated
+[33m1cbf799[m HEAD@{132}: commit: absent updated
+[33m9432a2a[m HEAD@{133}: commit: absent updated
+[33m10a4079[m HEAD@{134}: commit: absent updated
+[33m17e94cb[m HEAD@{135}: commit: absent updated
+[33m1906f5c[m HEAD@{136}: commit: absent updated
+[33mdf21b2a[m HEAD@{137}: commit: main
+[33m8571a8c[m HEAD@{138}: commit: updated working hours
+[33m5b4d3f4[m HEAD@{139}: commit: updated admin login duration
+[33m4696cd1[m HEAD@{140}: commit: updated admin login duration
+[33m0f560fb[m HEAD@{141}: commit: updated admin login duration
+[33m627943b[m HEAD@{142}: commit: added edit button action
+[33m86df787[m HEAD@{143}: commit: added edit button action
+[33m70926d9[m HEAD@{144}: commit: added edit button action
+[33ma369db8[m HEAD@{145}: commit: added edit button action
+[33md917171[m HEAD@{146}: commit: added edit button action
+[33m006b039[m HEAD@{147}: commit: added edit button action
+[33mf6e3c5a[m HEAD@{148}: commit: lunch break checkin checkout updated
+[33mde5d87e[m HEAD@{149}: commit: lunch break checkin checkout updated
+[33mc9dbc52[m HEAD@{150}: commit: lunch break checkin checkout updated
+[33m84a3f5a[m HEAD@{151}: commit: lunch break checkin checkout updated
+[33m900123c[m HEAD@{152}: commit: lunch break checkin checkout updated
+[33mdadb476[m HEAD@{153}: commit: lunch break checkin checkout updated
+[33mf406c60[m HEAD@{154}: commit: lunch break checkin checkout updated
+[33md70a68c[m HEAD@{155}: commit: lunch break checkin checkout updated
+[33ma664c9e[m HEAD@{156}: commit: lunch break checkin checkout updated
+[33mdafad2e[m HEAD@{157}: commit: lunch break checkin checkout updated
+[33ma40173d[m HEAD@{158}: commit: lunch break checkin checkout updated
+[33m44ff3d7[m HEAD@{159}: commit: lunch break checkin checkout up
