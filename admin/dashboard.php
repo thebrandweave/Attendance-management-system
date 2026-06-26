@@ -162,7 +162,7 @@ $employees = $stmt->get_result();
 
               // Compute presentation metrics safely
               $present = ($status == "Present" || $status == "Late" || $status == "Overtime") ? 1 : 0;
-              $half = ($status == "Half Dayy") ? 1 : 0;
+              $half = ($status == "Half Day") ? 1 : 0;
               $absent = ($status == "Absent") ? 1 : 0;
 
               // Read Display Parameters
