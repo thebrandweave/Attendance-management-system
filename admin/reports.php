@@ -357,7 +357,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
     $poolRemaining = 2.0; // shared PL units available this cycle
 
     while ($qRow = $quotaResult->fetch_assoc()) {
-        $isHalfDay = ($qRow['status'] == 'Half Day' || $qRow['status'] == 'Half Day PL' || $qRow['status'] == 'Half Day Absent');
+        $isHalfDay = ($qRow['status'] == 'Half Day' || $qRow['status'] == 'Half Day CL' || $qRow['status'] == 'Half Day Absent');
         $unitCost = $isHalfDay ? 0.5 : 1.0;
 
         if ($poolRemaining >= $unitCost) {
@@ -553,7 +553,7 @@ $history = $conn->query("
                     <option value="Present" <?= $status_filter == 'Present' ? 'selected' : '' ?>>Present</option>
                     <option value="Absent" <?= $status_filter == 'Absent' ? 'selected' : '' ?>>Absent</option>
                     <option value="Half Day" <?= $status_filter == 'Half Day' ? 'selected' : '' ?>>Half Day</option>
-                    <option value="Half Day PL" <?= $status_filter == 'Half Day PLL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
+                    <option value="Half Day PL" <?= $status_filter == 'Half Day PL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
                     <option value="Half Day Absent" <?= $status_filter == 'Half Day Absent' ? 'selected' : '' ?>>Half Day (Absent)</option>
                     <option value="Late" <?= $status_filter == 'Late' ? 'selected' : '' ?>>Late</option>
                     <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leaves</option>
