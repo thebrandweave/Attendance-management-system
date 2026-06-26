@@ -361,7 +361,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         $unitCost = $isHalfDay ? 0.5 : 1.0;
 
         if ($poolRemaining >= $unitCost) {
-            $newStatus = $isHalfDay ? 'Half Day PL' : 'PL';
+            $newStatus = $isHalfDay ? 'Half Day CL' : 'CL';
             $poolRemaining -= $unitCost;
         } else {
             // Not enough quota left for this day -> falls back to absent.
