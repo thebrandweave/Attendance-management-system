@@ -116,7 +116,7 @@ while ($row = $summaryResult->fetch_assoc()) {
     } elseif ($row['status'] == "Half Day") {
         $half += $row['total'];
         $halfCredit += $row['total'];
-    } elseif ($row['status'] == "Half Dayy PL") {
+    } elseif ($row['status'] == "Half Day PL") {
         $half += $row['total'];
         $halfCredit += $row['total'];
         $pl_count += $row['total'] * 0.5;
@@ -553,7 +553,7 @@ $history = $conn->query("
                     <option value="Present" <?= $status_filter == 'Present' ? 'selected' : '' ?>>Present</option>
                     <option value="Absent" <?= $status_filter == 'Absent' ? 'selected' : '' ?>>Absent</option>
                     <option value="Half Day" <?= $status_filter == 'Half Day' ? 'selected' : '' ?>>Half Day</option>
-                    <option value="Half Day PL" <?= $status_filter == 'Half Day PL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
+                    <option value="Half Day PL" <?= $status_filter == 'Half Day PLL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
                     <option value="Half Day Absent" <?= $status_filter == 'Half Day Absent' ? 'selected' : '' ?>>Half Day (Absent)</option>
                     <option value="Late" <?= $status_filter == 'Late' ? 'selected' : '' ?>>Late</option>
                     <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leaves</option>
