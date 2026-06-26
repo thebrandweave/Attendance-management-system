@@ -280,11 +280,32 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
             // Occasional / company leave days are ALWAYS driven by the
             // company_leaves table and use the 'CL' status. This is kept
             // completely separate from the personal leave ('PL') quota below.
+            //
+            // IMPORTANT: this conversion only fires when $isCompanyLeave is
+            // true, which requires the date to already exist as a row in
+            // the `company_leaves` table for the cycle currently being
+            // viewed. If a company leave date hasn't been added yet for a
+            // given cycle (e.g. via add_leave.php) by the time this report
+            // is first opened/refreshed for that cycle, the date is NOT
+            // recognized as a company leave here -- it falls into the
+            // 'else' branch below as a plain Absent placeholder, and is
+            // then correctly-but-unintentionally swept up by the PL quota
+            // pass further down (showing as Absent or Monthly CL/PL
+            // instead of Company Leave/CL). Make sure the company leave
+            // date is added in company_leaves BEFORE viewing/refreshing
+            // the report for that cycle.
             if ($check->num_rows == 0) {
                 $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', 'CL')");
             } else {
                 $existing = $check->fetch_assoc();
-                if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day PL'])) {
+                // NOTE: plain 'Half Day' is included here now (it wasn't
+                // before). Previously, if an employee had a 'Half Day' row
+                // (not 'Half Day PL'/'Half Day Absent') sitting on a date
+                // that was later declared a company leave, that row would
+                // never convert to CL -- it stayed 'Half Day' forever, even
+                // after the leave was added. Now any pre-existing status on
+                // a confirmed company-leave day is correctly overridden to CL.
+                if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day PL', 'Half Day'])) {
                     $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
                 }
             }
@@ -324,6 +345,46 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         ");
         $cleanupSunday->bind_param("iss", $empId, $startDate, $endDate);
         $cleanupSunday->execute();
+    }
+
+    /*
+    =========================================
+    REVERT STALE 'CL' ROWS
+    -----------------------------------------
+    A row only ever gets SET to 'CL' above when its date is found in
+    $companyLeaves (i.e. it exists in the company_leaves table for this
+    cycle). But nothing previously reverted that decision if the company
+    leave entry was later edited or deleted -- once a row became 'CL' it
+    stayed 'CL' forever, even on a cycle where company_leaves is now
+    completely empty. That made old/incorrect company-leave entries show
+    up permanently in the "Company Leave" column.
+    Fix: every time the report runs, find every 'CL' row for this
+    employee in this cycle whose date is NOT (no longer) in
+    $companyLeaves, and revert it to 'Absent' so the normal PL quota pass
+    below can re-evaluate it like any other day (it will become PL or
+    Absent depending on quota remaining, exactly as if no CL had ever
+    touched it).
+    =========================================
+    */
+    $existingCLRows = $conn->prepare("
+        SELECT id, date
+        FROM attendance
+        WHERE user_id = ?
+        AND date BETWEEN ? AND ?
+        AND status = 'CL'
+    ");
+    $existingCLRows->bind_param("iss", $empId, $startDate, $endDate);
+    $existingCLRows->execute();
+    $existingCLResult = $existingCLRows->get_result();
+
+    while ($clRow = $existingCLResult->fetch_assoc()) {
+        $clRowDate = date("Y-m-d", strtotime($clRow['date']));
+        if (!in_array($clRowDate, $companyLeaves)) {
+            // No longer a recognized company leave date -> revert to
+            // Absent so the quota pass below treats it like any other
+            // unaccounted-for day.
+            $conn->query("UPDATE attendance SET status='Absent' WHERE id=" . $clRow['id']);
+        }
     }
 
     /*
