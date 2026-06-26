@@ -116,7 +116,7 @@ while ($row = $summaryResult->fetch_assoc()) {
     } elseif ($row['status'] == "Half Day") {
         $half += $row['total'];
         $halfCredit += $row['total'];
-    } elseif ($row['status'] == "Half Day PL") {
+    } elseif ($row['status'] == "Half Day CL") {
         $half += $row['total'];
         $halfCredit += $row['total'];
         $pl_count += $row['total'] * 0.5;
@@ -284,7 +284,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
                 $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', 'CL')");
             } else {
                 $existing = $check->fetch_assoc();
-                if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day PL'])) {
+                if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day CL'])) {
                     $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
                 }
             }
@@ -320,7 +320,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
             WHERE user_id = ?
             AND date BETWEEN ? AND ?
             AND DAYOFWEEK(date) = 1
-            AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
+            AND status IN ('Absent', 'PL', 'Half Day', 'Half Day CL', 'Half Day Absent')
         ");
         $cleanupSunday->bind_param("iss", $empId, $startDate, $endDate);
         $cleanupSunday->execute();
@@ -346,7 +346,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
         FROM attendance
         WHERE user_id = ?
         AND date BETWEEN ? AND ?
-        AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
+        AND status IN ('Absent', 'PL', 'Half Day', 'Half Day CL', 'Half Day Absent')
         " . (!$isMudipuBranch ? "AND DAYOFWEEK(date) != 1" : "") . "
         ORDER BY date ASC
     ");
@@ -396,12 +396,12 @@ $employees = $conn->query("
     THEN 1 ELSE 0 END) as present_count,
         SUM(CASE WHEN (attendance.status='Absent') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as absent_count,
         SUM(CASE WHEN (attendance.status='Half Day Absent') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_absent_count,
-        SUM(CASE WHEN (attendance.status='Half Day' OR attendance.status='Half Day PL' OR attendance.status='Half Day Absent') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_count,
-        SUM(CASE WHEN (attendance.status='Half Day' OR attendance.status='Half Day PL') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_credit_count,
+        SUM(CASE WHEN (attendance.status='Half Day' OR attendance.status='Half Day CL' OR attendance.status='Half Day Absent') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_count,
+        SUM(CASE WHEN (attendance.status='Half Day' OR attendance.status='Half Day CL') AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as halfday_credit_count,
         SUM(CASE WHEN attendance.status='CL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1 ELSE 0 END) as cl_count,
         SUM(CASE
             WHEN attendance.status='PL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 1
-            WHEN attendance.status='Half Day PL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 0.5
+            WHEN attendance.status='Half Day CL' AND attendance.date BETWEEN '$startDate' AND '$endDate' THEN 0.5
             ELSE 0
         END) as pl_count
     FROM users
@@ -553,7 +553,7 @@ $history = $conn->query("
                     <option value="Present" <?= $status_filter == 'Present' ? 'selected' : '' ?>>Present</option>
                     <option value="Absent" <?= $status_filter == 'Absent' ? 'selected' : '' ?>>Absent</option>
                     <option value="Half Day" <?= $status_filter == 'Half Day' ? 'selected' : '' ?>>Half Day</option>
-                    <option value="Half Day PL" <?= $status_filter == 'Half Day PL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
+                    <option value="Half Day CL" <?= $status_filter == 'Half Day CL' ? 'selected' : '' ?>>Half Day (Monthly CL)</option>
                     <option value="Half Day Absent" <?= $status_filter == 'Half Day Absent' ? 'selected' : '' ?>>Half Day (Absent)</option>
                     <option value="Late" <?= $status_filter == 'Late' ? 'selected' : '' ?>>Late</option>
                     <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leaves</option>
@@ -649,7 +649,7 @@ $history = $conn->query("
                             <span class="badge absent">Absent</span>
                         <?php elseif($row['status'] == 'Half Day'): ?>
                             <span class="badge half">Half Day</span>
-                        <?php elseif($row['status'] == 'Half Day PL'): ?>
+                        <?php elseif($row['status'] == 'Half Day CL'): ?>
                             <span class="badge half-pl">Half Day (CL)</span>
                         <?php elseif($row['status'] == 'Half Day Absent'): ?>
                             <span class="badge half-absent">Half Day (Absent)</span>
