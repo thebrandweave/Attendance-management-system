@@ -1,6 +1,7 @@
 <?php
 session_start();
 include("../config/db.php");
+require_once "../config/branch_helper.php";
 
 date_default_timezone_set("Asia/Kolkata");
 
@@ -11,6 +12,8 @@ if (!isset($_SESSION['user'])) {
 
 $user = $_SESSION['user'];
 $userId = (int)$user['id'];
+$userBranch = $user['branch'] ?? 'gdedutech';
+$attTable = getBranchTableNameOnly($conn, $userBranch);
 $today = date("Y-m-d");
 
 /* =======================
@@ -18,7 +21,7 @@ $today = date("Y-m-d");
 ======================= */
 $presentQuery = $conn->query("
   SELECT COUNT(*) AS total_present
-  FROM attendance
+  FROM `$attTable`
   WHERE user_id = $userId
   AND DAYOFWEEK(date) != 1
   AND (
@@ -34,7 +37,7 @@ $totalPresentDays = $presentData['total_present'] ?? 0;
 
 $halfQuery = $conn->query("
   SELECT COUNT(*) AS total_half
-  FROM attendance
+  FROM `$attTable`
   WHERE user_id = $userId
   AND DAYOFWEEK(date) != 1
   AND status = 'Half Day'
@@ -45,7 +48,7 @@ $totalHalfDays = $halfData['total_half'] ?? 0;
 
 $absentQuery = $conn->query("
   SELECT COUNT(*) AS total_absent
-  FROM attendance
+  FROM `$attTable`
   WHERE user_id = $userId
   AND DAYOFWEEK(date) != 1
   AND status = 'Absent'
@@ -58,7 +61,7 @@ $totalAbsentDays = $absentData['total_absent'] ?? 0;
    TODAY ATTENDANCE
 ======================= */
 $attendance = $conn->query("
-  SELECT * FROM attendance 
+  SELECT * FROM `$attTable` 
   WHERE user_id = $userId AND date = '$today'
 ")->fetch_assoc();
   
@@ -112,12 +115,12 @@ $allAttendance = $conn->query("
     a.lunch_out,
 a.lunch_in,
     cl.title AS leave_title
-  FROM attendance a
+  FROM `$attTable` a
   INNER JOIN users u
       ON a.user_id = u.id
 
   LEFT JOIN company_leaves cl
-      ON cl.leave_date = a.date
+      ON cl.leave_date = a.date AND (cl.branch_id = u.branch_id OR cl.branch = u.branch)
 
   WHERE a.user_id = $userId
   AND DAYOFWEEK(a.date) != 1
@@ -137,9 +140,13 @@ $leaves = $conn->query("
 /* =======================
    COMPANY LEAVES
 ======================= */
+$empBranchId = (int)($user['branch_id'] ?? 0);
+$empBranchStr = $conn->real_escape_string($user['branch'] ?? '');
+
 $companyLeaves = $conn->query("
     SELECT *
     FROM company_leaves
+    WHERE (branch_id = $empBranchId OR branch = '$empBranchStr')
     ORDER BY leave_date DESC
 ");
 ?>

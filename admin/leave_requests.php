@@ -10,7 +10,14 @@ if (
     exit();
 }
 
-$branch = $_SESSION['user']['branch'];
+$branchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
+$branch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
+
+$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt->bind_param("is", $branchId, $branch);
+$bStmt->execute();
+$bRes = $bStmt->get_result()->fetch_assoc();
+$branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 ?>
 
 <!DOCTYPE html>
@@ -168,7 +175,7 @@ $branch = $_SESSION['user']['branch'];
 
   <!-- SIDEBAR -->
   <div class="sidebar">
-   <h2><?= htmlspecialchars($branch) ?> Admin</h2>
+   <h2><?= htmlspecialchars($branchName) ?> Admin</h2>
 
         <a href="dashboard.php">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
@@ -219,7 +226,7 @@ $branch = $_SESSION['user']['branch'];
     LEFT JOIN users u
     ON lr.employee_id = u.id
 
-    WHERE u.branch = '$branch'
+    WHERE (u.branch_id = '$branchId' OR u.branch = '$branch')
 
     ORDER BY lr.id DESC
 ");

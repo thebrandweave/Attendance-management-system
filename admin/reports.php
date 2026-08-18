@@ -30,8 +30,17 @@ if (isset($_GET['month'])) {
 }
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status'] ?? '';
-$branch = $_SESSION['user']['branch'];
-$isMudipuBranch = strtolower($branch) == "mudipu";
+$branchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
+$branch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
+
+$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt->bind_param("is", $branchId, $branch);
+$bStmt->execute();
+$bRes = $bStmt->get_result()->fetch_assoc();
+$branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
+require_once "../config/branch_helper.php";
+$attTable = getBranchTableNameOnly($conn, $branchName);
+$isMudipuBranch = (strtolower($branchName) === "mudipu" || strtolower($branch) === "mudipu");
 
 // Calculate custom start and end dates for the 21st to 20th cycle
 $startDate = date("Y-m-21", strtotime("-1 month", strtotime($month . "-01")));
@@ -47,9 +56,9 @@ $companyLeaveTitles = [];
 $leaveQuery = $conn->prepare("
     SELECT leave_date, title 
     FROM company_leaves 
-    WHERE leave_date BETWEEN ? AND ?
+    WHERE (leave_date BETWEEN ? AND ?) AND (branch_id=? OR branch=?)
 ");
-$leaveQuery->bind_param("ss", $startDate, $endDate);
+$leaveQuery->bind_param("ssis", $startDate, $endDate, $branchId, $branch);
 $leaveQuery->execute();
 $result = $leaveQuery->get_result();
 
@@ -90,15 +99,13 @@ while ($dateLoopRunner <= strtotime($endDate)) {
 
 $summary = $conn->prepare("
     SELECT
-        attendance.status,
+        status,
         COUNT(*) as total
-    FROM attendance
-    INNER JOIN users ON users.id = attendance.user_id
-    WHERE attendance.date BETWEEN ? AND ?
-    AND users.branch = ?
-    GROUP BY attendance.status
+    FROM `$attTable`
+    WHERE date BETWEEN ? AND ?
+    GROUP BY status
 ");
-$summary->bind_param("sss", $startDate, $endDate, $branch);
+$summary->bind_param("ss", $startDate, $endDate);
 $summary->execute();
 $summaryResult = $summary->get_result();
 
@@ -150,7 +157,7 @@ $currentTimeOnly = date("H:i:s");
 if ($currentTimeOnly >= "21:00:00") {
     $pendingCheckout = $conn->query("
         SELECT *
-        FROM attendance
+        FROM `$attTable`
         WHERE date='$currentDate'
         AND check_in IS NOT NULL
         AND (check_out IS NULL OR check_out='')
@@ -171,7 +178,7 @@ if ($currentTimeOnly >= "21:00:00") {
         $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
         $status = "Present";
 
-        $updateAuto = $conn->prepare("UPDATE attendance SET check_out=?, total_hours=?, status=? WHERE id=?");
+        $updateAuto = $conn->prepare("UPDATE `$attTable` SET check_out=?, total_hours=?, status=? WHERE id=?");
         $updateAuto->bind_param("sdsi", $autoCheckoutDateTime, $workingHours, $status, $attendanceId);
         $updateAuto->execute();
     }
@@ -186,7 +193,7 @@ for a previous day, auto-close at 5:30 PM
 
 $fixCheckout = $conn->query("
     SELECT *
-    FROM attendance
+    FROM `$attTable`
     WHERE check_in IS NOT NULL
     AND (check_out IS NULL OR check_out = '')
     AND date < CURDATE()
@@ -222,7 +229,7 @@ while ($att = $fixCheckout->fetch_assoc()) {
         : "Present";
 
     $stmt = $conn->prepare("
-        UPDATE attendance
+        UPDATE `$attTable`
         SET
             check_out = ?,
             total_hours = ?,
@@ -249,7 +256,7 @@ AUTO INSERT ABSENT OR COMPANY LEAVE (CL) FOR MISSING DAYS
 $employeesAbsent = $conn->query("
     SELECT id, created_at
     FROM users
-    WHERE role='employee' AND branch='$branch'
+    WHERE role='employee' AND (branch_id='$branchId' OR branch='$branch')
 ");
 
 while ($emp = $employeesAbsent->fetch_assoc()) {
@@ -274,70 +281,29 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
 
         $isCompanyLeave = in_array($loopDate, $companyLeaves);
 
-        $check = $conn->query("SELECT id, status FROM attendance WHERE user_id='$empId' AND date='$loopDate'");
+        $check = $conn->query("SELECT id, status FROM `$attTable` WHERE user_id='$empId' AND date='$loopDate'");
 
         if ($isCompanyLeave) {
-            // Occasional / company leave days are ALWAYS driven by the
-            // company_leaves table and use the 'CL' status. This is kept
-            // completely separate from the personal leave ('PL') quota below.
-            //
-            // IMPORTANT: this conversion only fires when $isCompanyLeave is
-            // true, which requires the date to already exist as a row in
-            // the `company_leaves` table for the cycle currently being
-            // viewed. If a company leave date hasn't been added yet for a
-            // given cycle (e.g. via add_leave.php) by the time this report
-            // is first opened/refreshed for that cycle, the date is NOT
-            // recognized as a company leave here -- it falls into the
-            // 'else' branch below as a plain Absent placeholder, and is
-            // then correctly-but-unintentionally swept up by the PL quota
-            // pass further down (showing as Absent or Monthly CL/PL
-            // instead of Company Leave/CL). Make sure the company leave
-            // date is added in company_leaves BEFORE viewing/refreshing
-            // the report for that cycle.
             if ($check->num_rows == 0) {
-                $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', 'CL')");
+                $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ('$empId', '$loopDate', 'CL')");
             } else {
                 $existing = $check->fetch_assoc();
-                // NOTE: plain 'Half Day' is included here now (it wasn't
-                // before). Previously, if an employee had a 'Half Day' row
-                // (not 'Half Day PL'/'Half Day Absent') sitting on a date
-                // that was later declared a company leave, that row would
-                // never convert to CL -- it stayed 'Half Day' forever, even
-                // after the leave was added. Now any pre-existing status on
-                // a confirmed company-leave day is correctly overridden to CL.
                 if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day PL', 'Half Day'])) {
-                    $conn->query("UPDATE attendance SET status='CL' WHERE id=" . $existing['id']);
+                    $conn->query("UPDATE `$attTable` SET status='CL' WHERE id=" . $existing['id']);
                 }
             }
         } else {
-            // Not a Sunday, not a company leave day. If there's no record
-            // yet for this day, insert it as a plain 'Absent' placeholder.
-            // The actual PL/Absent/Half-Day-PL/Half-Day-Absent classification
-            // is decided afterwards by the shared quota pass below, which
-            // looks at the whole cycle together in date order.
             if ($check->num_rows == 0) {
-                $conn->query("INSERT INTO attendance (user_id, date, status) VALUES ('$empId', '$loopDate', 'Absent')");
+                $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ('$empId', '$loopDate', 'Absent')");
             }
-            // Existing rows of any status are left as-is here; reclassified below.
         }
 
         $dateLoop = strtotime("+1 day", $dateLoop);
     }
 
-    /*
-    =========================================
-    CLEAN UP STALE SUNDAY ROWS (non-Mudipu branches)
-    -----------------------------------------
-    Sundays are not working days for non-Mudipu branches and should never
-    be counted as Absent/PL/Half Day/etc. Older data (inserted before the
-    Sunday-skip rule existed, or by another code path) can still have such
-    rows sitting in the table. Remove them so they don't pollute the
-    quota pass or the displayed report.
-    =========================================
-    */
     if (!$isMudipuBranch) {
         $cleanupSunday = $conn->prepare("
-            DELETE FROM attendance
+            DELETE FROM `$attTable`
             WHERE user_id = ?
             AND date BETWEEN ? AND ?
             AND DAYOFWEEK(date) = 1
@@ -368,7 +334,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
     */
     $existingCLRows = $conn->prepare("
         SELECT id, date
-        FROM attendance
+        FROM `$attTable`
         WHERE user_id = ?
         AND date BETWEEN ? AND ?
         AND status = 'CL'
@@ -383,28 +349,13 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
             // No longer a recognized company leave date -> revert to
             // Absent so the quota pass below treats it like any other
             // unaccounted-for day.
-            $conn->query("UPDATE attendance SET status='Absent' WHERE id=" . $clRow['id']);
+            $conn->query("UPDATE `$attTable` SET status='Absent' WHERE id=" . $clRow['id']);
         }
     }
 
-    /*
-    =========================================
-    SHARED PERSONAL LEAVE (PL) QUOTA PASS
-    -----------------------------------------
-    Pool = 2 units per cycle, shared between full-day absences (1 unit
-    each) and half-days (0.5 unit each). Walk every 'Absent', 'PL',
-    'Half Day', 'Half Day PL', and 'Half Day Absent' row for this
-    employee in date order within the cycle, and reapply the quota from
-    scratch each time so the report stays correct no matter what state
-    the rows were already in (manual edits, earlier partial runs, etc).
-    Company-leave 'CL' days are never touched here. Sundays are excluded
-    for non-Mudipu branches (they're never working days and were already
-    cleaned up above, but DAYOFWEEK is filtered here too as a safety net).
-    =========================================
-    */
     $quotaRows = $conn->prepare("
         SELECT id, date, status
-        FROM attendance
+        FROM `$attTable`
         WHERE user_id = ?
         AND date BETWEEN ? AND ?
         AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
@@ -425,12 +376,11 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
             $newStatus = $isHalfDay ? 'Half Day PL' : 'PL';
             $poolRemaining -= $unitCost;
         } else {
-            // Not enough quota left for this day -> falls back to absent.
             $newStatus = $isHalfDay ? 'Half Day Absent' : 'Absent';
         }
 
         if ($qRow['status'] != $newStatus) {
-            $conn->query("UPDATE attendance SET status='$newStatus' WHERE id=" . $qRow['id']);
+            $conn->query("UPDATE `$attTable` SET status='$newStatus' WHERE id=" . $qRow['id']);
         }
     }
 }
@@ -438,7 +388,7 @@ while ($emp = $employeesAbsent->fetch_assoc()) {
 /* =========================
    EMPLOYEE SUMMARY REPORT
 ========================= */
-$whereEmployee = "users.role='employee' AND users.branch='$branch'";
+$whereEmployee = "users.role='employee' AND (users.branch_id='$branchId' OR users.branch='$branch')";
 if (!empty($search)) {
     $whereEmployee .= " AND (users.employee_id LIKE '%$search%' OR users.name LIKE '%$search%')";
 }
@@ -466,7 +416,7 @@ $employees = $conn->query("
             ELSE 0
         END) as pl_count
     FROM users
-    LEFT JOIN attendance ON users.id = attendance.user_id AND attendance.date BETWEEN '$startDate' AND '$endDate' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
+    LEFT JOIN `$attTable` attendance ON users.id = attendance.user_id AND attendance.date BETWEEN '$startDate' AND '$endDate' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
     WHERE $whereEmployee
     GROUP BY users.id
     ORDER BY users.name ASC
@@ -475,7 +425,7 @@ $employees = $conn->query("
 /* =========================
    HISTORY SECTION
 ========================= */
-$whereHistory = "attendance.date BETWEEN '$startDate' AND '$endDate' AND users.role='employee' AND users.branch='$branch'";
+$whereHistory = "attendance.date BETWEEN '$startDate' AND '$endDate' AND users.role='employee' AND (users.branch_id='$branchId' OR users.branch='$branch')";
 if (!$isMudipuBranch) {
     $whereHistory .= " AND DAYOFWEEK(attendance.date) != 1";
 }
@@ -497,7 +447,7 @@ $history = $conn->query("
         attendance.lunch_in,
         attendance.check_out,
         attendance.total_hours
-    FROM attendance
+    FROM `$attTable` attendance
     INNER JOIN users ON users.id = attendance.user_id
     WHERE $whereHistory
     ORDER BY attendance.date DESC
@@ -559,7 +509,7 @@ $history = $conn->query("
 
 <div class="layout">
     <div class="sidebar">
-        <h2 style="text-align:center;"><?= htmlspecialchars($_SESSION['user']['branch']) ?> Admin</h2>
+        <h2 style="text-align:center;"><?= htmlspecialchars($branchName) ?> Admin</h2>
         <a href="dashboard.php">🏠 Dashboard</a>
         <a href="create_employee.php">👤 Create Employee</a>
         <a href="../api/checkin.php">🟢 Check In- Morning</a>

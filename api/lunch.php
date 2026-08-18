@@ -36,9 +36,12 @@ if (isset($_POST['token'])) {
         $toastColor = "#ef4444";
     } else {
         $userId = $user['id'];
+        require_once "../config/branch_helper.php";
+        $userBranch = $user['branch'] ?? 'gdedutech';
+        $attTable = getBranchTableNameOnly($conn, $userBranch);
 
         /* ================= ATTENDANCE CHECK ================= */
-        $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
+        $stmt = $conn->prepare("SELECT * FROM `$attTable` WHERE user_id = ? AND date = ?");
         $stmt->bind_param("is", $userId, $today);
         $stmt->execute();
         $attendance = $stmt->get_result()->fetch_assoc();
@@ -49,7 +52,7 @@ if (isset($_POST['token'])) {
         } else {
             /* ================= CASE 1: START LUNCH ================= */
             if (empty($attendance['lunch_out'])) {
-                $stmt = $conn->prepare("UPDATE attendance SET lunch_out = ? WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE `$attTable` SET lunch_out = ? WHERE id = ?");
                 $stmt->bind_param("si", $now, $attendance['id']);
                 $stmt->execute();
 
@@ -72,7 +75,7 @@ if (isset($_POST['token'])) {
 
     } else {
 
-        $stmt = $conn->prepare("UPDATE attendance SET lunch_in = ? WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE `$attTable` SET lunch_in = ? WHERE id = ?");
         $stmt->bind_param("si", $now, $attendance['id']);
         $stmt->execute();
 

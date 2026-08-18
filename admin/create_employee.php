@@ -24,8 +24,18 @@ if (isset($_POST['create'])) {
   }
 
   $name = $_POST['name'];
-  $branch_id = $_SESSION['user']['branch_id'];
-  $branch = $_SESSION['user']['branch'];
+  $branch_id = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
+  $branch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
+
+  if (empty($branch_id) && !empty($branch)) {
+    $bChk = $conn->prepare("SELECT id FROM branches WHERE LOWER(branch_name) = LOWER(?)");
+    $bChk->bind_param("s", $branch);
+    $bChk->execute();
+    $bRes = $bChk->get_result();
+    if ($bRes->num_rows > 0) {
+      $branch_id = $bRes->fetch_assoc()['id'];
+    }
+  }
 
 
   $empId = "EMP" . rand(1000,9999);

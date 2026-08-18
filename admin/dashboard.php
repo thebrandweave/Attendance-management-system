@@ -3,12 +3,29 @@ $lifetime = 60 * 60 * 24 * 30;
 session_set_cookie_params($lifetime);
 session_start();
 include("../config/db.php");
+require_once "../config/branch_helper.php";
 
 date_default_timezone_set("Asia/Kolkata");
 
+if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
+    header("Location: ../index.php");
+    exit();
+}
+
+$adminBranchId = $_SESSION['user']['branch_id'] ?? 0;
+$adminBranch = $_SESSION['user']['branch'] ?? '';
+
+// Fetch dynamic branch details from DB if available
+$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt->bind_param("is", $adminBranchId, $adminBranch);
+$bStmt->execute();
+$bRes = $bStmt->get_result()->fetch_assoc();
+$adminBranchName = $bRes ? $bRes['branch_name'] : ucfirst($adminBranch);
+$attTable = getBranchTableNameOnly($conn, $adminBranchName);
+
 // 1. Process Missed Checkouts for historical logs safely before reading view data
 $fixCheckout = $conn->query("
-    SELECT * FROM attendance 
+    SELECT * FROM `$attTable` 
     WHERE check_in IS NOT NULL 
     AND (check_out IS NULL OR check_out = '') 
     AND date < CURDATE()
@@ -28,22 +45,16 @@ while ($att = $fixCheckout->fetch_assoc()) {
     $workingHours = max(0, ($totalSeconds - $lunchSeconds) / 3600);
     $status = ($workingHours < 5) ? "Half Day" : "Present";
 
-    $stmt = $conn->prepare("UPDATE attendance SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
+    $stmt = $conn->prepare("UPDATE `$attTable` SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
     $stmt->bind_param("sdsi", $autoCheckoutTime, $workingHours, $status, $att['id']);
     $stmt->execute();
     $stmt->close();
 }
 
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
-    header("Location: ../index.php");
-    exit();
-}
-
-$adminBranch = $_SESSION['user']['branch'];
 $today = date("Y-m-d");
 
-$stmt = $conn->prepare("SELECT * FROM users WHERE role='employee' AND branch=?");
-$stmt->bind_param("s", $adminBranch);
+$stmt = $conn->prepare("SELECT * FROM users WHERE role='employee' AND (branch_id=? OR (branch_id IS NULL AND branch=?))");
+$stmt->bind_param("is", $adminBranchId, $adminBranch);
 $stmt->execute();
 $employees = $stmt->get_result();
 ?>
@@ -83,15 +94,15 @@ $employees = $stmt->get_result();
 <body>
 <div class="layout">
   <div class="sidebar">
-    <h2><?= htmlspecialchars($adminBranch) ?> Admin</h2>
+    <h2><?= htmlspecialchars($adminBranchName) ?> Admin</h2>
     <a href="#">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
     <a href="../api/checkin.php">🟢 Check In- Morning</a>
     <a href="../api/lunch.php">🍽️ Lunch Break</a>
     <a href="../api/checkout.php">🔴 Check Out- Evening</a>
     <?php
-      $leaveCountQuery = $conn->query("SELECT COUNT(*) as total FROM leave_requests lr LEFT JOIN users u ON lr.employee_id = u.id WHERE u.branch='$adminBranch' AND lr.status='pending'");
-      $leaveCount = $leaveCountQuery->fetch_assoc()['total'];
+      $leaveCountQuery = $conn->query("SELECT COUNT(*) as total FROM leave_requests lr LEFT JOIN users u ON lr.employee_id = u.id WHERE (u.branch_id='$adminBranchId' OR u.branch='$adminBranch') AND lr.status='pending'");
+      $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
     ?>
     <a href="leave_requests.php">📩 Manage Leaves <?php if($leaveCount > 0) { ?><span style="background:#ef4444; color:white; padding:2px 8px; border-radius:50px; font-size:12px; margin-left:8px; font-weight:600;"><?= $leaveCount ?></span><?php } ?></a>
     <a href="add_leave.php">📅 Company Leaves</a>
@@ -100,7 +111,7 @@ $employees = $stmt->get_result();
   </div>
 
   <div class="main">
-    <div class="header">Admin Dashboard - <?= htmlspecialchars($adminBranch) ?> Branch</div>
+    <div class="header">Admin Dashboard - <?= htmlspecialchars($adminBranchName) ?> Branch</div>
     <div class="card">
       <h3>Employee Attendance</h3>
       <div class="filters">
@@ -133,8 +144,8 @@ $employees = $stmt->get_result();
             <th>Action</th>
           </tr>
           <?php 
-          $leaveCheck = $conn->prepare("SELECT id, title FROM company_leaves WHERE leave_date=?");
-          $leaveCheck->bind_param("s", $today);
+          $leaveCheck = $conn->prepare("SELECT id, title FROM company_leaves WHERE leave_date=? AND (branch_id=? OR branch=?)");
+          $leaveCheck->bind_param("sis", $today, $adminBranchId, $adminBranch);
           $leaveCheck->execute();
           $leaveData = $leaveCheck->get_result()->fetch_assoc();
           $isCompanyLeave = !empty($leaveData);
@@ -142,7 +153,7 @@ $employees = $stmt->get_result();
 
           while ($emp = $employees->fetch_assoc()) {
               $empId = $emp['id'];
-              $attStmt = $conn->prepare("SELECT * FROM attendance WHERE user_id=? AND date=?");
+              $attStmt = $conn->prepare("SELECT * FROM `$attTable` WHERE user_id=? AND date=?");
               $attStmt->bind_param("is", $empId, $today);
               $attStmt->execute();
               $todayAtt = $attStmt->get_result()->fetch_assoc();

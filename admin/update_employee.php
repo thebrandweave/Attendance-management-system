@@ -23,7 +23,8 @@ if (
    ADMIN BRANCH
 ========================= */
 
-$adminBranch = $_SESSION['user']['branch'];
+$adminBranchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
+$adminBranch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
 
 /* =========================
    FORM DATA
@@ -57,12 +58,13 @@ $branchCheck = $conn->prepare("
     FROM users
     WHERE id = ?
     AND role='employee'
-    AND branch = ?
+    AND (branch_id = ? OR branch = ?)
 ");
 
 $branchCheck->bind_param(
-    "is",
+    "iis",
     $id,
+    $adminBranchId,
     $adminBranch
 );
 
@@ -79,20 +81,26 @@ if ($branchResult->num_rows == 0) {
    UPDATE USER
 ========================= */
 
-$stmt = $conn->prepare("
-    UPDATE users
-    SET
-        name = ?,
-        employee_id = ?
-    WHERE id = ?
-");
-
-$stmt->bind_param(
-    "ssi",
-    $name,
-    $employee_id,
-    $id
-);
+if (!empty($status)) {
+    $stmt = $conn->prepare("
+        UPDATE users
+        SET
+            name = ?,
+            employee_id = ?,
+            status = ?
+        WHERE id = ?
+    ");
+    $stmt->bind_param("sssi", $name, $employee_id, $status, $id);
+} else {
+    $stmt = $conn->prepare("
+        UPDATE users
+        SET
+            name = ?,
+            employee_id = ?
+        WHERE id = ?
+    ");
+    $stmt->bind_param("ssi", $name, $employee_id, $id);
+}
 
 $stmt->execute();
 

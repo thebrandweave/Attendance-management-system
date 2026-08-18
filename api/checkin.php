@@ -46,9 +46,12 @@ if (isset($_POST['token'])) {
         $toastColor = "#ef4444"; // Red
     } else {
         $userId = $user['id'];
+        require_once "../config/branch_helper.php";
+        $userBranch = $user['branch'] ?? 'gdedutech';
+        $attTable = getBranchTableNameOnly($conn, $userBranch);
 
         // CHECK TODAY ATTENDANCE
-        $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
+        $stmt = $conn->prepare("SELECT * FROM `$attTable` WHERE user_id = ? AND date = ?");
         $stmt->bind_param("is", $userId, $today);
         $stmt->execute();
         $attendance = $stmt->get_result()->fetch_assoc();
@@ -75,7 +78,7 @@ if (isset($_POST['token'])) {
     $status = "Half Day";
 }
 
-            $stmt = $conn->prepare("INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO `$attTable` (user_id, date, check_in, status) VALUES (?, ?, ?, ?)");
             $stmt->bind_param("isss", $userId, $today, $currentTime, $status);
             
             if ($stmt->execute()) {

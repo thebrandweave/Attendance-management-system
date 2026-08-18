@@ -35,8 +35,19 @@ if (isset($_POST['login'])) {
       // SECURITY
       session_regenerate_id(true);
 
+      if (empty($user['branch_id']) && !empty($user['branch'])) {
+        $bCheck = $conn->prepare("SELECT id FROM branches WHERE LOWER(branch_name) = LOWER(?)");
+        $bCheck->bind_param("s", $user['branch']);
+        $bCheck->execute();
+        $bRes = $bCheck->get_result();
+        if ($bRes->num_rows > 0) {
+          $user['branch_id'] = $bRes->fetch_assoc()['id'];
+        }
+      }
+
       $_SESSION['user'] = $user;
       $_SESSION['branch'] = $user['branch'];
+      $_SESSION['branch_id'] = $user['branch_id'] ?? 0;
 
       header("Location: ../admin/dashboard.php");
       exit();

@@ -84,8 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
         $toastColor = "#ef4444";
     } else {
         $userId = $user['id'];
+        require_once "../config/branch_helper.php";
+        $userBranch = $user['branch'] ?? 'gdedutech';
+        $attTable = getBranchTableNameOnly($conn, $userBranch);
 
-        $stmt = $conn->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ?");
+        $stmt = $conn->prepare("SELECT * FROM `$attTable` WHERE user_id = ? AND date = ?");
         $stmt->bind_param("is", $userId, $today);
         $stmt->execute();
         $attendance = $stmt->get_result()->fetch_assoc();
@@ -139,7 +142,7 @@ $checkoutTimeOnly = date("H:i", $checkOut);
                 $status = "Present";
             }
 
-            $stmt = $conn->prepare("UPDATE attendance SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
+            $stmt = $conn->prepare("UPDATE `$attTable` SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
             $stmt->bind_param("sdsi", $currentTime, $totalHours, $status, $attendance['id']);
             
             if ($stmt->execute()) {

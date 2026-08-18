@@ -12,6 +12,15 @@ if (
 
 $message = "";
 
+$branchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
+$branch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
+
+$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt->bind_param("is", $branchId, $branch);
+$bStmt->execute();
+$bRes = $bStmt->get_result()->fetch_assoc();
+$branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     $leaveDate = $_POST['leave_date'];
@@ -21,10 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $check = $conn->prepare("
         SELECT id
         FROM company_leaves
-        WHERE leave_date=?
+        WHERE leave_date=? AND (branch_id=? OR branch=?)
     ");
 
-    $check->bind_param("s", $leaveDate);
+    $check->bind_param("sis", $leaveDate, $branchId, $branch);
     $check->execute();
 
     $exists = $check->get_result()->fetch_assoc();
@@ -39,15 +48,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             INSERT INTO company_leaves (
                 leave_date,
                 title,
-                description
-            ) VALUES (?, ?, ?)
+                description,
+                branch_id,
+                branch
+            ) VALUES (?, ?, ?, ?, ?)
         ");
 
         $stmt->bind_param(
-            "sss",
+            "sssis",
             $leaveDate,
             $title,
-            $description
+            $description,
+            $branchId,
+            $branch
         );
 
         if ($stmt->execute()) {
@@ -56,11 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$leaves = $conn->query("
+$leavesStmt = $conn->prepare("
     SELECT *
     FROM company_leaves
+    WHERE branch_id=? OR branch=?
     ORDER BY leave_date DESC
 ");
+$leavesStmt->bind_param("is", $branchId, $branch);
+$leavesStmt->execute();
+$leaves = $leavesStmt->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -193,7 +210,7 @@ th{
   <!-- SIDEBAR -->
   <div class="sidebar">
    <h2 style="text-align:center;">
-  <?= htmlspecialchars($_SESSION['user']['branch']) ?> Admin 
+  <?= htmlspecialchars($branchName) ?> Admin 
 </h2>
 
     <a href="dashboard.php">🏠 Dashboard</a>

@@ -21,7 +21,8 @@ if (
    ADMIN BRANCH
 ========================= */
 
-$adminBranch = $_SESSION['user']['branch'];
+$adminBranchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
+$adminBranch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
 
 /* =========================
    DELETE EMPLOYEE
@@ -40,12 +41,13 @@ if (isset($_GET['id'])) {
         FROM users
         WHERE id = ?
         AND role='employee'
-        AND branch = ?
+        AND (branch_id = ? OR branch = ?)
     ");
 
     $check->bind_param(
-        "is",
+        "iis",
         $id,
+        $adminBranchId,
         $adminBranch
     );
 
@@ -62,12 +64,15 @@ if (isset($_GET['id'])) {
         die("Unauthorized Access");
     }
 
+    require_once "../config/branch_helper.php";
+    $attTable = getBranchTableNameOnly($conn, $adminBranch);
+
     /* =========================
        DELETE ATTENDANCE
     ========================= */
 
     $deleteAttendance = $conn->prepare("
-        DELETE FROM attendance
+        DELETE FROM `$attTable`
         WHERE user_id = ?
     ");
 
@@ -75,6 +80,8 @@ if (isset($_GET['id'])) {
         "i",
         $id
     );
+
+    $deleteAttendance->execute();
 
     $deleteAttendance->execute();
 
