@@ -300,12 +300,19 @@ function filterTable() {
     });
 }
 function loadAttendanceTable() {
+    const editModal = document.getElementById('editModal');
+    if (editModal && editModal.style.display === 'flex') {
+        return; // Do not interrupt editing
+    }
     fetch(window.location.href)
     .then(response => response.text())
     .then(data => {
         let parser = new DOMParser();
-        let newTable = parser.parseFromString(data, 'text/html').querySelector('#tableContainer').innerHTML;
-        document.querySelector('#tableContainer').innerHTML = newTable;
+        let parsedDoc = parser.parseFromString(data, 'text/html');
+        let newTable = parsedDoc.querySelector('#tableContainer');
+        if (newTable) {
+            document.querySelector('#tableContainer').innerHTML = newTable.innerHTML;
+        }
     }).catch(error => console.log("Refresh Error:", error));
 }
 setInterval(loadAttendanceTable, 10000);

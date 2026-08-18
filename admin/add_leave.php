@@ -21,6 +21,15 @@ $bStmt->execute();
 $bRes = $bStmt->get_result()->fetch_assoc();
 $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 
+if (isset($_GET['delete_id'])) {
+    $delId = intval($_GET['delete_id']);
+    $delStmt = $conn->prepare("DELETE FROM company_leaves WHERE id=? AND (branch_id=? OR branch=?)");
+    $delStmt->bind_param("iis", $delId, $branchId, $branch);
+    if ($delStmt->execute()) {
+        $message = "Company leave deleted successfully.";
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     $leaveDate = $_POST['leave_date'];
@@ -261,6 +270,7 @@ th{
     <th>Title</th>
     <!-- <th>Description</th> -->
     <th>Status</th>
+    <th>Action</th>
 </tr>
 
 <?php while($row = $leaves->fetch_assoc()): ?>
@@ -273,10 +283,6 @@ th{
     <td>
         <?= htmlspecialchars($row['title']) ?>
     </td>
-
-    <!-- <td>
-        <?= htmlspecialchars($row['description']) ?>
-    </td> -->
 
     <td>
 
@@ -332,6 +338,9 @@ if ($row['leave_date'] == $today) {
 
 ?>
 
+    </td>
+    <td>
+        <a href="add_leave.php?delete_id=<?= $row['id'] ?>" onclick="return confirm('Delete this company leave?')" style="background:#ef4444; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600;">Delete</a>
     </td>
 
 </tr>

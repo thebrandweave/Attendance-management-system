@@ -27,15 +27,11 @@ if (isset($_POST['create'])) {
   $branch_id = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
   $branch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
 
-  if (empty($branch_id) && !empty($branch)) {
-    $bChk = $conn->prepare("SELECT id FROM branches WHERE LOWER(branch_name) = LOWER(?)");
-    $bChk->bind_param("s", $branch);
-    $bChk->execute();
-    $bRes = $bChk->get_result();
-    if ($bRes->num_rows > 0) {
-      $branch_id = $bRes->fetch_assoc()['id'];
-    }
-  }
+  $bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+  $bStmt->bind_param("is", $branch_id, $branch);
+  $bStmt->execute();
+  $bRes = $bStmt->get_result()->fetch_assoc();
+  $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 
 
   $empId = "EMP" . rand(1000,9999);
@@ -318,7 +314,7 @@ async function downloadQR() {
   <!-- SIDEBAR -->
   <div class="sidebar">
    <h2 style="text-align:center;">
-  <?= htmlspecialchars($_SESSION['user']['branch']) ?> Admin 
+  <?= htmlspecialchars($branchName ?? $_SESSION['user']['branch']) ?> Admin 
 </h2>
 
     <a href="dashboard.php">🏠 Dashboard</a>

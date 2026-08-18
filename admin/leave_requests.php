@@ -295,8 +295,8 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 
 function updateLeaveStatus(id, status) {
 
-    fetch(`../api/leave_action.php?id=${id}&status=${status}`)
-    .then(res => res.text())
+    fetch(`../api/leave_action.php?id=${id}&status=${status}&ajax=1`)
+    .then(res => res.json())
     .then(() => {
 
         // Update status badge
