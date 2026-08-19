@@ -13,8 +13,10 @@ $toastMessage = "";
 $toastColor = "";
 
 if (isset($_POST['token'])) {
+
     $input = $_POST['token'];
 
+    // Get token from URL or direct token
     if (filter_var($input, FILTER_VALIDATE_URL)) {
         parse_str(parse_url($input, PHP_URL_QUERY), $query);
         $token = $query['token'] ?? '';
@@ -26,67 +28,165 @@ if (isset($_POST['token'])) {
     $now = date("Y-m-d H:i:s");
 
     /* ================= USER ================= */
-    $stmt = $conn->prepare("SELECT * FROM users WHERE qr_token = ?");
+
+    $stmt = $conn->prepare(
+        "SELECT * FROM users WHERE qr_token = ?"
+    );
     $stmt->bind_param("s", $token);
     $stmt->execute();
+
     $user = $stmt->get_result()->fetch_assoc();
 
     if (!$user) {
+
         $toastMessage = "Invalid QR Code ❌";
         $toastColor = "#ef4444";
+
     } else {
+
         $userId = $user['id'];
+
         require_once "../config/branch_helper.php";
+
         $userBranch = $user['branch'] ?? 'gdedutech';
-        $attTable = getBranchTableNameOnly($conn, $userBranch);
+
+        $attTable = getBranchTableNameOnly(
+            $conn,
+            $userBranch
+        );
 
         /* ================= ATTENDANCE CHECK ================= */
-        $stmt = $conn->prepare("SELECT * FROM `$attTable` WHERE user_id = ? AND date = ?");
-        $stmt->bind_param("is", $userId, $today);
+
+        $stmt = $conn->prepare(
+            "SELECT * FROM `$attTable`
+             WHERE user_id = ? AND date = ?"
+        );
+
+        $stmt->bind_param(
+            "is",
+            $userId,
+            $today
+        );
+
         $stmt->execute();
+
         $attendance = $stmt->get_result()->fetch_assoc();
 
         if (!$attendance) {
+
             $toastMessage = "Please Check-In First ❌";
             $toastColor = "#ef4444";
+
         } else {
+
             /* ================= CASE 1: START LUNCH ================= */
+
             if (empty($attendance['lunch_out'])) {
-                $stmt = $conn->prepare("UPDATE `$attTable` SET lunch_out = ? WHERE id = ?");
-                $stmt->bind_param("si", $now, $attendance['id']);
+
+                $stmt = $conn->prepare(
+                    "UPDATE `$attTable`
+                     SET lunch_out = ?
+                     WHERE id = ?"
+                );
+
+                $stmt->bind_param(
+                    "si",
+                    $now,
+                    $attendance['id']
+                );
+
                 $stmt->execute();
 
                 $toastMessage = "Lunch Started 🍴 Enjoy your meal!";
-                $toastColor = "#6366f1"; // Indigo
-            } 
+                $toastColor = "#6366f1";
+
+            }
+
             /* ================= CASE 2: END LUNCH ================= */
-        elseif (empty($attendance['lunch_in'])) {
 
-    $lunchOutTime = strtotime($attendance['lunch_out']);
-    $currentTime = strtotime($now);
+            elseif (empty($attendance['lunch_in'])) {
 
-    $difference = $currentTime - $lunchOutTime;
+                $lunchOutTime = strtotime(
+                    $attendance['lunch_out']
+                );
 
-    // Minimum 60 seconds required
-    if ($difference < 60) {
+                $currentTime = strtotime($now);
 
-        $toastMessage = "Please wait before ending lunch ⏳";
-        $toastColor = "#f59e0b";
+                // Calculate lunch duration in seconds
+                $difference = $currentTime - $lunchOutTime;
 
-    } else {
+                /* ===== MINIMUM 60 SECONDS ===== */
 
-        $stmt = $conn->prepare("UPDATE `$attTable` SET lunch_in = ? WHERE id = ?");
-        $stmt->bind_param("si", $now, $attendance['id']);
-        $stmt->execute();
+                if ($difference < 60) {
 
-        $toastMessage = "Lunch Ended ✅ Welcome back!";
-        $toastColor = "#16a34a";
-    }
-}
+                    $toastMessage =
+                        "Please wait before ending lunch ⏳";
+
+                    $toastColor = "#f59e0b";
+
+                } else {
+
+                    /* ===== CALCULATE LUNCH HOURS & MINUTES ===== */
+
+                    $hours = floor($difference / 3600);
+
+                    $minutes = floor(
+                        ($difference % 3600) / 60
+                    );
+
+                    // Format duration nicely
+                    if ($hours > 0 && $minutes > 0) {
+
+                        $lunchDuration =
+                            $hours . " hr " .
+                            $minutes . " mins";
+
+                    } elseif ($hours > 0) {
+
+                        $lunchDuration =
+                            $hours . " hr";
+
+                    } else {
+
+                        $lunchDuration =
+                            $minutes . " mins";
+                    }
+
+                    /* ===== SAVE LUNCH END TIME ===== */
+
+                    $stmt = $conn->prepare(
+                        "UPDATE `$attTable`
+                         SET lunch_in = ?
+                         WHERE id = ?"
+                    );
+
+                    $stmt->bind_param(
+                        "si",
+                        $now,
+                        $attendance['id']
+                    );
+
+                    $stmt->execute();
+
+                    /* ===== SUCCESS MESSAGE ===== */
+
+                    $toastMessage =
+                        "Lunch Ended ✅ Welcome back! " .
+                        "🍴 Lunch Time: " .
+                        $lunchDuration;
+
+                    $toastColor = "#16a34a";
+                }
+            }
+
             /* ================= CASE 3: COMPLETED ================= */
+
             else {
-                $toastMessage = "Lunch already completed for today ❌";
-                $toastColor = "#f59e0b"; // Amber
+
+                $toastMessage =
+                    "Lunch already completed for today ❌";
+
+                $toastColor = "#f59e0b";
             }
         }
     }
