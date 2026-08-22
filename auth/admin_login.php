@@ -92,19 +92,58 @@ if (isset($_POST['login'])) {
       display:flex;
       justify-content:center;
       align-items:center;
-      background:linear-gradient(135deg,#eef2f7,#dbeafe);
       font-family:'Poppins', sans-serif;
       padding:20px;
+      position:relative;
+      overflow-x:hidden;
+    }
+
+    .video-bg-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: -1;
+    }
+
+    #bgVideo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      min-width: 100%;
+      min-height: 100%;
+      width: auto;
+      height: auto;
+      transform: translate(-50%, -50%);
+      object-fit: cover;
+    }
+
+    .video-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      /* background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px); */
     }
 
     form{
-      background:white;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       padding:40px 30px;
       border-radius:20px;
       width:100%;
       max-width:380px;
-      box-shadow:0 10px 30px rgba(0,0,0,0.12);
+      box-shadow:0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.5);
       animation:fadeIn 0.5s ease;
+      position: relative;
+      z-index: 1;
     }
 
     h2{
@@ -231,6 +270,13 @@ if (isset($_POST['login'])) {
 </head>
 
 <body>
+
+<div class="video-bg-container">
+  <video autoplay loop muted playsinline id="bgVideo">
+    <source src="../public/media/bg1.mp4" type="video/mp4">
+  </video>
+  <div class="video-overlay"></div>
+</div>
 
 <?php if($message){ ?>
   <div class="toast">
