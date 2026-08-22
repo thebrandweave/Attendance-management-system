@@ -40,20 +40,58 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      background: var(--bg-gradient);
       padding: 24px;
       color: var(--text-main);
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .video-bg-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: -1;
+    }
+
+    #bgVideo {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      min-width: 100%;
+      min-height: 100%;
+      width: auto;
+      height: auto;
+      transform: translate(-50%, -50%);
+      object-fit: cover;
+    }
+
+    .video-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      /* background: rgba(184, 191, 206, 0.55); */
+      /* backdrop-filter: blur(3px); */
+      /* -webkit-backdrop-filter: blur(3px); */
     }
 
     .gateway-container {
       width: 100%;
       max-width: 480px;
-      background: var(--card-bg);
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       border-radius: var(--radius);
       padding: 40px 32px;
-      box-shadow: var(--shadow-lg);
-      border: 1px solid var(--border-color);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.5);
       animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      z-index: 1;
     }
 
     .gateway-header {
@@ -302,6 +340,13 @@
   </style>
 </head>
 <body>
+
+<div class="video-bg-container">
+  <video autoplay loop muted playsinline id="bgVideo">
+    <source src="./public/media/bg1.mp4" type="video/mp4">
+  </video>
+  <div class="video-overlay"></div>
+</div>
 
 <div class="gateway-container">
   <div class="gateway-header">
