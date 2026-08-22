@@ -115,13 +115,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
       background: linear-gradient(180deg, #111827, #1f2937);
       color: white;
       padding: 24px;
-      position: sticky;
+      position: fixed;
       top: 0;
+      left: 0;
       height: 100vh;
       display: flex;
       flex-direction: column;
       transition: transform 0.3s ease;
-      z-index: 999;
+      z-index: 1000;
+      overflow-y: auto;
+      box-sizing: border-box;
     }
 
     .sidebar h2 {
@@ -175,10 +178,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
     /* ===== MAIN ===== */
     .main {
       flex: 1;
+      margin-left: 260px;
+      width: calc(100% - 260px);
       display: flex;
       justify-content: center;
       align-items: center;
       padding: 40px;
+      box-sizing: border-box;
     }
 
     /* ===== CARD ===== */

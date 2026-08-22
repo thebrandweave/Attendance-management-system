@@ -62,18 +62,20 @@ $employees = $stmt->get_result();
 <html>
 <head>
   <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { margin: 0; font-family: 'Poppins', sans-serif; background: #eef2f7; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { margin: 0; font-family: 'Poppins', sans-serif; background: #eef2f7; color: #111827; }
     .layout { display: flex; min-height: 100vh; }
-    .sidebar { width: 250px; background: linear-gradient(180deg, #111827, #1f2937); color: white; padding: 20px; }
-    .sidebar h2 { margin-bottom: 25px; font-size: 20px; text-align: center; }
-    .sidebar a { display: block; padding: 12px 14px; margin: 8px 0; color: white; text-decoration: none; border-radius: 8px; transition: 0.3s; font-size: 14px; }
-    .sidebar a:hover { background: rgba(255,255,255,0.1); transform: translateX(4px); }
+    .sidebar { width: 250px; background: linear-gradient(180deg, #111827, #1f2937); color: white; padding: 20px; position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto; z-index: 1000; box-sizing: border-box; }
+    .sidebar h2 { margin-bottom: 25px; font-size: 20px; text-align: center; font-family: 'Poppins', sans-serif; font-weight: 600; }
+    .sidebar a { display: block; padding: 12px 14px; margin: 8px 0; color: white; text-decoration: none; border-radius: 8px; transition: 0.3s; font-size: 14px; font-family: 'Poppins', sans-serif; line-height: 1.5; }
+    .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.15); transform: translateX(4px); font-weight: 600; }
     .sidebar .logout { background: #ef4444; }
-    .sidebar .logout:hover { background: #dc2626; }
-    .main { flex: 1; padding: 25px; }
+    .sidebar .logout:hover { background: #dc2626; transform: none; }
+    .main { flex: 1; margin-left: 250px; width: calc(100% - 250px); padding: 25px; min-width: 0; overflow-x: auto; box-sizing: border-box; }
     .header { background: white; padding: 18px; border-radius: 12px; font-weight: 600; margin-bottom: 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.08); }
     .card { background: white; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); }
     .card h3 { margin-bottom: 15px; padding:7px; }
@@ -95,7 +97,7 @@ $employees = $stmt->get_result();
 <div class="layout">
   <div class="sidebar">
     <h2><?= htmlspecialchars($adminBranchName) ?> Admin</h2>
-    <a href="#">🏠 Dashboard</a>
+    <a href="dashboard.php" class="active">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
     <a href="../api/checkin.php">🟢 Check In- Morning</a>
     <a href="../api/lunch.php">🍽️ Lunch Break</a>

@@ -95,62 +95,30 @@ $leaves = $leavesStmt->get_result();
 
 <title>Add Leave</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { margin: 0; font-family: 'Poppins', sans-serif; background: #eef2f7; color: #111827; }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 250px; background: linear-gradient(180deg, #111827, #1f2937); color: white; padding: 20px; position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto; z-index: 1000; box-sizing: border-box; }
+  .sidebar h2 { margin-bottom: 25px; font-size: 20px; text-align: center; font-family: 'Poppins', sans-serif; font-weight: 600; }
+  .sidebar a { display: block; padding: 12px 14px; margin: 8px 0; color: white; text-decoration: none; border-radius: 8px; transition: 0.3s; font-size: 14px; font-family: 'Poppins', sans-serif; line-height: 1.5; }
+  .sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.15); transform: translateX(4px); font-weight: 600; }
+  .sidebar .logout { background: #ef4444; }
+  .sidebar .logout:hover { background: #dc2626; transform: none; }
 
-body {
-  margin: 0;
-  font-family: 'Poppins', sans-serif;
-  background: #eef2f7;
+/* ===== MAIN ===== */
+.main {
+  flex: 1;
+  margin-left: 250px;
+  width: calc(100% - 250px);
+  padding: 25px;
+  min-width: 0;
+  overflow-x: auto;
+  box-sizing: border-box;
 }
-
-
-
-/* ===== LAYOUT ===== */
-.layout {
-  display: flex;
-  min-height: 100vh;
-}
-
-/* ===== SIDEBAR ===== */
-.sidebar {
-  width: 250px;
-  background: linear-gradient(180deg, #111827, #1f2937);
-  color: white;
-  padding: 20px;
-}
-
-.sidebar h2 {
-  margin-bottom: 25px;
-  font-size: 20px;
-  text-align: center;
-}
-
-.sidebar a {
-  display: block;
-  padding: 12px 14px;
-  margin: 8px 0;
-  color: white;
-  text-decoration: none;
-  border-radius: 8px;
-  transition: 0.3s;
-  font-size: 14px;
-}
-
-.sidebar a:hover {
-  background: rgba(255,255,255,0.1);
-  transform: translateX(4px);
-}
-
-.sidebar .logout {
-  background: #ef4444;
-}
-
-.sidebar .logout:hover {
-  background: #dc2626;
-}
-
 
 .card{
     max-width:700px;
@@ -225,10 +193,14 @@ th{
     <a href="dashboard.php">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
     <a href="../api/checkin.php">🟢 Check In- Morning</a>
-     <a href="../api/lunch.php">🍽️ Lunch Break</a>
+    <a href="../api/lunch.php">🍽️ Lunch Break</a>
     <a href="../api/checkout.php">🔴 Check Out- Evening</a>
-    <a href="leave_requests.php">📩 Manage Leaves</a>
-    <a href="add_leave.php">📅 Company Leaves</a>
+    <?php
+      $leaveCountQuery = $conn->query("SELECT COUNT(*) as total FROM leave_requests lr LEFT JOIN users u ON lr.employee_id = u.id WHERE (u.branch_id='$branchId' OR u.branch='$branch') AND lr.status='pending'");
+      $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
+    ?>
+    <a href="leave_requests.php">📩 Manage Leaves <?php if($leaveCount > 0) { ?><span style="background:#ef4444; color:white; padding:2px 8px; border-radius:50px; font-size:12px; margin-left:8px; font-weight:600;"><?= $leaveCount ?></span><?php } ?></a>
+    <a href="add_leave.php" class="active">📅 Company Leaves</a>
     <a href="reports.php">📊 Reports</a>
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
   </div>
