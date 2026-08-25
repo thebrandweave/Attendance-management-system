@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     $leaveDate = $_POST['leave_date'];
     $title = trim($_POST['title']);
-    $description = trim($_POST['description']);
+    $description = isset($_POST['description']) ? trim($_POST['description']) : '';
 
     $check = $conn->prepare("
         SELECT id
