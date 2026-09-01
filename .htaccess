@@ -1,0 +1,27 @@
+RewriteEngine On
+
+# Serve a site-wide favicon at /favicon.ico using the new JPG
+# This helps search engines (Bing/Google) that request /favicon.ico
+RewriteCond %{REQUEST_URI} ^/favicon\.ico$
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^favicon\.ico$ assets/favicon.jpg [L]
+
+# Redirect older paths to the new JPG with cache-busting
+RewriteRule ^assets/favicon\.png$ assets/favicon.jpg?v=3 [R=302,L]
+RewriteRule ^assets/favicon\.ico$ assets/favicon.jpg?v=3 [R=302,L]
+
+<IfModule mod_headers.c>
+  # Force browsers to revalidate the favicon so updates show up quickly
+  <Files "favicon.ico">
+    Header set Cache-Control "no-cache, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </Files>
+  <FilesMatch "^favicon\.(png|jpg|jpeg)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
+
+
