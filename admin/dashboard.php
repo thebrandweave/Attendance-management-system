@@ -23,6 +23,29 @@ $bRes = $bStmt->get_result()->fetch_assoc();
 $adminBranchName = $bRes ? $bRes['branch_name'] : ucfirst($adminBranch);
 $attTable = getBranchTableNameOnly($conn, $adminBranchName);
 
+$isThirthahalliBranch = (
+    strtolower(trim($adminBranchName)) === "thirthahalli" ||
+    strtolower(trim($adminBranch)) === "thirthahalli"
+);
+
+if ($isThirthahalliBranch) {
+
+    // Thirthahalli working hours
+    $officeStartTime = "10:00:00";
+    $officeEndTime   = "20:00:00";
+
+    // Mark absent only later in the working day
+    $absentMarkTime  = "18:00:00";
+
+} else {
+
+    // Existing branch timings
+    $officeStartTime = "09:30:00";
+    $officeEndTime   = "17:30:00";
+
+    $absentMarkTime  = "16:00:00";
+}
+
 // 1. Process Missed Checkouts for historical logs safely before reading view data
 $fixCheckout = $conn->query("
     SELECT * FROM `$attTable` 
@@ -32,21 +55,46 @@ $fixCheckout = $conn->query("
 ");
 
 while ($att = $fixCheckout->fetch_assoc()) {
-    $autoCheckoutTime = $att['date'] . " 17:30:00";
+
+    $autoCheckoutTime =
+        $att['date'] . " " . $officeEndTime;
+
     $checkIn = strtotime($att['check_in']);
     $checkOut = strtotime($autoCheckoutTime);
+
     $totalSeconds = $checkOut - $checkIn;
 
     $lunchSeconds = 0;
+
     if (!empty($att['lunch_out']) && !empty($att['lunch_in'])) {
-        $lunchSeconds = strtotime($att['lunch_in']) - strtotime($att['lunch_out']);
+        $lunchSeconds =
+            strtotime($att['lunch_in']) -
+            strtotime($att['lunch_out']);
     }
 
-    $workingHours = max(0, ($totalSeconds - $lunchSeconds) / 3600);
-    $status = ($workingHours < 5) ? "Half Day" : "Present";
+    $workingHours =
+        max(0, ($totalSeconds - $lunchSeconds) / 3600);
 
-    $stmt = $conn->prepare("UPDATE `$attTable` SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
-    $stmt->bind_param("sdsi", $autoCheckoutTime, $workingHours, $status, $att['id']);
+    $status = ($workingHours < 5)
+        ? "Half Day"
+        : "Present";
+
+    $stmt = $conn->prepare("
+        UPDATE `$attTable`
+        SET check_out = ?,
+            total_hours = ?,
+            status = ?
+        WHERE id = ?
+    ");
+
+    $stmt->bind_param(
+        "sdsi",
+        $autoCheckoutTime,
+        $workingHours,
+        $status,
+        $att['id']
+    );
+
     $stmt->execute();
     $stmt->close();
 }
@@ -91,6 +139,10 @@ $employees = $stmt->get_result();
     .status-overtime { color: #7c3aed; font-weight: 600; }
     .filters { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; padding:7px; }
     .filters input, .filters select { padding:10px; border:1px solid #ddd; border-radius:8px; font-family:'Poppins',sans-serif; }
+    .status-overtimepending {
+    color: #d97706;
+    font-weight: 700;
+}
   </style>
 </head>
 <body>
@@ -161,17 +213,31 @@ $employees = $stmt->get_result();
               $todayAtt = $attStmt->get_result()->fetch_assoc();
               $attStmt->close();
 
-              $currentHour = (int)date("H");
-              $isSunday = (date("w") == 0 && strtolower($adminBranch) != "mudipu");
-              
-              // Evaluate baseline rules
-              if (!$isSunday && !$isCompanyLeave && empty($todayAtt['check_in']) && $currentHour >= 16) {
-                  $status = "Absent";
-              } elseif ($isCompanyLeave) {
-                  $status = "Company Leave";
-              } else {
-                  $status = $todayAtt['status'] ?? "Pending";
-              }
+         $currentTime = date("H:i:s");
+
+$isSunday = (
+    date("w") == 0 &&
+    strtolower($adminBranch) != "mudipu"
+);
+
+// Evaluate baseline rules
+if (
+    !$isSunday &&
+    !$isCompanyLeave &&
+    empty($todayAtt['check_in']) &&
+    $currentTime >= $absentMarkTime
+) {
+
+    $status = "Absent";
+
+} elseif ($isCompanyLeave) {
+
+    $status = "Company Leave";
+
+} else {
+
+    $status = $todayAtt['status'] ?? "Pending";
+}
 
               // Compute presentation metrics safely
               $present = ($status == "Present" || $status == "Late" || $status == "Overtime") ? 1 : 0;
@@ -227,10 +293,123 @@ $employees = $stmt->get_result();
             <td><?= $present ?></td>
             <td><?= $half ?></td>
             <td><?= $absent ?></td>
-            <td>
-              <a href="delete_employee.php?id=<?= $emp['id'] ?>" onclick="return confirm('Are you sure?')" style="background:#ef4444; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600;">Delete</a>
-              <button onclick='openEditModal(<?= json_encode($emp) ?>, <?= json_encode($todayAtt) ?>)' style="background:#667eea; color:white; border:none; margin-left:10px; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;"><i class="bi bi-pencil-square"></i> Edit</button>
-            </td>
+      <td>
+
+<?php
+if (
+    $isThirthahalliBranch &&
+    !empty($todayAtt) &&
+    ($todayAtt['status'] ?? '') === 'Overtime Pending'
+):
+?>
+
+    <form
+        method="POST"
+        action="../api/overtime_action.php"
+        style="display:inline-block;"
+    >
+        <input
+            type="hidden"
+            name="attendance_id"
+            value="<?= (int)$todayAtt['id'] ?>"
+        >
+
+        <input
+            type="hidden"
+            name="action"
+            value="approve"
+        >
+
+        <button
+            type="submit"
+            style="
+                background:#16a34a;
+                color:white;
+                border:none;
+                padding:8px 12px;
+                border-radius:6px;
+                cursor:pointer;
+            "
+        >
+            Approve OT
+        </button>
+    </form>
+
+
+    <form
+        method="POST"
+        action="../api/overtime_action.php"
+        style="display:inline-block;"
+    >
+        <input
+            type="hidden"
+            name="attendance_id"
+            value="<?= (int)$todayAtt['id'] ?>"
+        >
+
+        <input
+            type="hidden"
+            name="action"
+            value="reject"
+        >
+
+        <button
+            type="submit"
+            style="
+                background:#ef4444;
+                color:white;
+                border:none;
+                padding:8px 12px;
+                border-radius:6px;
+                cursor:pointer;
+            "
+        >
+            Reject OT
+        </button>
+    </form>
+
+<?php endif; ?>
+
+
+<a
+    href="delete_employee.php?id=<?= $emp['id'] ?>"
+    onclick="return confirm('Are you sure?')"
+    style="
+        background:#ef4444;
+        color:white;
+        padding:8px 12px;
+        border-radius:6px;
+        text-decoration:none;
+        font-size:12px;
+        font-weight:600;
+    "
+>
+    Delete
+</a>
+
+
+<button
+    onclick='openEditModal(
+        <?= json_encode($emp) ?>,
+        <?= json_encode($todayAtt) ?>
+    )'
+    style="
+        background:#667eea;
+        color:white;
+        border:none;
+        margin-left:10px;
+        padding:8px 12px;
+        border-radius:8px;
+        cursor:pointer;
+        font-size:13px;
+        font-weight:600;
+    "
+>
+    <i class="bi bi-pencil-square"></i>
+    Edit
+</button>
+
+</td>
           </tr>
           <?php } ?>
         </table>

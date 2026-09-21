@@ -87,6 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token'])) {
         require_once "../config/branch_helper.php";
         $userBranch = $user['branch'] ?? 'gdedutech';
         $attTable = getBranchTableNameOnly($conn, $userBranch);
+        $isThirthahalliBranch = (
+    strtolower(trim($userBranch)) === "thirthahalli"
+);
 
         $stmt = $conn->prepare("SELECT * FROM `$attTable` WHERE user_id = ? AND date = ?");
         $stmt->bind_param("is", $userId, $today);
@@ -131,16 +134,43 @@ $hours = floor($workingSeconds / 3600);
 $minutes = floor(($workingSeconds % 3600) / 60);
 $displayHours = $hours . "." . str_pad($minutes, 2, "0", STR_PAD_LEFT) . " hrs";
 
-$checkoutTimeOnly = date("H:i", $checkOut);
+$checkInTimeOnly = date(
+    "H:i:s",
+    strtotime($attendance['check_in'])
+);
 
-            // Unified Status Resolution Logic
-            if ($totalHours < 6.75) {
-                $status = "Half Day";
-            } elseif ($checkoutTimeOnly >= "17:35") {
-                $status = "Overtime";
-            } else {
-                $status = "Present";
-            }
+if ($totalHours < 6.75) {
+
+    $status = "Half Day";
+
+} elseif (
+    $isThirthahalliBranch &&
+    $checkoutTimeOnly > "20:05"
+) {
+
+    // Manager must approve this
+    $status = "Overtime Pending";
+
+} elseif (
+    !$isThirthahalliBranch &&
+    $checkoutTimeOnly >= "17:35"
+) {
+
+    // Keep existing behavior for other branches
+    $status = "Overtime";
+
+} else {
+
+    // Do not destroy Late status during checkout
+    if (
+        $isThirthahalliBranch &&
+        $checkInTimeOnly > "10:00:00"
+    ) {
+        $status = "Late";
+    } else {
+        $status = "Present";
+    }
+}
 
             $stmt = $conn->prepare("UPDATE `$attTable` SET check_out = ?, total_hours = ?, status = ? WHERE id = ?");
             $stmt->bind_param("sdsi", $currentTime, $totalHours, $status, $attendance['id']);

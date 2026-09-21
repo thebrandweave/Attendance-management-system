@@ -17,17 +17,17 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
    FILTERS & CUSTOM DATE RANGE (21st to 20th)
 ========================= */
 
-if (isset($_GET['month'])) {
-    $month = $_GET['month'];
-} else {
-    $todayDay = date('d');
+// if (isset($_GET['month'])) {
+//     $month = $_GET['month'];
+// } else {
+//     $todayDay = date('d');
 
-    if ($todayDay >= 21) {
-        $month = date('Y-m', strtotime('+1 month'));
-    } else {
-        $month = date('Y-m');
-    }
-}
+//     if ($todayDay >= 21) {
+//         $month = date('Y-m', strtotime('+1 month'));
+//     } else {
+//         $month = date('Y-m');
+//     }
+// }
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status'] ?? '';
 $branchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
@@ -42,9 +42,102 @@ require_once "../config/branch_helper.php";
 $attTable = getBranchTableNameOnly($conn, $branchName);
 $isMudipuBranch = (strtolower($branchName) === "mudipu" || strtolower($branch) === "mudipu");
 
-// Calculate custom start and end dates for the 21st to 20th cycle
-$startDate = date("Y-m-21", strtotime("-1 month", strtotime($month . "-01")));
-$endDate   = date("Y-m-20", strtotime($month . "-01"));
+$isThirthahalliBranch = (
+    strtolower(trim($branchName)) === "thirthahalli" ||
+    strtolower(trim($branch)) === "thirthahalli"
+);
+
+
+/*
+=========================================
+BRANCH OFFICE TIMINGS
+=========================================
+*/
+
+if ($isThirthahalliBranch) {
+
+    // Thirthahalli
+    $officeStartTime = "10:00:00"; // 10:00 AM
+    $officeEndTime   = "20:00:00"; // 8:00 PM
+
+} else {
+
+    // Other branches
+    $officeStartTime = "09:30:00";
+    $officeEndTime   = "17:30:00";
+}
+
+
+/*
+=========================================
+MONTH / ATTENDANCE CYCLE
+Thirthahalli : 1st -> Last day of month
+Other Branches: 21st -> 20th
+=========================================
+*/
+
+if (isset($_GET['month']) && !empty($_GET['month'])) {
+
+    $month = $_GET['month'];
+
+} else {
+
+    if ($isThirthahalliBranch) {
+
+        // Thirthahalli follows normal calendar month
+        $month = date('Y-m');
+
+    } else {
+
+        // Other branches follow 21st -> 20th cycle
+        $todayDay = (int) date('d');
+
+        if ($todayDay >= 21) {
+            $month = date('Y-m', strtotime('+1 month'));
+        } else {
+            $month = date('Y-m');
+        }
+    }
+}
+
+
+/*
+=========================================
+START & END DATE
+=========================================
+*/
+
+if ($isThirthahalliBranch) {
+
+    // Example:
+    // September 2026 = 01 Sep 2026 -> 30 Sep 2026
+
+    $startDate = date(
+        "Y-m-01",
+        strtotime($month . "-01")
+    );
+
+    $endDate = date(
+        "Y-m-t",
+        strtotime($month . "-01")
+    );
+
+} else {
+
+    // Existing 21st -> 20th cycle
+
+    $startDate = date(
+        "Y-m-21",
+        strtotime("-1 month", strtotime($month . "-01"))
+    );
+
+    $endDate = date(
+        "Y-m-20",
+        strtotime($month . "-01")
+    );
+}
+
+
 
 /* =========================
    FETCH COMPANY LEAVES IN CUSTOM WINDOW
@@ -138,9 +231,12 @@ while ($row = $summaryResult->fetch_assoc()) {
         $cl_count = $row['total'];
     } elseif ($row['status'] == "PL") {
         $pl_count += $row['total'];
-    } elseif ($row['status'] == "Overtime") {
-        $present += $row['total'];
-    }
+    } elseif (
+    $row['status'] == "Overtime" ||
+    $row['status'] == "Overtime Pending"
+) {
+    $present += $row['total'];
+}
 }
 
 $totalAttendance = $present + $absent + $half;
@@ -154,7 +250,12 @@ AUTO CHECKOUT FOR MISSED EMPLOYEES AT 9:00 PM
 $currentDate = date("Y-m-d");
 $currentTimeOnly = date("H:i:s");
 
-if ($currentTimeOnly >= "21:00:00") {
+$autoCheckoutTriggerTime = $isThirthahalliBranch
+    ? "20:30:00"
+    : "21:00:00";
+
+if ($currentTimeOnly >= $autoCheckoutTriggerTime) {
+
     $pendingCheckout = $conn->query("
         SELECT *
         FROM `$attTable`
@@ -164,22 +265,50 @@ if ($currentTimeOnly >= "21:00:00") {
     ");
 
     while ($att = $pendingCheckout->fetch_assoc()) {
+
         $attendanceId = $att['id'];
         $checkInTime = strtotime($att['check_in']);
-        $autoCheckoutDateTime = $currentDate . " 17:30:00";
-        $autoCheckoutTime = strtotime($autoCheckoutDateTime);
+
+        // Branch-based checkout time
+        $autoCheckoutDateTime =
+            $currentDate . " " . $officeEndTime;
+
+        $autoCheckoutTime =
+            strtotime($autoCheckoutDateTime);
 
         $lunchSeconds = 0;
-        if (!empty($att['lunch_out']) && !empty($att['lunch_in'])) {
-            $lunchSeconds = strtotime($att['lunch_in']) - strtotime($att['lunch_out']);
+
+        if (
+            !empty($att['lunch_out']) &&
+            !empty($att['lunch_in'])
+        ) {
+            $lunchSeconds =
+                strtotime($att['lunch_in']) -
+                strtotime($att['lunch_out']);
         }
 
-        $totalSeconds = $autoCheckoutTime - $checkInTime;
-        $workingHours = ($totalSeconds - $lunchSeconds) / 3600;
+        $totalSeconds =
+            $autoCheckoutTime - $checkInTime;
+
+        $workingHours =
+            max(0, ($totalSeconds - $lunchSeconds) / 3600);
+
         $status = "Present";
 
-        $updateAuto = $conn->prepare("UPDATE `$attTable` SET check_out=?, total_hours=?, status=? WHERE id=?");
-        $updateAuto->bind_param("sdsi", $autoCheckoutDateTime, $workingHours, $status, $attendanceId);
+        $updateAuto = $conn->prepare("
+            UPDATE `$attTable`
+            SET check_out=?, total_hours=?, status=?
+            WHERE id=?
+        ");
+
+        $updateAuto->bind_param(
+            "sdsi",
+            $autoCheckoutDateTime,
+            $workingHours,
+            $status,
+            $attendanceId
+        );
+
         $updateAuto->execute();
     }
 }
@@ -201,8 +330,8 @@ $fixCheckout = $conn->query("
 
 while ($att = $fixCheckout->fetch_assoc()) {
 
-    $autoCheckoutTime =
-        $att['date'] . " 17:30:00";
+$autoCheckoutTime =
+    $att['date'] . " " . $officeEndTime;
 
     $checkIn = strtotime($att['check_in']);
     $checkOut = strtotime($autoCheckoutTime);
@@ -401,6 +530,7 @@ $employees = $conn->query("
        SUM(CASE WHEN (
         attendance.status='Present'
         OR attendance.status='Overtime'
+OR attendance.status='Overtime Pending'
         OR attendance.status='Late'
     )
     AND attendance.date BETWEEN '$startDate' AND '$endDate'
@@ -493,6 +623,13 @@ $history = $conn->query("
         .badge.absent { background: #dc2626; }
         .badge.half { background: #f59e0b; }
         .badge.late { background: #2563eb; }
+        .badge.overtime {
+    background: #7c3aed;
+}
+
+.badge.overtime-pending {
+    background: #d97706;
+}
         .badge.cl { background: #7c3aed; }
         .badge.pl { background: #0e2725; }
         .badge.half-pl { background: #0ea5a8; }
@@ -547,11 +684,29 @@ $history = $conn->query("
                 $valueAttr  = date("Y-m", $targetTime); // e.g., "2026-06"
                 
                 // Construct labels: For '2026-06', the cycle is May 21 - Jun 20
-                $prevMonthLabel = date("M", strtotime("-1 month", $targetTime)); // "May"
-                $currMonthLabel = date("M", $targetTime);                        // "Jun"
-                $yearLabel      = date("Y", $targetTime);                        // "2026"
+                // $prevMonthLabel = date("M", strtotime("-1 month", $targetTime)); 
+                // $currMonthLabel = date("M", $targetTime);                        
+                // $yearLabel      = date("Y", $targetTime);                        
                 
-                $displayLabel = $prevMonthLabel . " - " . $currMonthLabel . " " . $yearLabel;
+                // $displayLabel = $prevMonthLabel . " - " . $currMonthLabel . " " . $yearLabel;
+
+                if ($isThirthahalliBranch) {
+
+    // Example: September 2026
+    $displayLabel = date("F Y", $targetTime);
+
+} else {
+
+    // Example: Aug - Sep 2026
+    $prevMonthLabel = date("M", strtotime("-1 month", $targetTime));
+    $currMonthLabel = date("M", $targetTime);
+    $yearLabel      = date("Y", $targetTime);
+
+    $displayLabel =
+        $prevMonthLabel . " - " .
+        $currMonthLabel . " " .
+        $yearLabel;
+}
                 
                 // Maintain selected state on page reload
                 $selected = ($valueAttr == $month) ? 'selected' : '';
@@ -578,7 +733,19 @@ $history = $conn->query("
                     <option value="Late" <?= $status_filter == 'Late' ? 'selected' : '' ?>>Late</option>
                     <option value="CL" <?= $status_filter == 'CL' ? 'selected' : '' ?>>Company Leaves</option>
                     <option value="PL" <?= $status_filter == 'PL' ? 'selected' : '' ?>>Monthly CL</option>
-                    <option value="Overtime" <?= $status_filter == 'Overtime' ? 'selected' : '' ?>>Overtime</option>
+                    <option
+    value="Overtime Pending"
+    <?= $status_filter == 'Overtime Pending' ? 'selected' : '' ?>
+>
+    Overtime Pending
+</option>
+
+<option
+    value="Overtime"
+    <?= $status_filter == 'Overtime' ? 'selected' : '' ?>
+>
+    Overtime
+</option>
                 </select>
                 <button type="submit" class="btn-primary">Search</button>
                 <button type="button" class="btn-print" onclick="printSummary()">Print Report</button>
@@ -586,7 +753,10 @@ $history = $conn->query("
         </div>
 
         <div class="table-wrapper" id="employeeSummary">
-            <div class="table-title">👨‍💼 Employee Monthly Report (21st - 20th)</div>
+          <div class="table-title">
+    👨‍💼 Employee Monthly Report
+    <?= $isThirthahalliBranch ? '(1st - End of Month)' : '(21st - 20th)' ?>
+</div>
             <table>
                 <tr>
                     <th>Name</th>
@@ -677,8 +847,11 @@ $history = $conn->query("
                             <span class="badge cl"><?= htmlspecialchars($companyLeaveTitles[$currentRowDate] ?? 'Occasional Leave') ?></span>
                         <?php elseif($row['status'] == 'PL'): ?>
                             <span class="badge pl">Monthly CL</span>
+                            <?php elseif($row['status'] == 'Overtime Pending'): ?>
+    <span class="badge overtime-pending">Overtime Pending</span>
                         <?php elseif($row['status'] == 'Overtime'): ?>
-                            <span class="badge present">Present</span>
+                            <span class="badge overtime">Overtime</span>
+                            
                         <?php else: ?>
                             <span class="badge late">Late</span>
                         <?php endif; ?>

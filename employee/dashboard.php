@@ -16,6 +16,30 @@ $userBranch = $user['branch'] ?? 'gdedutech';
 $attTable = getBranchTableNameOnly($conn, $userBranch);
 $today = date("Y-m-d");
 
+$isThirthahalliBranch = (
+    strtolower(trim($userBranch)) === "thirthahalli"
+);
+
+if ($isThirthahalliBranch) {
+
+    // Thirthahalli office timing
+    $officeStartTime = "10:00:00";
+    $officeEndTime   = "20:00:00";
+
+    // Example late window
+    $lateStartTime   = "10:10:00";
+    $lateEndTime     = "10:30:00";
+
+} else {
+
+    // Existing timing
+    $officeStartTime = "09:30:00";
+    $officeEndTime   = "17:30:00";
+
+    $lateStartTime   = "09:40:00";
+    $lateEndTime     = "10:00:00";
+}
+
 /* =======================
    TOTAL PRESENT DAYS
 ======================= */
@@ -28,6 +52,7 @@ $presentQuery = $conn->query("
       status = 'Present'
       OR status = 'Late'
       OR status = 'Overtime'
+OR status = 'Overtime Pending'
   )
 ");
 
@@ -552,8 +577,10 @@ margin-bottom:24px;
     <div class="card">
       <h2>Today's Attendance</h2>
       <?php if ($attendance) { 
-        $checkInTime = date("H:i:s", strtotime($attendance['check_in']));
-        $isLateWarning = ($checkInTime >= "09:40:00" && $checkInTime <= "10:00:00");
+$checkInTime = date("H:i:s", strtotime($attendance['check_in']));
+$isLateWarning = (
+    ($attendance['status'] ?? '') === 'Late'
+);
         
         if ($isLateWarning) { ?>
           <div class="warning-box">
