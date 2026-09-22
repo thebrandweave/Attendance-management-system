@@ -47,6 +47,11 @@ $isThirthahalliBranch = (
     strtolower(trim($branch)) === "thirthahalli"
 );
 
+$sundayIsWorking = (
+    $isMudipuBranch ||
+    $isThirthahalliBranch
+);
+
 
 /*
 =========================================
@@ -171,7 +176,7 @@ while ($dateLoopRunner <= strtotime($endDate)) {
     $currentDateCheck = date("Y-m-d", $dateLoopRunner);
 
     // SKIP SUNDAY
-    if (!$isMudipuBranch && date("N", strtotime($currentDateCheck)) == 7) {
+   if (!$sundayIsWorking && date("N", strtotime($currentDateCheck)) == 7) {
         $dateLoopRunner = strtotime("+1 day", $dateLoopRunner);
         continue;
     }
@@ -403,7 +408,7 @@ AUTO INSERT ABSENT OR COMPANY LEAVE (CL) FOR MISSING DAYS
 //             $dateLoop = strtotime("+1 day", $dateLoop);
 //             continue;
 //         }
-//         if (!$isMudipuBranch && date("N", strtotime($loopDate)) == 7) {
+//         if (!$sundayIsWorking && date("N", strtotime($loopDate)) == 7) {
 //             $dateLoop = strtotime("+1 day", $dateLoop);
 //             continue;
 //         }
@@ -430,7 +435,7 @@ AUTO INSERT ABSENT OR COMPANY LEAVE (CL) FOR MISSING DAYS
 //         $dateLoop = strtotime("+1 day", $dateLoop);
 //     }
 
-//     if (!$isMudipuBranch) {
+//     if (!$sundayIsWorking) {
 //         $cleanupSunday = $conn->prepare("
 //             DELETE FROM `$attTable`
 //             WHERE user_id = ?
@@ -546,7 +551,7 @@ OR attendance.status='Overtime Pending'
             ELSE 0
         END) as pl_count
     FROM users
-    LEFT JOIN `$attTable` attendance ON users.id = attendance.user_id AND attendance.date BETWEEN '$startDate' AND '$endDate' " . (!$isMudipuBranch ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
+    LEFT JOIN `$attTable` attendance ON users.id = attendance.user_id AND attendance.date BETWEEN '$startDate' AND '$endDate' " . (!$sundayIsWorking ? "AND DAYOFWEEK(attendance.date) != 1" : "") . "
     WHERE $whereEmployee
     GROUP BY users.id
     ORDER BY users.name ASC
@@ -556,7 +561,7 @@ OR attendance.status='Overtime Pending'
    HISTORY SECTION
 ========================= */
 $whereHistory = "attendance.date BETWEEN '$startDate' AND '$endDate' AND users.role='employee' AND (users.branch_id='$branchId' OR users.branch='$branch')";
-if (!$isMudipuBranch) {
+if (!$sundayIsWorking) {
     $whereHistory .= " AND DAYOFWEEK(attendance.date) != 1";
 }
 if (!empty($search)) {
