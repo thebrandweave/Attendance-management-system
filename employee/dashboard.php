@@ -20,6 +20,20 @@ $isThirthahalliBranch = (
     strtolower(trim($userBranch)) === "thirthahalli"
 );
 
+$sundayIsWorking = in_array(
+    strtolower(trim($userBranch)),
+    ["mudipu", "thirthahalli"],
+    true
+);
+
+$sundayDateFilter = $sundayIsWorking
+    ? ""
+    : "AND DAYOFWEEK(date) != 1";
+
+$sundayHistoryFilter = $sundayIsWorking
+    ? ""
+    : "AND DAYOFWEEK(a.date) != 1";
+
 if ($isThirthahalliBranch) {
 
     // Thirthahalli office timing
@@ -47,12 +61,11 @@ $presentQuery = $conn->query("
   SELECT COUNT(*) AS total_present
   FROM `$attTable`
   WHERE user_id = $userId
-  AND DAYOFWEEK(date) != 1
+  $sundayDateFilter
   AND (
       status = 'Present'
       OR status = 'Late'
       OR status = 'Overtime'
-OR status = 'Overtime Pending'
   )
 ");
 
@@ -64,7 +77,7 @@ $halfQuery = $conn->query("
   SELECT COUNT(*) AS total_half
   FROM `$attTable`
   WHERE user_id = $userId
-  AND DAYOFWEEK(date) != 1
+  $sundayDateFilter
   AND status = 'Half Day'
 ");
 
@@ -75,7 +88,7 @@ $absentQuery = $conn->query("
   SELECT COUNT(*) AS total_absent
   FROM `$attTable`
   WHERE user_id = $userId
-  AND DAYOFWEEK(date) != 1
+  $sundayDateFilter
   AND status = 'Absent'
 ");
 
@@ -148,7 +161,7 @@ a.lunch_in,
       ON cl.leave_date = a.date AND (cl.branch_id = u.branch_id OR cl.branch = u.branch)
 
   WHERE a.user_id = $userId
-  AND DAYOFWEEK(a.date) != 1
+  $sundayHistoryFilter
 
   ORDER BY a.date DESC
 ");
@@ -578,8 +591,10 @@ margin-bottom:24px;
       <h2>Today's Attendance</h2>
       <?php if ($attendance) { 
 $checkInTime = date("H:i:s", strtotime($attendance['check_in']));
+
 $isLateWarning = (
-    ($attendance['status'] ?? '') === 'Late'
+    $checkInTime >= $lateStartTime &&
+    $checkInTime <= $lateEndTime
 );
         
         if ($isLateWarning) { ?>

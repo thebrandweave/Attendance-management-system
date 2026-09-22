@@ -28,6 +28,12 @@ $isThirthahalliBranch = (
     strtolower(trim($adminBranch)) === "thirthahalli"
 );
 
+$sundayIsWorking = (
+    $isThirthahalliBranch ||
+    strtolower(trim($adminBranchName)) === "mudipu" ||
+    strtolower(trim($adminBranch)) === "mudipu"
+);
+
 if ($isThirthahalliBranch) {
 
     // Thirthahalli working hours
@@ -139,10 +145,6 @@ $employees = $stmt->get_result();
     .status-overtime { color: #7c3aed; font-weight: 600; }
     .filters { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; padding:7px; }
     .filters input, .filters select { padding:10px; border:1px solid #ddd; border-radius:8px; font-family:'Poppins',sans-serif; }
-    .status-overtimepending {
-    color: #d97706;
-    font-weight: 700;
-}
   </style>
 </head>
 <body>
@@ -217,7 +219,7 @@ $employees = $stmt->get_result();
 
 $isSunday = (
     date("w") == 0 &&
-    strtolower($adminBranch) != "mudipu"
+    !$sundayIsWorking
 );
 
 // Evaluate baseline rules
@@ -293,123 +295,10 @@ if (
             <td><?= $present ?></td>
             <td><?= $half ?></td>
             <td><?= $absent ?></td>
-      <td>
-
-<?php
-if (
-    $isThirthahalliBranch &&
-    !empty($todayAtt) &&
-    ($todayAtt['status'] ?? '') === 'Overtime Pending'
-):
-?>
-
-    <form
-        method="POST"
-        action="../api/overtime_action.php"
-        style="display:inline-block;"
-    >
-        <input
-            type="hidden"
-            name="attendance_id"
-            value="<?= (int)$todayAtt['id'] ?>"
-        >
-
-        <input
-            type="hidden"
-            name="action"
-            value="approve"
-        >
-
-        <button
-            type="submit"
-            style="
-                background:#16a34a;
-                color:white;
-                border:none;
-                padding:8px 12px;
-                border-radius:6px;
-                cursor:pointer;
-            "
-        >
-            Approve OT
-        </button>
-    </form>
-
-
-    <form
-        method="POST"
-        action="../api/overtime_action.php"
-        style="display:inline-block;"
-    >
-        <input
-            type="hidden"
-            name="attendance_id"
-            value="<?= (int)$todayAtt['id'] ?>"
-        >
-
-        <input
-            type="hidden"
-            name="action"
-            value="reject"
-        >
-
-        <button
-            type="submit"
-            style="
-                background:#ef4444;
-                color:white;
-                border:none;
-                padding:8px 12px;
-                border-radius:6px;
-                cursor:pointer;
-            "
-        >
-            Reject OT
-        </button>
-    </form>
-
-<?php endif; ?>
-
-
-<a
-    href="delete_employee.php?id=<?= $emp['id'] ?>"
-    onclick="return confirm('Are you sure?')"
-    style="
-        background:#ef4444;
-        color:white;
-        padding:8px 12px;
-        border-radius:6px;
-        text-decoration:none;
-        font-size:12px;
-        font-weight:600;
-    "
->
-    Delete
-</a>
-
-
-<button
-    onclick='openEditModal(
-        <?= json_encode($emp) ?>,
-        <?= json_encode($todayAtt) ?>
-    )'
-    style="
-        background:#667eea;
-        color:white;
-        border:none;
-        margin-left:10px;
-        padding:8px 12px;
-        border-radius:8px;
-        cursor:pointer;
-        font-size:13px;
-        font-weight:600;
-    "
->
-    <i class="bi bi-pencil-square"></i>
-    Edit
-</button>
-
-</td>
+            <td>
+              <a href="delete_employee.php?id=<?= $emp['id'] ?>" onclick="return confirm('Are you sure?')" style="background:#ef4444; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600;">Delete</a>
+              <button onclick='openEditModal(<?= json_encode($emp) ?>, <?= json_encode($todayAtt) ?>)' style="background:#667eea; color:white; border:none; margin-left:10px; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;"><i class="bi bi-pencil-square"></i> Edit</button>
+            </td>
           </tr>
           <?php } ?>
         </table>
