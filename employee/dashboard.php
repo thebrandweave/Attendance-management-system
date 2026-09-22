@@ -40,60 +40,72 @@ if ($isThirthahalliBranch) {
     $officeStartTime = "10:00:00";
     $officeEndTime   = "20:00:00";
 
-    // Example late window
-    $lateStartTime   = "10:10:00";
-    $lateEndTime     = "10:30:00";
-
 } else {
 
     // Existing timing
     $officeStartTime = "09:30:00";
     $officeEndTime   = "17:30:00";
-
-    $lateStartTime   = "09:40:00";
-    $lateEndTime     = "10:00:00";
 }
 
 /* =======================
-   TOTAL PRESENT DAYS
+   MONTH FILTER
+   Thirthahalli: 1st -> end of month
+   Other branches: 21st -> 20th
 ======================= */
-$presentQuery = $conn->query("
-  SELECT COUNT(*) AS total_present
-  FROM `$attTable`
-  WHERE user_id = $userId
-  $sundayDateFilter
-  AND (
-      status = 'Present'
-      OR status = 'Late'
-      OR status = 'Overtime'
-  )
+if (!empty($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', $_GET['month'])) {
+    $selectedMonth = $_GET['month'];
+} else {
+    if ($isThirthahalliBranch) {
+        $selectedMonth = date('Y-m');
+    } else {
+        $selectedMonth = ((int)date('d') >= 21)
+            ? date('Y-m', strtotime('+1 month'))
+            : date('Y-m');
+    }
+}
+
+if ($isThirthahalliBranch) {
+    $monthStartDate = date('Y-m-01', strtotime($selectedMonth . '-01'));
+    $monthEndDate   = date('Y-m-t', strtotime($selectedMonth . '-01'));
+    $selectedMonthLabel = date('F Y', strtotime($selectedMonth . '-01'));
+} else {
+    $monthStartDate = date('Y-m-21', strtotime('-1 month', strtotime($selectedMonth . '-01')));
+    $monthEndDate   = date('Y-m-20', strtotime($selectedMonth . '-01'));
+    $selectedMonthLabel = date('d M Y', strtotime($monthStartDate)) . ' - ' . date('d M Y', strtotime($monthEndDate));
+}
+
+/* =======================
+   MONTHLY STATUS SUMMARY
+======================= */
+$monthlySummaryStmt = $conn->prepare("
+    SELECT
+        SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) AS total_present,
+        SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) AS total_late,
+        SUM(CASE WHEN status IN ('Half Day','Half Day PL','Half Day Absent') THEN 1 ELSE 0 END) AS total_half,
+        SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END) AS total_absent,
+        SUM(CASE WHEN status = 'PL' THEN 1 WHEN status = 'Half Day PL' THEN 0.5 ELSE 0 END) AS total_pl,
+        SUM(CASE WHEN status = 'CL' THEN 1 ELSE 0 END) AS total_cl,
+        SUM(CASE WHEN status = 'Overtime' THEN 1 ELSE 0 END) AS total_overtime,
+        SUM(CASE WHEN status = 'Overtime Pending' THEN 1 ELSE 0 END) AS total_overtime_pending
+    FROM `$attTable`
+    WHERE user_id = ?
+      AND date BETWEEN ? AND ?
+      " . ($sundayIsWorking ? "" : "AND DAYOFWEEK(date) != 1") . "
 ");
 
-$presentData = $presentQuery->fetch_assoc();
-$totalPresentDays = $presentData['total_present'] ?? 0;
+$monthlySummaryStmt->bind_param('iss', $userId, $monthStartDate, $monthEndDate);
+$monthlySummaryStmt->execute();
+$monthlySummary = $monthlySummaryStmt->get_result()->fetch_assoc() ?: [];
+$monthlySummaryStmt->close();
 
-
-$halfQuery = $conn->query("
-  SELECT COUNT(*) AS total_half
-  FROM `$attTable`
-  WHERE user_id = $userId
-  $sundayDateFilter
-  AND status = 'Half Day'
-");
-
-$halfData = $halfQuery->fetch_assoc();
-$totalHalfDays = $halfData['total_half'] ?? 0;
-
-$absentQuery = $conn->query("
-  SELECT COUNT(*) AS total_absent
-  FROM `$attTable`
-  WHERE user_id = $userId
-  $sundayDateFilter
-  AND status = 'Absent'
-");
-
-$absentData = $absentQuery->fetch_assoc();
-$totalAbsentDays = $absentData['total_absent'] ?? 0;
+$totalPresentDays   = (float)($monthlySummary['total_present'] ?? 0);
+$totalLateDays      = (float)($monthlySummary['total_late'] ?? 0);
+$totalHalfDays      = (float)($monthlySummary['total_half'] ?? 0);
+$totalAbsentDays    = (float)($monthlySummary['total_absent'] ?? 0);
+$totalPLDays        = (float)($monthlySummary['total_pl'] ?? 0);
+$totalCLDays        = (float)($monthlySummary['total_cl'] ?? 0);
+$totalOvertimeDays  = (float)($monthlySummary['total_overtime'] ?? 0);
+$totalOTPendingDays = (float)($monthlySummary['total_overtime_pending'] ?? 0);
 
 /* =======================
    TODAY ATTENDANCE
@@ -161,6 +173,7 @@ a.lunch_in,
       ON cl.leave_date = a.date AND (cl.branch_id = u.branch_id OR cl.branch = u.branch)
 
   WHERE a.user_id = $userId
+  AND a.date BETWEEN '$monthStartDate' AND '$monthEndDate'
   $sundayHistoryFilter
 
   ORDER BY a.date DESC
@@ -172,6 +185,7 @@ a.lunch_in,
 $leaves = $conn->query("
   SELECT * FROM leave_requests 
   WHERE employee_id = $userId
+    AND date BETWEEN '$monthStartDate' AND '$monthEndDate'
   ORDER BY date DESC
 ");
 
@@ -185,6 +199,7 @@ $companyLeaves = $conn->query("
     SELECT *
     FROM company_leaves
     WHERE (branch_id = $empBranchId OR branch = '$empBranchStr')
+      AND leave_date BETWEEN '$monthStartDate' AND '$monthEndDate'
     ORDER BY leave_date DESC
 ");
 ?>
@@ -434,6 +449,46 @@ tr:hover {
   line-height: 1.5;
 }
 
+.month-filter-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  background: white;
+  padding: 18px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+
+.month-filter-card .month-filter-title {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.month-filter-card form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.month-filter-card select,
+.month-filter-card button {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-family: inherit;
+}
+
+.month-filter-card button {
+  background: #111827;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
 /* ==================================
    RESPONSIVE DESIGN SYSTEM
 ================================== */
@@ -562,6 +617,36 @@ tr:hover {
       Employee ID: <strong><?= htmlspecialchars($user['employee_id']) ?></strong>
     </div>
 
+    <div class="month-filter-card">
+      <div>
+        <div class="month-filter-title">Monthly Attendance</div>
+        <strong><?= htmlspecialchars($selectedMonthLabel) ?></strong>
+      </div>
+
+      <form method="GET">
+        <select name="month" aria-label="Select month">
+          <?php
+          for ($i = -8; $i <= 3; $i++) {
+              $target = strtotime("$i month", strtotime(date('Y-m-01')));
+              $value = date('Y-m', $target);
+
+              if ($isThirthahalliBranch) {
+                  $label = date('F Y', $target);
+              } else {
+                  $cycleStart = date('21 M', strtotime('-1 month', $target));
+                  $cycleEnd = date('20 M Y', $target);
+                  $label = $cycleStart . ' - ' . $cycleEnd;
+              }
+
+              $selected = ($value === $selectedMonth) ? 'selected' : '';
+              echo '<option value="' . htmlspecialchars($value) . '" ' . $selected . '>' . htmlspecialchars($label) . '</option>';
+          }
+          ?>
+        </select>
+        <button type="submit">Filter</button>
+      </form>
+    </div>
+
     <div style="
 display:flex;
 gap:12px;
@@ -577,6 +662,10 @@ margin-bottom:24px;
   Present : <strong><?= $totalPresentDays ?></strong>
 </div>
 
+<div class="present-badge" style="background:#2563eb;">
+  Late : <strong><?= $totalLateDays ?></strong>
+</div>
+
 <div class="present-badge" style="background:#f59e0b;">
   Half Day : <strong><?= $totalHalfDays ?></strong>
 </div>
@@ -585,6 +674,24 @@ margin-bottom:24px;
   Absent : <strong><?= $totalAbsentDays ?></strong>
 </div>
 
+<div class="present-badge" style="background:#0d9488;">
+  Monthly CL : <strong><?= $totalPLDays ?></strong>
+</div>
+
+<div class="present-badge" style="background:#7c3aed;">
+  Company Leave : <strong><?= $totalCLDays ?></strong>
+</div>
+
+<div class="present-badge" style="background:#6d28d9;">
+  Overtime : <strong><?= $totalOvertimeDays ?></strong>
+</div>
+
+<?php if ($totalOTPendingDays > 0): ?>
+<div class="present-badge" style="background:#d97706;">
+  OT Pending : <strong><?= $totalOTPendingDays ?></strong>
+</div>
+<?php endif; ?>
+
 </div>
 
     <div class="card">
@@ -592,10 +699,7 @@ margin-bottom:24px;
       <?php if ($attendance) { 
 $checkInTime = date("H:i:s", strtotime($attendance['check_in']));
 
-$isLateWarning = (
-    $checkInTime >= $lateStartTime &&
-    $checkInTime <= $lateEndTime
-);
+$isLateWarning = (($attendance['status'] ?? '') === 'Late');
         
         if ($isLateWarning) { ?>
           <div class="warning-box">
@@ -684,7 +788,7 @@ $isLateWarning = (
     </div>
 
     <div class="card">
-      <h2>Attendance History</h2>
+      <h2>Attendance History - <?= htmlspecialchars($selectedMonthLabel) ?></h2>
       <div class="table-wrapper">
         <table>
           <thead>
@@ -787,6 +891,18 @@ if ($status == 'CL') {
 
     elseif ($status == 'Overtime')
         $color = '#7c3aed';
+
+    elseif ($status == 'Overtime Pending')
+        $color = '#d97706';
+
+    elseif ($status == 'PL')
+        $color = '#0d9488';
+
+    elseif ($status == 'Half Day PL')
+        $color = '#0ea5a8';
+
+    elseif ($status == 'Half Day Absent')
+        $color = '#94644a';
 ?>
 
     <span style="
@@ -807,7 +923,7 @@ if ($status == 'CL') {
               <?php } ?>
             <?php } else { ?>
               <tr>
-                <td colspan="5" style="text-align: center; padding-left: 16px !important;">No attendance records found</td>
+                <td colspan="6" style="text-align: center; padding-left: 16px !important;">No attendance records found for this month</td>
               </tr>
             <?php } ?>
           </tbody>
