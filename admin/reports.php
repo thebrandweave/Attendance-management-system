@@ -382,137 +382,137 @@ $autoCheckoutTime =
 AUTO INSERT ABSENT OR COMPANY LEAVE (CL) FOR MISSING DAYS
 =========================================
 */
-$employeesAbsent = $conn->query("
-    SELECT id, created_at
-    FROM users
-    WHERE role='employee' AND (branch_id='$branchId' OR branch='$branch')
-");
+// $employeesAbsent = $conn->query("
+//     SELECT id, created_at
+//     FROM users
+//     WHERE role='employee' AND (branch_id='$branchId' OR branch='$branch')
+// ");
 
-while ($emp = $employeesAbsent->fetch_assoc()) {
-    $empId = $emp['id'];
-    $joinDate = date("Y-m-d", strtotime($emp['created_at']));
-    $dateLoop = strtotime($startDate);
+// while ($emp = $employeesAbsent->fetch_assoc()) {
+//     $empId = $emp['id'];
+//     $joinDate = date("Y-m-d", strtotime($emp['created_at']));
+//     $dateLoop = strtotime($startDate);
 
-    while ($dateLoop <= strtotime($endDate)) {
-        $loopDate = date("Y-m-d", $dateLoop);
+//     while ($dateLoop <= strtotime($endDate)) {
+//         $loopDate = date("Y-m-d", $dateLoop);
 
-        if ($loopDate >= $currentDate) {
-            break;
-        }
-        if ($loopDate < $joinDate) {
-            $dateLoop = strtotime("+1 day", $dateLoop);
-            continue;
-        }
-        if (!$isMudipuBranch && date("N", strtotime($loopDate)) == 7) {
-            $dateLoop = strtotime("+1 day", $dateLoop);
-            continue;
-        }
+//         if ($loopDate >= $currentDate) {
+//             break;
+//         }
+//         if ($loopDate < $joinDate) {
+//             $dateLoop = strtotime("+1 day", $dateLoop);
+//             continue;
+//         }
+//         if (!$isMudipuBranch && date("N", strtotime($loopDate)) == 7) {
+//             $dateLoop = strtotime("+1 day", $dateLoop);
+//             continue;
+//         }
 
-        $isCompanyLeave = in_array($loopDate, $companyLeaves);
+//         $isCompanyLeave = in_array($loopDate, $companyLeaves);
 
-        $check = $conn->query("SELECT id, status FROM `$attTable` WHERE user_id='$empId' AND date='$loopDate'");
+//         $check = $conn->query("SELECT id, status FROM `$attTable` WHERE user_id='$empId' AND date='$loopDate'");
 
-        if ($isCompanyLeave) {
-            if ($check->num_rows == 0) {
-                $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ('$empId', '$loopDate', 'CL')");
-            } else {
-                $existing = $check->fetch_assoc();
-                if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day PL', 'Half Day'])) {
-                    $conn->query("UPDATE `$attTable` SET status='CL' WHERE id=" . $existing['id']);
-                }
-            }
-        } else {
-            if ($check->num_rows == 0) {
-                $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ('$empId', '$loopDate', 'Absent')");
-            }
-        }
+//         if ($isCompanyLeave) {
+//             if ($check->num_rows == 0) {
+//                 $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ('$empId', '$loopDate', 'CL')");
+//             } else {
+//                 $existing = $check->fetch_assoc();
+//                 if (in_array($existing['status'], ['Absent', 'PL', 'Half Day Absent', 'Half Day PL', 'Half Day'])) {
+//                     $conn->query("UPDATE `$attTable` SET status='CL' WHERE id=" . $existing['id']);
+//                 }
+//             }
+//         } else {
+//             if ($check->num_rows == 0) {
+//                 $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ('$empId', '$loopDate', 'Absent')");
+//             }
+//         }
 
-        $dateLoop = strtotime("+1 day", $dateLoop);
-    }
+//         $dateLoop = strtotime("+1 day", $dateLoop);
+//     }
 
-    if (!$isMudipuBranch) {
-        $cleanupSunday = $conn->prepare("
-            DELETE FROM `$attTable`
-            WHERE user_id = ?
-            AND date BETWEEN ? AND ?
-            AND DAYOFWEEK(date) = 1
-            AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
-        ");
-        $cleanupSunday->bind_param("iss", $empId, $startDate, $endDate);
-        $cleanupSunday->execute();
-    }
+//     if (!$isMudipuBranch) {
+//         $cleanupSunday = $conn->prepare("
+//             DELETE FROM `$attTable`
+//             WHERE user_id = ?
+//             AND date BETWEEN ? AND ?
+//             AND DAYOFWEEK(date) = 1
+//             AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
+//         ");
+//         $cleanupSunday->bind_param("iss", $empId, $startDate, $endDate);
+//         $cleanupSunday->execute();
+//     }
 
-    /*
-    =========================================
-    REVERT STALE 'CL' ROWS
-    -----------------------------------------
-    A row only ever gets SET to 'CL' above when its date is found in
-    $companyLeaves (i.e. it exists in the company_leaves table for this
-    cycle). But nothing previously reverted that decision if the company
-    leave entry was later edited or deleted -- once a row became 'CL' it
-    stayed 'CL' forever, even on a cycle where company_leaves is now
-    completely empty. That made old/incorrect company-leave entries show
-    up permanently in the "Company Leave" column.
-    Fix: every time the report runs, find every 'CL' row for this
-    employee in this cycle whose date is NOT (no longer) in
-    $companyLeaves, and revert it to 'Absent' so the normal PL quota pass
-    below can re-evaluate it like any other day (it will become PL or
-    Absent depending on quota remaining, exactly as if no CL had ever
-    touched it).
-    =========================================
-    */
-    $existingCLRows = $conn->prepare("
-        SELECT id, date
-        FROM `$attTable`
-        WHERE user_id = ?
-        AND date BETWEEN ? AND ?
-        AND status = 'CL'
-    ");
-    $existingCLRows->bind_param("iss", $empId, $startDate, $endDate);
-    $existingCLRows->execute();
-    $existingCLResult = $existingCLRows->get_result();
+//     /*
+//     =========================================
+//     REVERT STALE 'CL' ROWS
+//     -----------------------------------------
+//     A row only ever gets SET to 'CL' above when its date is found in
+//     $companyLeaves (i.e. it exists in the company_leaves table for this
+//     cycle). But nothing previously reverted that decision if the company
+//     leave entry was later edited or deleted -- once a row became 'CL' it
+//     stayed 'CL' forever, even on a cycle where company_leaves is now
+//     completely empty. That made old/incorrect company-leave entries show
+//     up permanently in the "Company Leave" column.
+//     Fix: every time the report runs, find every 'CL' row for this
+//     employee in this cycle whose date is NOT (no longer) in
+//     $companyLeaves, and revert it to 'Absent' so the normal PL quota pass
+//     below can re-evaluate it like any other day (it will become PL or
+//     Absent depending on quota remaining, exactly as if no CL had ever
+//     touched it).
+//     =========================================
+//     */
+//     $existingCLRows = $conn->prepare("
+//         SELECT id, date
+//         FROM `$attTable`
+//         WHERE user_id = ?
+//         AND date BETWEEN ? AND ?
+//         AND status = 'CL'
+//     ");
+//     $existingCLRows->bind_param("iss", $empId, $startDate, $endDate);
+//     $existingCLRows->execute();
+//     $existingCLResult = $existingCLRows->get_result();
 
-    while ($clRow = $existingCLResult->fetch_assoc()) {
-        $clRowDate = date("Y-m-d", strtotime($clRow['date']));
-        if (!in_array($clRowDate, $companyLeaves)) {
-            // No longer a recognized company leave date -> revert to
-            // Absent so the quota pass below treats it like any other
-            // unaccounted-for day.
-            $conn->query("UPDATE `$attTable` SET status='Absent' WHERE id=" . $clRow['id']);
-        }
-    }
+//     while ($clRow = $existingCLResult->fetch_assoc()) {
+//         $clRowDate = date("Y-m-d", strtotime($clRow['date']));
+//         if (!in_array($clRowDate, $companyLeaves)) {
+//             // No longer a recognized company leave date -> revert to
+//             // Absent so the quota pass below treats it like any other
+//             // unaccounted-for day.
+//             $conn->query("UPDATE `$attTable` SET status='Absent' WHERE id=" . $clRow['id']);
+//         }
+//     }
 
-    $quotaRows = $conn->prepare("
-        SELECT id, date, status
-        FROM `$attTable`
-        WHERE user_id = ?
-        AND date BETWEEN ? AND ?
-        AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
-        " . (!$isMudipuBranch ? "AND DAYOFWEEK(date) != 1" : "") . "
-        ORDER BY date ASC
-    ");
-    $quotaRows->bind_param("iss", $empId, $startDate, $endDate);
-    $quotaRows->execute();
-    $quotaResult = $quotaRows->get_result();
+//     $quotaRows = $conn->prepare("
+//         SELECT id, date, status
+//         FROM `$attTable`
+//         WHERE user_id = ?
+//         AND date BETWEEN ? AND ?
+//         AND status IN ('Absent', 'PL', 'Half Day', 'Half Day PL', 'Half Day Absent')
+//         " . (!$isMudipuBranch ? "AND DAYOFWEEK(date) != 1" : "") . "
+//         ORDER BY date ASC
+//     ");
+//     $quotaRows->bind_param("iss", $empId, $startDate, $endDate);
+//     $quotaRows->execute();
+//     $quotaResult = $quotaRows->get_result();
 
-    $poolRemaining = 2.0; // shared PL units available this cycle
+//     $poolRemaining = 2.0; // shared PL units available this cycle
 
-    while ($qRow = $quotaResult->fetch_assoc()) {
-        $isHalfDay = ($qRow['status'] == 'Half Day' || $qRow['status'] == 'Half Day PL' || $qRow['status'] == 'Half Day Absent');
-        $unitCost = $isHalfDay ? 0.5 : 1.0;
+//     while ($qRow = $quotaResult->fetch_assoc()) {
+//         $isHalfDay = ($qRow['status'] == 'Half Day' || $qRow['status'] == 'Half Day PL' || $qRow['status'] == 'Half Day Absent');
+//         $unitCost = $isHalfDay ? 0.5 : 1.0;
 
-        if ($poolRemaining >= $unitCost) {
-            $newStatus = $isHalfDay ? 'Half Day PL' : 'PL';
-            $poolRemaining -= $unitCost;
-        } else {
-            $newStatus = $isHalfDay ? 'Half Day Absent' : 'Absent';
-        }
+//         if ($poolRemaining >= $unitCost) {
+//             $newStatus = $isHalfDay ? 'Half Day PL' : 'PL';
+//             $poolRemaining -= $unitCost;
+//         } else {
+//             $newStatus = $isHalfDay ? 'Half Day Absent' : 'Absent';
+//         }
 
-        if ($qRow['status'] != $newStatus) {
-            $conn->query("UPDATE `$attTable` SET status='$newStatus' WHERE id=" . $qRow['id']);
-        }
-    }
-}
+//         if ($qRow['status'] != $newStatus) {
+//             $conn->query("UPDATE `$attTable` SET status='$newStatus' WHERE id=" . $qRow['id']);
+//         }
+//     }
+// }
 
 /* =========================
    EMPLOYEE SUMMARY REPORT
