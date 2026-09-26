@@ -774,40 +774,126 @@ $history = $conn->query("
                     <th>Monthly CL</th>
                     <th>Total Attendance</th>
                 </tr>
-                <?php while($emp = $employees->fetch_assoc()): 
-                    // A 'Half Day Absent' row is still a half-day worked
-                    // (the employee was physically present for half the
-                    // day) — it's just that the leave half of that day
-                    // fell outside the PL quota. So its 0.5 worked-half
-                    // still counts toward Total Attendance, the same way
-                    // halfday_credit_count's 0.5 does for Half Day / Half
-                    // Day PL. The uncovered leave-half is what gets shown
-                    // as 0.5 in the Absent column below.
-                    $finalAttendance = $emp['present_count']
-                        // + ($emp['halfday_credit_count'] * 0.5)
-                        + ($emp['halfday_absent_count'] * 0.5)
-                        + $emp['pl_count']
-                        ;
-                    // Absent display = pure Absent rows + 0.5 credit for each
-                    // Half Day Absent row (the uncovered leave-half of that
-                    // day, once the PL quota ran out).
-                    $absentDisplay = $emp['absent_count'] + ($emp['halfday_absent_count'] * 0.5);
-                    // Half Day display = only the "covered" half days
-                    // (Half Day worked normally + Half Day PL). The
-                    // quota-exhausted Half Day Absent rows have been moved
-                    // into the Absent column above instead of living here.
-                    $halfDayDisplay = $emp['halfday_count'] - $emp['halfday_absent_count'];
-                ?>
+              <?php while($emp = $employees->fetch_assoc()):
+
+    $presentCount = (float)($emp['present_count'] ?? 0);
+
+    $fullAbsent = (float)($emp['absent_count'] ?? 0);
+
+    $halfDayAbsent = (float)($emp['halfday_absent_count'] ?? 0);
+
+    $halfDayCount = (float)($emp['halfday_count'] ?? 0);
+
+    // Already consumed Monthly CL:
+    // PL = 1
+    // Half Day PL = 0.5
+    $monthlyCLUsed = (float)($emp['pl_count'] ?? 0);
+
+    // Maximum Monthly CL allowed
+    $monthlyCLLimit = 2.0;
+
+    // Remaining Monthly CL
+    $remainingCL = max(
+        0,
+        $monthlyCLLimit - $monthlyCLUsed
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | USE REMAINING MONTHLY CL AGAINST ANY LEAVE
+    |--------------------------------------------------------------------------
+    |
+    | Example:
+    |
+    | Monthly CL used = 1.5
+    | Remaining CL    = 0.5
+    | Full absent     = 1
+    |
+    | Result:
+    | Monthly CL      = 2
+    | Absent          = 0.5
+    |
+    */
+
+
+    // First calculate actual absent leave units
+    $absentUnits =
+        $fullAbsent +
+        ($halfDayAbsent * 0.5);
+
+
+    // Use whatever Monthly CL is still available
+    $clTakenFromLeave = min(
+        $remainingCL,
+        $absentUnits
+    );
+
+
+    // Add consumed balance to Monthly CL
+    $monthlyCLDisplay =
+        $monthlyCLUsed +
+        $clTakenFromLeave;
+
+
+    // Whatever is not covered by Monthly CL remains absent
+    $absentDisplay =
+        $absentUnits -
+        $clTakenFromLeave;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | HALF DAY DISPLAY
+    |--------------------------------------------------------------------------
+    */
+
+    $halfDayDisplay = $halfDayCount;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | TOTAL ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
+    $finalAttendance =
+        $presentCount +
+        $monthlyCLDisplay +
+        ($halfDayCount * 0.5);
+
+?>
                 <tr>
                     <td><?= $emp['name'] ?></td>
                     <td><?= $emp['employee_id'] ?></td>
-                    <td class="green"><?= $emp['present_count'] ?? 0 ?></td>
-                    <td class="red"><?= $absentDisplay ?></td>
-                    <td class="orange"><?= $halfDayDisplay ?></td>
-           
-                    <td style="color: #7c3aed; font-weight: 600;"><?= $emp['cl_count'] ?? 0 ?></td>
-                    <td style="color: #0d9488; font-weight: 600;"><?= $emp['pl_count'] ?? 0 ?></td>
-                    <td style="font-weight:600;"><?= $finalAttendance ?> / <?= $totalDaysInMonth ?> Days</td>
+                  <td class="green">
+    <?= $presentCount ?>
+</td>
+
+<td class="red">
+    <?= $absentDisplay == floor($absentDisplay)
+        ? number_format($absentDisplay, 0)
+        : number_format($absentDisplay, 1) ?>
+</td>
+
+<td class="orange">
+    <?= $halfDayDisplay ?>
+</td>
+
+<td style="color:#7c3aed;font-weight:600;">
+    <?= $emp['cl_count'] ?? 0 ?>
+</td>
+
+<td style="color:#0d9488;font-weight:600;">
+    <?= $monthlyCLDisplay == floor($monthlyCLDisplay)
+        ? number_format($monthlyCLDisplay, 0)
+        : number_format($monthlyCLDisplay, 1) ?>
+</td>
+
+<td style="font-weight:600;">
+    <?= $finalAttendance ?>
+    / <?= $totalDaysInMonth ?> Days
+</td>
                 </tr>
                 <?php endwhile; ?>
             </table>

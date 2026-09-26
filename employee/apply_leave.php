@@ -327,6 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
       }
 
       .main {
+     
         padding: 30px 20px;
       }
     }

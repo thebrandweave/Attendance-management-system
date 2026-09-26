@@ -336,7 +336,7 @@ body {
 /* =========================
    MAIN CONTENT
 ========================= */
-.main {
+{
   flex: 1;
   margin-left: 260px;
   width: calc(100% - 260px);
@@ -465,6 +465,7 @@ tr:hover {
 .month-filter-card .month-filter-title {
   font-size: 14px;
   color: #64748b;
+  padding-bottom: 8px;
 }
 
 .month-filter-card form {
@@ -528,6 +529,9 @@ tr:hover {
 
   .main {
     padding: 20px;
+            width: calc(100% - 0px);
+        margin-left: 0px;
+
   }
 }
 
