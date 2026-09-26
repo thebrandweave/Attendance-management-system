@@ -57,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
   <title>Apply Leave</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
   <style>
     * {
@@ -121,28 +122,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
       height: 100vh;
       display: flex;
       flex-direction: column;
-      transition: transform 0.3s ease;
-      z-index: 1000;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1001;
       overflow-y: auto;
       box-sizing: border-box;
     }
 
-    .sidebar h2 {
-      margin-bottom: 30px;
-      text-align: center;
-      font-size: 20px;
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 25px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar-header h2 {
+      font-size: 19px;
       font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .sidebar-close-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 26px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 6px;
+    }
+
+    .sidebar-close-btn:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
     }
 
     .sidebar a {
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 12px;
       padding: 12px 16px;
-      margin: 6px 0;
       color: #cbd5e1;
       text-decoration: none;
       border-radius: 8px;
-      transition: 0.3s;
+      transition: 0.25s;
       font-size: 14px;
+      font-weight: 500;
     }
 
     .sidebar a:hover {
@@ -151,28 +190,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
       transform: translateX(4px);
     }
 
+    .sidebar a.active {
+      background: #4f46e5;
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+    }
+
     .sidebar .logout {
       background: #ef4444;
       color: white;
       margin-top: auto;
-      text-align: center;
+      justify-content: center;
+      font-weight: 600;
     }
 
     .sidebar .logout:hover {
       background: #dc2626;
       transform: none;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
     }
 
     /* Overlay for Mobile Navigation drawer */
     .sidebar-overlay {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
+      inset: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 998;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(2px);
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .sidebar-overlay.active {
+      display: block;
+      opacity: 1;
+      pointer-events: auto;
     }
 
     /* ===== MAIN ===== */
@@ -343,17 +400,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 <body>
 
 <div class="mobile-top-bar">
-  <h2>Employee Panel</h2>
-  <button class="hamburger-btn" id="menuToggle">☰</button>
+  <div style="font-size:16px; font-weight:600; display:flex; align-items:center; gap:8px;">
+    <i class="bi bi-person-badge"></i> Employee Panel
+  </div>
+  <button class="hamburger-btn" id="menuToggle" aria-label="Toggle navigation menu">
+    <i class="bi bi-list"></i>
+  </button>
 </div>
 
 <div class="layout">
 
   <div class="sidebar" id="sidebar">
-    <h2>Employee Panel</h2>
-    <a href="dashboard.php">Dashboard</a>
-    <a href="apply_leave.php">Apply Leave</a>
-    <a href="../auth/logout.php" class="logout">🚪 Logout</a>
+    <div class="sidebar-header">
+      <h2><i class="bi bi-person-badge"></i> Employee Panel</h2>
+      <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close Sidebar">&times;</button>
+    </div>
+
+    <div class="sidebar-nav">
+      <a href="dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
+      <a href="apply_leave.php" class="active"><i class="bi bi-calendar-plus"></i> Apply Leave</a>
+    </div>
+
+    <a href="../auth/logout.php" class="logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
   </div>
   
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -408,15 +476,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 
 <script>
   const menuToggle = document.getElementById('menuToggle');
+  const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
   const sidebar = document.getElementById('sidebar');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-  function toggleMenu() {
-    sidebar.classList.toggle('active');
+  function openSidebar() {
+    sidebar.classList.add('active');
+    sidebarOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
   }
 
-  menuToggle.addEventListener('click', toggleMenu);
-  sidebarOverlay.addEventListener('click', toggleMenu);
+  function closeSidebar() {
+    sidebar.classList.remove('active');
+    sidebarOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  if (menuToggle) menuToggle.addEventListener('click', openSidebar);
+  if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', closeSidebar);
+  if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+      closeSidebar();
+    }
+  });
 </script>
 <script>
 function showToast(message, error = false) {

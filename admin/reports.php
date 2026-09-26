@@ -662,7 +662,6 @@ $history = $conn->query("
         <h2 style="text-align:center;"><?= htmlspecialchars($branchName) ?> Admin</h2>
         <a href="dashboard.php">🏠 Dashboard</a>
         <a href="create_employee.php">👤 Create Employee</a>
-        <a href="employee_settings.php">⚙️ Employee Settings</a>
         <a href="../api/checkin.php">🟢 Check In- Morning</a>
         <a href="../api/lunch.php">🍽️ Lunch Break</a>
         <a href="../api/checkout.php">🔴 Check Out- Evening</a>
@@ -675,6 +674,7 @@ $history = $conn->query("
         <a href="leave_requests.php">📩 Manage Leaves <?php if($leaveCount > 0) { ?><span style="background:#ef4444; color:white; padding:2px 8px; border-radius:50px; font-size:12px; margin-left:8px; font-weight:600;"><?= $leaveCount ?></span><?php } ?></a>
         <a href="add_leave.php">📅 Company Leaves</a>
         <a href="reports.php" class="active">📊 Reports</a>
+        <a href="employee_settings.php">⚙️ Employee Settings</a>
         <a href="../auth/logout.php" class="logout">🚪 Logout</a>
     </div>
 

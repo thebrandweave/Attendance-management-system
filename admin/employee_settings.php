@@ -246,30 +246,131 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
     .toast.show { transform: translateX(0); opacity: 1; }
     .toast.error { background: #ef4444; }
 
-    @media (max-width: 768px) {
-      .sidebar { display: none; }
-      .main { margin-left: 0; width: 100%; padding: 15px; }
+    /* Mobile Header */
+    .mobile-top-bar {
+      display: none;
+      background: #111827;
+      color: white;
+      padding: 14px 20px;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+    .mobile-top-bar .bar-title {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hamburger-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+    }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 25px;
+    }
+    .sidebar-header h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0;
+      text-align: center;
+      flex: 1;
+    }
+    .sidebar-close-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(2px);
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .sidebar-overlay.active {
+      display: block;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    @media (max-width: 992px) {
+      .layout { flex-direction: column; }
+      .mobile-top-bar { display: flex; }
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 270px;
+        max-width: 85vw;
+        box-shadow: 10px 0 25px rgba(0, 0, 0, 0.3);
+      }
+      .sidebar.active { transform: translateX(0); }
+      .sidebar-close-btn { display: block; }
+      .main { margin-left: 0; width: 100%; padding: 16px; }
       .bulk-form-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
+<!-- Mobile Header Bar -->
+<div class="mobile-top-bar">
+  <div class="bar-title">
+    <i class="bi bi-shield-lock"></i> <?= htmlspecialchars($adminBranchName) ?> Admin
+  </div>
+  <button class="hamburger-btn" id="menuToggle" aria-label="Toggle navigation">
+    <i class="bi bi-list"></i>
+  </button>
+</div>
+
 <div class="layout">
   <!-- SIDEBAR -->
-  <div class="sidebar">
-    <h2><?= htmlspecialchars($adminBranchName) ?> Admin</h2>
-    <a href="dashboard.php">🏠 Dashboard</a>
-    <a href="create_employee.php">👤 Create Employee</a>
-    <a href="employee_settings.php" class="active">⚙️ Employee Settings</a>
-    <a href="../api/checkin.php">🟢 Check In- Morning</a>
-    <a href="../api/lunch.php">🍽️ Lunch Break</a>
-    <a href="../api/checkout.php">🔴 Check Out- Evening</a>
-    <a href="leave_requests.php">📩 Manage Leaves <?php if($leaveCount > 0) { ?><span style="background:#ef4444; color:white; padding:2px 8px; border-radius:50px; font-size:12px; margin-left:8px; font-weight:600;"><?= $leaveCount ?></span><?php } ?></a>
-    <a href="add_leave.php">📅 Company Leaves</a>
-    <a href="reports.php">📊 Reports</a>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2><?= htmlspecialchars($adminBranchName) ?> Admin</h2>
+      <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close Sidebar">&times;</button>
+    </div>
+    <div class="sidebar-nav">
+      <a href="dashboard.php">🏠 Dashboard</a>
+      <a href="create_employee.php">👤 Create Employee</a>
+      <a href="../api/checkin.php">🟢 Check In- Morning</a>
+      <a href="../api/lunch.php">🍽️ Lunch Break</a>
+      <a href="../api/checkout.php">🔴 Check Out- Evening</a>
+      <a href="leave_requests.php">📩 Manage Leaves <?php if($leaveCount > 0) { ?><span style="background:#ef4444; color:white; padding:2px 8px; border-radius:50px; font-size:12px; margin-left:8px; font-weight:600;"><?= $leaveCount ?></span><?php } ?></a>
+      <a href="add_leave.php">📅 Company Leaves</a>
+      <a href="reports.php">📊 Reports</a>
+      <a href="employee_settings.php" class="active">⚙️ Employee Settings</a>
+    </div>
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
   </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <!-- MAIN CONTENT -->
   <div class="main">
@@ -699,6 +800,36 @@ function handleSettingsSubmit(e) {
   });
 </script>
 <?php unset($_SESSION['flash_error']); endif; ?>
+
+<script>
+  // Mobile Sidebar Drawer
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+  function openSidebar() {
+    sidebar.classList.add('active');
+    sidebarOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('active');
+    sidebarOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  if (menuToggle) menuToggle.addEventListener('click', openSidebar);
+  if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', closeSidebar);
+  if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+      closeSidebar();
+    }
+  });
+</script>
 
 </body>
 </html>
