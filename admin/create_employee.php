@@ -1,9 +1,12 @@
 <?php 
 include("../config/db.php");
+require_once "../config/branch_helper.php";
 
 if (session_status() === PHP_SESSION_NONE) {
   session_start();
 }
+
+ensureEmployeeSettingsColumns($conn);
 
 if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
   header("Location: ../index.php");
@@ -34,17 +37,21 @@ if (isset($_POST['create'])) {
   $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 
 
+  $working_hours = isset($_POST['working_hours']) && $_POST['working_hours'] !== '' ? max(0, min(24, (float)$_POST['working_hours'])) : 8.00;
+  $monthly_cl = isset($_POST['monthly_cl']) && $_POST['monthly_cl'] !== '' ? max(0, min(31, (float)$_POST['monthly_cl'])) : 2.00;
+  $check_in_days = !empty($_POST['check_in_days']) ? (is_array($_POST['check_in_days']) ? implode(',', $_POST['check_in_days']) : trim($_POST['check_in_days'])) : 'Mon,Tue,Wed,Thu,Fri,Sat';
+
   $empId = "EMP" . rand(1000,9999);
   $plainPassword = "EMP@" . rand(1000,9999);
-$hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
+  $hashedPassword = password_hash($plainPassword, PASSWORD_DEFAULT);
   $token = bin2hex(random_bytes(32));
 
   $stmt = $conn->prepare("
-    INSERT INTO users (name, employee_id, password, role, qr_token,branch,branch_id)
-    VALUES (?, ?, ?, 'employee',?, ?,?)
+    INSERT INTO users (name, employee_id, password, role, qr_token, branch, branch_id, working_hours, monthly_cl, check_in_days)
+    VALUES (?, ?, ?, 'employee', ?, ?, ?, ?, ?, ?)
   ");
 
-  $stmt->bind_param("sssssi", $name, $empId, $hashedPassword, $token,$branch,$branch_id);
+  $stmt->bind_param("sssssidds", $name, $empId, $hashedPassword, $token, $branch, $branch_id, $working_hours, $monthly_cl, $check_in_days);
   $stmt->execute();
 
 $_SESSION['success'] = [
@@ -218,6 +225,14 @@ button:hover {
   font-size: 18px;
 }
 
+/* DAY SELECTOR */
+.days-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.day-pill { padding: 6px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1.5px solid #d1d5db; background: #f9fafb; color: #4b5563; cursor: pointer; user-select: none; transition: 0.2s; display: inline-flex; align-items: center; }
+.day-pill:hover { border-color: #667eea; color: #667eea; }
+.day-pill.selected { background: #667eea; border-color: #667eea; color: white; box-shadow: 0 2px 6px rgba(102,126,234,0.3); }
+.quick-presets { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.btn-preset { padding: 3px 8px; font-size: 11px; border-radius: 5px; border: 1px dashed #9ca3af; background: white; color: #4b5563; cursor: pointer; font-family: inherit; transition: 0.2s; }
+.btn-preset:hover { background: #e0e7ff; border-color: #667eea; color: #4338ca; }
 </style>
 <script>
 async function downloadQR() {
@@ -281,6 +296,7 @@ async function downloadQR() {
 
     <a href="dashboard.php">🏠 Dashboard</a>
     <a href="create_employee.php" class="active">👤 Create Employee</a>
+    <a href="employee_settings.php">⚙️ Employee Settings</a>
     <a href="../api/checkin.php">🟢 Check In- Morning</a>
     <a href="../api/lunch.php">🍽️ Lunch Break</a>
     <a href="../api/checkout.php">🔴 Check Out- Evening</a>
@@ -307,12 +323,62 @@ async function downloadQR() {
 
       <form method="POST">
 
-        <input 
-          name="name" 
-          placeholder="Enter Employee Name" 
-          required
-        >
+        <div style="text-align:left; margin-top:12px;">
+          <label style="font-size:12px; font-weight:600; color:#374151;">Employee Name</label>
+          <input 
+            name="name" 
+            placeholder="Enter Employee Name" 
+            required
+            style="margin-top:5px;"
+          >
+        </div>
 
+        <div style="text-align:left; margin-top:12px;">
+          <label style="font-size:12px; font-weight:600; color:#374151;">Daily Working Hours</label>
+          <input 
+            type="number" 
+            step="0.5" 
+            min="1" 
+            max="24" 
+            name="working_hours" 
+            value="8.0" 
+            placeholder="e.g. 8.0" 
+            required
+            style="margin-top:5px;"
+          >
+        </div>
+
+        <div style="text-align:left; margin-top:12px;">
+          <label style="font-size:12px; font-weight:600; color:#374151;">Monthly CL (Casual Leave)</label>
+          <input 
+            type="number" 
+            step="0.5" 
+            min="0" 
+            max="31" 
+            name="monthly_cl" 
+            value="2.0" 
+            placeholder="e.g. 2.0" 
+            required
+            style="margin-top:5px;"
+          >
+        </div>
+
+        <div style="text-align:left; margin-top:12px;">
+          <label style="font-size:12px; font-weight:600; color:#374151;">Specific Check-in Days</label>
+          <input type="hidden" name="check_in_days" id="createCheckInDaysInput" value="Mon,Tue,Wed,Thu,Fri,Sat">
+          <div class="days-selector" id="createDaysSelector">
+            <?php foreach (['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] as $d): ?>
+              <div class="day-pill <?= $d !== 'Sun' ? 'selected' : '' ?>" data-day="<?= $d ?>" onclick="toggleCreateDay(this)">
+                <?= $d ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="quick-presets">
+            <button type="button" class="btn-preset" onclick="setCreatePreset('mon-sat')">Mon - Sat</button>
+            <button type="button" class="btn-preset" onclick="setCreatePreset('mon-fri')">Mon - Fri</button>
+            <button type="button" class="btn-preset" onclick="setCreatePreset('all')">All Days</button>
+          </div>
+        </div>
 
         <input 
           type="hidden" 
@@ -320,7 +386,7 @@ async function downloadQR() {
           value="<?= $_SESSION['form_token'] ?>"
         >
 
-        <button name="create">
+        <button name="create" style="margin-top:20px;">
           Create Employee
         </button>
 
@@ -449,8 +515,35 @@ function checkAutoRedirect() {
 </script>
 
 <?php unset($_SESSION['success']); ?>
-
 <?php } ?>
+
+<script>
+function toggleCreateDay(el) {
+  el.classList.toggle('selected');
+  updateCreateDays();
+}
+function updateCreateDays() {
+  const selected = [];
+  document.querySelectorAll('#createDaysSelector .day-pill.selected').forEach(pill => {
+    selected.push(pill.getAttribute('data-day'));
+  });
+  document.getElementById('createCheckInDaysInput').value = selected.join(',');
+}
+function setCreatePreset(preset) {
+  const pills = document.querySelectorAll('#createDaysSelector .day-pill');
+  pills.forEach(pill => {
+    const d = pill.getAttribute('data-day');
+    if (preset === 'all') {
+      pill.classList.add('selected');
+    } else if (preset === 'mon-sat') {
+      pill.classList.toggle('selected', d !== 'Sun');
+    } else if (preset === 'mon-fri') {
+      pill.classList.toggle('selected', d !== 'Sat' && d !== 'Sun');
+    }
+  });
+  updateCreateDays();
+}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </body>
 </html>

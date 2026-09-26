@@ -3,6 +3,8 @@ session_start();
 include("../config/db.php");
 require_once "../config/branch_helper.php";
 
+ensureEmployeeSettingsColumns($conn);
+
 date_default_timezone_set("Asia/Kolkata");
 
 /* =========================
@@ -33,6 +35,10 @@ $id = (int)$_POST['id'];
 $name = trim($_POST['name']);
 $employee_id = trim($_POST['employee_id']);
 $status = trim($_POST['status']);
+
+$working_hours = isset($_POST['working_hours']) && $_POST['working_hours'] !== '' ? max(0, min(24, (float)$_POST['working_hours'])) : null;
+$monthly_cl = isset($_POST['monthly_cl']) && $_POST['monthly_cl'] !== '' ? max(0, min(31, (float)$_POST['monthly_cl'])) : null;
+$check_in_days = !empty($_POST['check_in_days']) ? (is_array($_POST['check_in_days']) ? implode(',', $_POST['check_in_days']) : trim($_POST['check_in_days'])) : null;
 
 $check_in = !empty($_POST['check_in'])
     ? date("Y-m-d H:i:s", strtotime($_POST['check_in']))
@@ -75,25 +81,54 @@ if ($branchResult->num_rows == 0) {
 /* =========================
    UPDATE USER
 ========================= */
-if (!empty($status)) {
-    $stmt = $conn->prepare("
-        UPDATE users
-        SET
-            name = ?,
-            employee_id = ?,
-            status = ?
-        WHERE id = ?
-    ");
-    $stmt->bind_param("sssi", $name, $employee_id, $status, $id);
+if ($working_hours !== null && $monthly_cl !== null && $check_in_days !== null) {
+    if (!empty($status)) {
+        $stmt = $conn->prepare("
+            UPDATE users
+            SET
+                name = ?,
+                employee_id = ?,
+                status = ?,
+                working_hours = ?,
+                monthly_cl = ?,
+                check_in_days = ?
+            WHERE id = ?
+        ");
+        $stmt->bind_param("sssddsi", $name, $employee_id, $status, $working_hours, $monthly_cl, $check_in_days, $id);
+    } else {
+        $stmt = $conn->prepare("
+            UPDATE users
+            SET
+                name = ?,
+                employee_id = ?,
+                working_hours = ?,
+                monthly_cl = ?,
+                check_in_days = ?
+            WHERE id = ?
+        ");
+        $stmt->bind_param("ssddsi", $name, $employee_id, $working_hours, $monthly_cl, $check_in_days, $id);
+    }
 } else {
-    $stmt = $conn->prepare("
-        UPDATE users
-        SET
-            name = ?,
-            employee_id = ?
-        WHERE id = ?
-    ");
-    $stmt->bind_param("ssi", $name, $employee_id, $id);
+    if (!empty($status)) {
+        $stmt = $conn->prepare("
+            UPDATE users
+            SET
+                name = ?,
+                employee_id = ?,
+                status = ?
+            WHERE id = ?
+        ");
+        $stmt->bind_param("sssi", $name, $employee_id, $status, $id);
+    } else {
+        $stmt = $conn->prepare("
+            UPDATE users
+            SET
+                name = ?,
+                employee_id = ?
+            WHERE id = ?
+        ");
+        $stmt->bind_param("ssi", $name, $employee_id, $id);
+    }
 }
 $stmt->execute();
 $stmt->close();

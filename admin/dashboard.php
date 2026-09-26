@@ -5,6 +5,8 @@ session_start();
 include("../config/db.php");
 require_once "../config/branch_helper.php";
 
+ensureEmployeeSettingsColumns($conn);
+
 date_default_timezone_set("Asia/Kolkata");
 
 if (!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
@@ -143,6 +145,8 @@ $employees = $stmt->get_result();
     .status-absent { color: red; font-weight: 600; }
     .status-pending { color: gray; font-weight: 600; }
     .status-overtime { color: #7c3aed; font-weight: 600; }
+    .status-weeklyoff { color: #6b7280; font-weight: 600; }
+    .status-companyleave { color: #0d9488; font-weight: 600; }
     .filters { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; padding:7px; }
     .filters input, .filters select { padding:10px; border:1px solid #ddd; border-radius:8px; font-family:'Poppins',sans-serif; }
   </style>
@@ -153,6 +157,7 @@ $employees = $stmt->get_result();
     <h2><?= htmlspecialchars($adminBranchName) ?> Admin</h2>
     <a href="dashboard.php" class="active">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
+    <a href="employee_settings.php">⚙️ Employee Settings</a>
     <a href="../api/checkin.php">🟢 Check In- Morning</a>
     <a href="../api/lunch.php">🍽️ Lunch Break</a>
     <a href="../api/checkout.php">🔴 Check Out- Evening</a>
@@ -216,28 +221,21 @@ $employees = $stmt->get_result();
               $attStmt->close();
 
          $currentTime = date("H:i:s");
-
-$isSunday = (
-    date("w") == 0 &&
-    !$sundayIsWorking
-);
+         $empCheckInDays = getEmployeeCheckInDaysArray($emp['check_in_days'] ?? '', $adminBranchName);
+         $todayDayName = date("D");
+         $isWorkingDayForEmp = in_array($todayDayName, $empCheckInDays, true);
 
 // Evaluate baseline rules
-if (
-    !$isSunday &&
-    !$isCompanyLeave &&
+if ($isCompanyLeave) {
+    $status = "Company Leave";
+} elseif (!$isWorkingDayForEmp) {
+    $status = !empty($todayAtt['status']) ? $todayAtt['status'] : "Weekly Off";
+} elseif (
     empty($todayAtt['check_in']) &&
     $currentTime >= $absentMarkTime
 ) {
-
     $status = "Absent";
-
-} elseif ($isCompanyLeave) {
-
-    $status = "Company Leave";
-
 } else {
-
     $status = $todayAtt['status'] ?? "Pending";
 }
 
@@ -330,6 +328,31 @@ if (
       <input type="datetime-local" name="check_in" id="editCheckIn" style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
       <label>Check Out</label>
       <input type="datetime-local" name="check_out" id="editCheckOut" style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
+      
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:15px; margin-bottom:15px;">
+        <div style="font-weight:600; font-size:13.5px; color:#4338ca; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+          <i class="bi bi-sliders"></i> Employee Settings
+        </div>
+        <label style="font-size:12.5px; font-weight:500;">Daily Working Hours (hrs)</label>
+        <input type="number" step="0.5" min="1" max="24" name="working_hours" id="editWorkingHours" style="width:100%;padding:10px;margin-top:5px;margin-bottom:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <label style="font-size:12.5px; font-weight:500;">Monthly CL (days)</label>
+        <input type="number" step="0.5" min="0" max="31" name="monthly_cl" id="editMonthlyCL" style="width:100%;padding:10px;margin-top:5px;margin-bottom:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+        <label style="font-size:12.5px; font-weight:500;">Specific Check-in Days</label>
+        <input type="hidden" name="check_in_days" id="editCheckInDaysInput" value="Mon,Tue,Wed,Thu,Fri,Sat">
+        <div class="days-selector" id="editDaysSelector" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;">
+          <?php foreach (['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] as $d): ?>
+            <div class="day-pill" data-day="<?= $d ?>" onclick="toggleEditModalDay(this)" style="padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;border:1.5px solid #ddd;background:#f9fafb;cursor:pointer;user-select:none;">
+              <?= $d ?>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button type="button" class="btn-preset" onclick="setEditModalPreset('mon-sat')" style="padding:2px 7px;font-size:11px;border-radius:4px;border:1px dashed #999;background:white;cursor:pointer;">Mon - Sat</button>
+          <button type="button" class="btn-preset" onclick="setEditModalPreset('mon-fri')" style="padding:2px 7px;font-size:11px;border-radius:4px;border:1px dashed #999;background:white;cursor:pointer;">Mon - Fri</button>
+          <button type="button" class="btn-preset" onclick="setEditModalPreset('all')" style="padding:2px 7px;font-size:11px;border-radius:4px;border:1px dashed #999;background:white;cursor:pointer;">All Days</button>
+        </div>
+      </div>
+
       <div style="margin-top:20px; display:flex; gap:10px;">
         <button type="submit" style="flex:1; padding:12px; border:none; border-radius:8px; background:#667eea; color:white; font-weight:600; cursor:pointer;">Update</button>
         <button type="button" onclick="closeEditModal()" style="flex:1; padding:12px; border:none; border-radius:8px; background:#ef4444; color:white; font-weight:600; cursor:pointer;">Cancel</button>
@@ -349,6 +372,47 @@ function formatDateTime(dateTime) {
     let minutes = String(date.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
+function toggleEditModalDay(el) {
+    el.classList.toggle('selected');
+    if (el.classList.contains('selected')) {
+        el.style.background = '#667eea';
+        el.style.color = 'white';
+        el.style.borderColor = '#667eea';
+    } else {
+        el.style.background = '#f9fafb';
+        el.style.color = '#4b5563';
+        el.style.borderColor = '#ddd';
+    }
+    updateEditModalDaysInput();
+}
+function updateEditModalDaysInput() {
+    const selected = [];
+    document.querySelectorAll('#editDaysSelector .day-pill.selected').forEach(pill => {
+        selected.push(pill.getAttribute('data-day'));
+    });
+    document.getElementById('editCheckInDaysInput').value = selected.join(',');
+}
+function setEditModalPreset(preset) {
+    document.querySelectorAll('#editDaysSelector .day-pill').forEach(pill => {
+        const d = pill.getAttribute('data-day');
+        let sel = false;
+        if (preset === 'all') sel = true;
+        else if (preset === 'mon-sat') sel = (d !== 'Sun');
+        else if (preset === 'mon-fri') sel = (d !== 'Sat' && d !== 'Sun');
+
+        pill.classList.toggle('selected', sel);
+        if (sel) {
+            pill.style.background = '#667eea';
+            pill.style.color = 'white';
+            pill.style.borderColor = '#667eea';
+        } else {
+            pill.style.background = '#f9fafb';
+            pill.style.color = '#4b5563';
+            pill.style.borderColor = '#ddd';
+        }
+    });
+    updateEditModalDaysInput();
+}
 function openEditModal(emp, attendance) {
     document.getElementById('editModal').style.display = 'flex';
     document.getElementById('editId').value = emp.id || '';
@@ -357,6 +421,26 @@ function openEditModal(emp, attendance) {
     document.getElementById('editStatus').value = attendance?.status || 'Pending';
     document.getElementById('editCheckIn').value = formatDateTime(attendance?.check_in);
     document.getElementById('editCheckOut').value = formatDateTime(attendance?.check_out);
+    document.getElementById('editWorkingHours').value = (emp.working_hours !== undefined && emp.working_hours !== null) ? parseFloat(emp.working_hours) : 8.0;
+    document.getElementById('editMonthlyCL').value = (emp.monthly_cl !== undefined && emp.monthly_cl !== null) ? parseFloat(emp.monthly_cl) : 2.0;
+
+    let dStr = emp.check_in_days || 'Mon,Tue,Wed,Thu,Fri,Sat';
+    let dArr = dStr.split(',').map(s => s.trim());
+    document.querySelectorAll('#editDaysSelector .day-pill').forEach(pill => {
+        const d = pill.getAttribute('data-day');
+        const sel = dArr.includes(d);
+        pill.classList.toggle('selected', sel);
+        if (sel) {
+            pill.style.background = '#667eea';
+            pill.style.color = 'white';
+            pill.style.borderColor = '#667eea';
+        } else {
+            pill.style.background = '#f9fafb';
+            pill.style.color = '#4b5563';
+            pill.style.borderColor = '#ddd';
+        }
+    });
+    updateEditModalDaysInput();
 }
 function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
 function filterTable() {

@@ -39,6 +39,7 @@ $bStmt->execute();
 $bRes = $bStmt->get_result()->fetch_assoc();
 $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 require_once "../config/branch_helper.php";
+ensureEmployeeSettingsColumns($conn);
 $attTable = getBranchTableNameOnly($conn, $branchName);
 $isMudipuBranch = (strtolower($branchName) === "mudipu" || strtolower($branch) === "mudipu");
 
@@ -532,6 +533,10 @@ $employees = $conn->query("
         users.id,
         users.name,
         users.employee_id,
+        users.working_hours,
+        users.monthly_cl,
+        users.check_in_days,
+        users.working_days_per_month,
        SUM(CASE WHEN (
         attendance.status='Present'
         OR attendance.status='Overtime'
@@ -657,6 +662,7 @@ $history = $conn->query("
         <h2 style="text-align:center;"><?= htmlspecialchars($branchName) ?> Admin</h2>
         <a href="dashboard.php">🏠 Dashboard</a>
         <a href="create_employee.php">👤 Create Employee</a>
+        <a href="employee_settings.php">⚙️ Employee Settings</a>
         <a href="../api/checkin.php">🟢 Check In- Morning</a>
         <a href="../api/lunch.php">🍽️ Lunch Break</a>
         <a href="../api/checkout.php">🔴 Check Out- Evening</a>
@@ -789,8 +795,14 @@ $history = $conn->query("
     // Half Day PL = 0.5
     $monthlyCLUsed = (float)($emp['pl_count'] ?? 0);
 
-    // Maximum Monthly CL allowed
-    $monthlyCLLimit = 2.0;
+    // Maximum Monthly CL allowed (per-employee setting or default 2.0)
+    $monthlyCLLimit = (isset($emp['monthly_cl']) && $emp['monthly_cl'] !== null)
+        ? (float)$emp['monthly_cl']
+        : 2.0;
+
+    // Target working days per month (calculated dynamically from employee's specific check-in days in this work cycle)
+    $empCheckInDays = getEmployeeCheckInDaysArray($emp['check_in_days'] ?? '', $branchName);
+    $empWorkingDays = calculateEmployeeWorkingDaysInCycle($startDate, $endDate, $empCheckInDays, $companyLeaves);
 
     // Remaining Monthly CL
     $remainingCL = max(
@@ -892,7 +904,8 @@ $history = $conn->query("
 
 <td style="font-weight:600;">
     <?= $finalAttendance ?>
-    / <?= $totalDaysInMonth ?> Days
+    / <?= $empWorkingDays ?> Days
+    <small style="display:block; color:#6b7280; font-size:11px; font-weight:normal;"><?= htmlspecialchars(formatCheckInDaysDisplay($emp['check_in_days'] ?? '', $branchName)) ?></small>
 </td>
                 </tr>
                 <?php endwhile; ?>

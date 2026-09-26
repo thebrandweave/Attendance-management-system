@@ -12,6 +12,18 @@ if (!isset($_SESSION['user'])) {
 
 $user = $_SESSION['user'];
 $userId = (int)$user['id'];
+
+// Refresh user record from DB for live settings
+$uStmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+$uStmt->bind_param("i", $userId);
+$uStmt->execute();
+$freshUser = $uStmt->get_result()->fetch_assoc();
+if ($freshUser) {
+    $user = $freshUser;
+    $_SESSION['user'] = array_merge($_SESSION['user'], $freshUser);
+}
+$uStmt->close();
+
 $userBranch = $user['branch'] ?? 'gdedutech';
 $attTable = getBranchTableNameOnly($conn, $userBranch);
 $today = date("Y-m-d");
@@ -20,11 +32,8 @@ $isThirthahalliBranch = (
     strtolower(trim($userBranch)) === "thirthahalli"
 );
 
-$sundayIsWorking = in_array(
-    strtolower(trim($userBranch)),
-    ["mudipu", "thirthahalli"],
-    true
-);
+$empCheckInDays = getEmployeeCheckInDaysArray($user['check_in_days'] ?? '', $userBranch);
+$sundayIsWorking = in_array('Sun', $empCheckInDays, true);
 
 $sundayDateFilter = $sundayIsWorking
     ? ""
@@ -679,7 +688,7 @@ margin-bottom:24px;
 </div>
 
 <div class="present-badge" style="background:#0d9488;">
-  Monthly CL : <strong><?= $totalPLDays ?></strong>
+  Monthly CL : <strong><?= $totalPLDays ?><?php if (isset($user['monthly_cl'])) { echo ' / ' . (float)$user['monthly_cl']; } ?></strong>
 </div>
 
 <div class="present-badge" style="background:#7c3aed;">

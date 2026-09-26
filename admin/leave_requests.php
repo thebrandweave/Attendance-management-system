@@ -144,6 +144,7 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 
     <a href="dashboard.php">🏠 Dashboard</a>
     <a href="create_employee.php">👤 Create Employee</a>
+    <a href="employee_settings.php">⚙️ Employee Settings</a>
     <a href="../api/checkin.php">🟢 Check In- Morning</a>
     <a href="../api/lunch.php">🍽️ Lunch Break</a>
     <a href="../api/checkout.php">🔴 Check Out- Evening</a>
