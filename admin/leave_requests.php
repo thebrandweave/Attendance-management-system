@@ -429,13 +429,13 @@ unset($item);
               <button
                 class="btn btn-green"
                 onclick="updateLeaveStatus('<?= $idsCsv ?>', 'approved', <?= $primaryId ?>, <?= $count ?>)">
-                Approve<?= $count > 1 ? " ($count)" : "" ?>
+                Approve
               </button>
 
               <button
                 class="btn btn-red"
                 onclick="updateLeaveStatus('<?= $idsCsv ?>', 'rejected', <?= $primaryId ?>, <?= $count ?>)">
-                Reject<?= $count > 1 ? " ($count)" : "" ?>
+                Reject
               </button>
             <?php } else { ?>
               <span class="status status-<?= $statusLower ?>">
