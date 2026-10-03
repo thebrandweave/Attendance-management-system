@@ -19,11 +19,13 @@ $adminBranchId = $_SESSION['user']['branch_id'] ?? 0;
 $adminBranch = $_SESSION['user']['branch'] ?? '';
 
 // Fetch dynamic branch details from DB if available
-$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt = $conn->prepare("SELECT branch_name, standard_check_in, standard_check_out FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
 $bStmt->bind_param("is", $adminBranchId, $adminBranch);
 $bStmt->execute();
 $bRes = $bStmt->get_result()->fetch_assoc();
 $adminBranchName = $bRes ? $bRes['branch_name'] : ucfirst($adminBranch);
+$branchStdStart = !empty($bRes['standard_check_in']) ? $bRes['standard_check_in'] : '09:30:00';
+$branchStdEnd = !empty($bRes['standard_check_out']) ? $bRes['standard_check_out'] : '20:00:00';
 
 $validDaysList = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -39,6 +41,27 @@ function sanitizeCheckInDays($input) {
     return !empty($clean) ? implode(',', $clean) : 'Mon,Tue,Wed,Thu,Fri,Sat';
 }
 
+function sanitizeTimeVal($input, $default = '09:30:00') {
+    if (empty($input)) return $default;
+    $ts = strtotime($input);
+    return $ts !== false ? date("H:i:s", $ts) : $default;
+}
+
+function parseTimeTo12Hr($timeStr, $defaultHour = '09', $defaultMin = '30', $defaultAmpm = 'AM') {
+    if (empty($timeStr)) {
+        return ['hour' => $defaultHour, 'minute' => $defaultMin, 'ampm' => $defaultAmpm];
+    }
+    $ts = strtotime($timeStr);
+    if ($ts === false) {
+        return ['hour' => $defaultHour, 'minute' => $defaultMin, 'ampm' => $defaultAmpm];
+    }
+    return [
+        'hour' => date('h', $ts),
+        'minute' => date('i', $ts),
+        'ampm' => date('A', $ts)
+    ];
+}
+
 /* ========================================================
    HANDLE POST ACTIONS (SINGLE & BULK UPDATE)
 ======================================================== */
@@ -49,13 +72,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_single') {
         $empId = (int)($_POST['id'] ?? 0);
-        $workingHours = isset($_POST['working_hours']) ? max(0, min(24, (float)$_POST['working_hours'])) : 8.00;
+        $shiftStart = sanitizeTimeVal($_POST['shift_start'] ?? '', '09:30:00');
+        $shiftEnd = sanitizeTimeVal($_POST['shift_end'] ?? '', '20:00:00');
+        $workingHours = isset($_POST['working_hours']) ? max(0, min(24, (float)$_POST['working_hours'])) : 10.50;
         $monthlyCL = isset($_POST['monthly_cl']) ? max(0, min(31, (float)$_POST['monthly_cl'])) : 2.00;
         $checkInDays = sanitizeCheckInDays($_POST['check_in_days'] ?? 'Mon,Tue,Wed,Thu,Fri,Sat');
 
         // Security check: employee must belong to admin's branch
-        $checkStmt = $conn->prepare("SELECT id, name FROM users WHERE id = ? AND role = 'employee' AND (branch_id = ? OR (branch_id IS NULL AND branch = ?))");
-        $checkStmt->bind_param("iis", $empId, $adminBranchId, $adminBranch);
+        if ($adminBranchId > 0 || !empty($adminBranch)) {
+            $checkStmt = $conn->prepare("SELECT id, name FROM users WHERE id = ? AND role = 'employee' AND (branch_id = ? OR (branch_id IS NULL AND branch = ?))");
+            $checkStmt->bind_param("iis", $empId, $adminBranchId, $adminBranch);
+        } else {
+            $checkStmt = $conn->prepare("SELECT id, name FROM users WHERE id = ? AND role = 'employee'");
+            $checkStmt->bind_param("i", $empId);
+        }
         $checkStmt->execute();
         $empData = $checkStmt->get_result()->fetch_assoc();
         $checkStmt->close();
@@ -70,8 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
 
-        $upStmt = $conn->prepare("UPDATE users SET working_hours = ?, monthly_cl = ?, check_in_days = ? WHERE id = ?");
-        $upStmt->bind_param("ddsi", $workingHours, $monthlyCL, $checkInDays, $empId);
+        $upStmt = $conn->prepare("UPDATE users SET shift_start = ?, shift_end = ?, working_hours = ?, monthly_cl = ?, check_in_days = ? WHERE id = ?");
+        $upStmt->bind_param("ssddsi", $shiftStart, $shiftEnd, $workingHours, $monthlyCL, $checkInDays, $empId);
         $success = $upStmt->execute();
         $upStmt->close();
 
@@ -79,6 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode([
                 'status' => $success ? 'success' : 'error',
                 'message' => $success ? "Settings updated for " . htmlspecialchars($empData['name']) . "!" : "Database update failed.",
+                'shift_start_12' => date("h:i A", strtotime($shiftStart)),
+                'shift_end_12' => date("h:i A", strtotime($shiftEnd)),
+                'shift_start' => $shiftStart,
+                'shift_end' => $shiftEnd,
+                'shift_timing_display' => formatShiftTimingDisplay($shiftStart, $shiftEnd),
                 'working_hours' => number_format($workingHours, 1),
                 'monthly_cl' => number_format($monthlyCL, 1),
                 'check_in_days' => $checkInDays,
@@ -92,32 +127,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
 
     } elseif ($action === 'update_bulk') {
-        $bulkHours = isset($_POST['bulk_working_hours']) ? max(0, min(24, (float)$_POST['bulk_working_hours'])) : 8.00;
+        $bulkShiftStart = sanitizeTimeVal($_POST['bulk_shift_start'] ?? '', '09:30:00');
+        $bulkShiftEnd = sanitizeTimeVal($_POST['bulk_shift_end'] ?? '', '20:00:00');
+        $bulkHours = isset($_POST['bulk_working_hours']) ? max(0, min(24, (float)$_POST['bulk_working_hours'])) : 10.50;
         $bulkCL = isset($_POST['bulk_monthly_cl']) ? max(0, min(31, (float)$_POST['bulk_monthly_cl'])) : 2.00;
         $bulkDays = sanitizeCheckInDays($_POST['bulk_check_in_days'] ?? 'Mon,Tue,Wed,Thu,Fri,Sat');
 
-        $bulkStmt = $conn->prepare("UPDATE users SET working_hours = ?, monthly_cl = ?, check_in_days = ? WHERE role = 'employee' AND (branch_id = ? OR (branch_id IS NULL AND branch = ?))");
-        $bulkStmt->bind_param("ddsis", $bulkHours, $bulkCL, $bulkDays, $adminBranchId, $adminBranch);
+        if ($adminBranchId > 0 || !empty($adminBranch)) {
+            $bulkStmt = $conn->prepare("UPDATE users SET shift_start = ?, shift_end = ?, working_hours = ?, monthly_cl = ?, check_in_days = ? WHERE role = 'employee' AND (branch_id = ? OR (branch_id IS NULL AND branch = ?))");
+            $bulkStmt->bind_param("ssddsis", $bulkShiftStart, $bulkShiftEnd, $bulkHours, $bulkCL, $bulkDays, $adminBranchId, $adminBranch);
+        } else {
+            $bulkStmt = $conn->prepare("UPDATE users SET shift_start = ?, shift_end = ?, working_hours = ?, monthly_cl = ?, check_in_days = ? WHERE role = 'employee'");
+            $bulkStmt->bind_param("ssdds", $bulkShiftStart, $bulkShiftEnd, $bulkHours, $bulkCL, $bulkDays);
+        }
         $bulkSuccess = $bulkStmt->execute();
         $bulkStmt->close();
+
+        // Update branch standard timings in branches table
+        if ($adminBranchId > 0 || !empty($adminBranch)) {
+            $bUp = $conn->prepare("UPDATE branches SET standard_check_in = ?, standard_check_out = ? WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+            if ($bUp) {
+                $bUp->bind_param("ssis", $bulkShiftStart, $bulkShiftEnd, $adminBranchId, $adminBranch);
+                $bUp->execute();
+                $bUp->close();
+            }
+        }
 
         if ($isAjax) {
             echo json_encode([
                 'status' => $bulkSuccess ? 'success' : 'error',
-                'message' => $bulkSuccess ? "Applied settings to all employees in this branch!" : "Bulk update failed."
+                'message' => $bulkSuccess ? "Applied shift timings (" . formatShiftTimingDisplay($bulkShiftStart, $bulkShiftEnd) . ") to all employees!" : "Bulk update failed."
             ]);
             exit();
         }
 
-        $_SESSION['flash_success'] = "Default settings applied to all employees successfully!";
+        $_SESSION['flash_success'] = "Shift timings (" . formatShiftTimingDisplay($bulkShiftStart, $bulkShiftEnd) . ") and default settings applied to all employees successfully!";
         header("Location: employee_settings.php");
         exit();
     }
 }
 
 // Fetch all employees in this branch
-$stmt = $conn->prepare("SELECT id, name, employee_id, working_hours, monthly_cl, check_in_days, status, created_at FROM users WHERE role='employee' AND (branch_id=? OR (branch_id IS NULL AND branch=?)) ORDER BY name ASC");
-$stmt->bind_param("is", $adminBranchId, $adminBranch);
+if ($adminBranchId > 0 || !empty($adminBranch)) {
+    $stmt = $conn->prepare("SELECT id, name, employee_id, shift_start, shift_end, working_hours, monthly_cl, check_in_days, status, created_at FROM users WHERE role='employee' AND (branch_id=? OR (branch_id IS NULL AND branch=?)) ORDER BY name ASC");
+    $stmt->bind_param("is", $adminBranchId, $adminBranch);
+} else {
+    $stmt = $conn->prepare("SELECT id, name, employee_id, shift_start, shift_end, working_hours, monthly_cl, check_in_days, status, created_at FROM users WHERE role='employee' ORDER BY name ASC");
+}
 $stmt->execute();
 $employeesList = $stmt->get_result();
 
@@ -126,6 +182,9 @@ $totalEmps = $employeesList->num_rows;
 // Leave count for sidebar badge
 $leaveCountQuery = $conn->query("SELECT COUNT(*) as total FROM leave_requests lr LEFT JOIN users u ON lr.employee_id = u.id WHERE (u.branch_id='$adminBranchId' OR u.branch='$adminBranch') AND lr.status='pending'");
 $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
+
+$bStartParts = parseTimeTo12Hr($branchStdStart, '09', '30', 'AM');
+$bEndParts = parseTimeTo12Hr($branchStdEnd, '08', '00', 'PM');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -159,38 +218,89 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
     .btn-create:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(102,126,234,0.4); }
 
     /* STATS GRID */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 25px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 25px; }
     .stat-card { background: white; border-radius: 14px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 16px; border-left: 4px solid #667eea; }
-    .stat-card:nth-child(2) { border-left-color: #8b5cf6; }
-    .stat-card:nth-child(3) { border-left-color: #0d9488; }
-    .stat-card:nth-child(4) { border-left-color: #f59e0b; }
+    .stat-card:nth-child(2) { border-left-color: #0284c7; }
+    .stat-card:nth-child(3) { border-left-color: #8b5cf6; }
+    .stat-card:nth-child(4) { border-left-color: #0d9488; }
+    .stat-card:nth-child(5) { border-left-color: #f59e0b; }
     .stat-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: white; flex-shrink: 0; }
     .stat-icon.blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+    .stat-icon.sky { background: linear-gradient(135deg, #0284c7, #0369a1); }
     .stat-icon.purple { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
     .stat-icon.teal { background: linear-gradient(135deg, #0d9488, #0f766e); }
     .stat-icon.amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
     .stat-info h4 { font-size: 13px; color: #6b7280; font-weight: 500; margin-bottom: 4px; }
-    .stat-info p { font-size: 20px; font-weight: 700; color: #111827; }
+    .stat-info p { font-size: 19px; font-weight: 700; color: #111827; }
 
     /* BULK APPLY CARD */
     .bulk-card { background: white; border-radius: 14px; padding: 22px 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 25px; border-top: 3px solid #667eea; }
-    .bulk-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-    .bulk-header h3 { font-size: 16px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 10px; }
-    .bulk-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; align-items: flex-end; }
+    .bulk-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .bulk-header h3 { font-size: 16.5px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 10px; }
+    .bulk-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; align-items: flex-end; }
     .form-group label { display: block; font-size: 12.5px; font-weight: 600; color: #4b5563; margin-bottom: 6px; }
     .form-group input[type="number"], .form-group input[type="text"] { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: inherit; }
     .form-group input:focus { border-color: #667eea; outline: none; box-shadow: 0 0 0 3px rgba(102,126,234,0.2); }
-    .btn-bulk-apply { padding: 11px 22px; background: #111827; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; height: 42px; font-family: inherit; font-size: 13.5px; }
-    .btn-bulk-apply:hover { background: #374151; }
+    .btn-bulk-apply { padding: 11px 22px; background: linear-gradient(135deg, #111827, #1f2937); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; height: 44px; font-family: inherit; font-size: 13.5px; }
+    .btn-bulk-apply:hover { background: #374151; transform: translateY(-1px); }
+
+    /* 12-HR TIME PICKER */
+    .time-picker-12hr {
+      display: flex;
+      align-items: center;
+      background: white;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      padding: 3px 8px;
+      gap: 5px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      transition: all 0.2s;
+      width: 100%;
+      height: 44px;
+      box-sizing: border-box;
+    }
+    .time-picker-12hr:focus-within {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.18);
+    }
+    .time-picker-12hr select {
+      border: none;
+      background: transparent;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #1f2937;
+      padding: 6px 2px;
+      cursor: pointer;
+      outline: none;
+      font-family: inherit;
+    }
+    .time-picker-12hr .time-colon {
+      font-weight: 700;
+      color: #9ca3af;
+      font-size: 15px;
+      user-select: none;
+    }
+    .time-picker-12hr .ampm-select {
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 700;
+      border-radius: 6px;
+      padding: 5px 8px;
+      margin-left: auto;
+      border: 1px solid #bfdbfe;
+    }
+    .time-picker-12hr .ampm-select:focus {
+      background: #dbeafe;
+    }
 
     /* DAY PILLS SELECTOR */
     .days-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .day-pill { padding: 7px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; border: 1.5px solid #d1d5db; background: #f9fafb; color: #4b5563; cursor: pointer; user-select: none; transition: 0.2s; display: inline-flex; align-items: center; gap: 4px; }
     .day-pill:hover { border-color: #667eea; color: #667eea; }
     .day-pill.selected { background: #667eea; border-color: #667eea; color: white; box-shadow: 0 2px 6px rgba(102,126,234,0.3); }
-    .quick-presets { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .btn-preset { padding: 3px 9px; font-size: 11px; border-radius: 5px; border: 1px dashed #9ca3af; background: white; color: #4b5563; cursor: pointer; font-family: inherit; transition: 0.2s; }
-    .btn-preset:hover { background: #e0e7ff; border-color: #667eea; color: #4338ca; }
+    .quick-presets { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+    .btn-preset { padding: 4px 10px; font-size: 11.5px; border-radius: 6px; border: 1px dashed #9ca3af; background: white; color: #4b5563; cursor: pointer; font-family: inherit; transition: 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-preset:hover, .btn-preset.active { background: #e0e7ff; border-color: #667eea; color: #4338ca; font-weight: 600; }
 
     /* TABLE CARD */
     .card { background: white; border-radius: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); padding: 22px; }
@@ -213,7 +323,8 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
     .emp-id-sub { font-size: 12px; color: #64748b; }
 
     /* BADGES */
-    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 30px; font-size: 12.5px; font-weight: 600; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 30px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+    .badge-timing { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-weight: 600; }
     .badge-hours { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
     .badge-cl { background: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4; }
     .badge-days { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
@@ -224,9 +335,9 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
 
     /* MODAL */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(17,24,39,0.5); backdrop-filter: blur(2px); justify-content: center; align-items: center; z-index: 9999; }
-    .modal-content { background: white; border-radius: 16px; width: 480px; max-width: 92%; box-shadow: 0 20px 40px rgba(0,0,0,0.15); animation: modalIn 0.25s ease-out; overflow: hidden; }
+    .modal-content { background: white; border-radius: 16px; width: 500px; max-width: 92%; box-shadow: 0 20px 40px rgba(0,0,0,0.15); animation: modalIn 0.25s ease-out; overflow: hidden; max-height: 90vh; overflow-y: auto; }
     @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-    .modal-header { padding: 20px 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header { padding: 20px 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 10; }
     .modal-header h3 { font-size: 17px; font-weight: 600; color: #111827; }
     .modal-close { background: none; border: none; font-size: 20px; color: #9ca3af; cursor: pointer; }
     .modal-close:hover { color: #111827; }
@@ -377,7 +488,7 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
     <div class="header">
       <div class="header-title">
         <h1><i class="bi bi-gear-fill" style="color:#667eea;"></i> Employee Settings</h1>
-        <p>Configure daily working hours, monthly casual leave (CL), and specific check-in days for each employee in <strong><?= htmlspecialchars($adminBranchName) ?></strong> branch.</p>
+        <p>Configure shift timings in 12-hour format (e.g. 9:30 AM to 8:00 PM), daily working hours, monthly casual leave (CL), and check-in days for <strong><?= htmlspecialchars($adminBranchName) ?></strong> branch.</p>
       </div>
       <div>
         <a href="create_employee.php" class="btn-create"><i class="bi bi-person-plus-fill"></i> Add New Employee</a>
@@ -394,7 +505,14 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon purple"><i class="bi bi-clock-history"></i></div>
+        <div class="stat-icon sky"><i class="bi bi-clock-history"></i></div>
+        <div class="stat-info">
+          <h4>Shift Timings (12-hr)</h4>
+          <p style="font-size:16px;"><?= formatShiftTimingDisplay($branchStdStart, $branchStdEnd) ?></p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple"><i class="bi bi-stopwatch-fill"></i></div>
         <div class="stat-info">
           <h4>Working Hours</h4>
           <p>Configurable</p>
@@ -419,23 +537,84 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
     <!-- BULK APPLY CARD -->
     <div class="bulk-card">
       <div class="bulk-header">
-        <h3><i class="bi bi-sliders"></i> Apply Default Settings to All Employees</h3>
-        <span style="font-size:12.5px; color:#6b7280;">Apply standard hours, CL, and check-in days across all branch employees</span>
+        <div>
+          <h3><i class="bi bi-sliders"></i> Apply Default Shift Timings & Settings to All Employees</h3>
+          <p style="font-size:12.5px; color:#6b7280; margin-top:2px;">Set 12-hour shift timings (e.g., 9:30 AM to 8:00 PM), daily hours, CL, and check-in days across all branch employees</p>
+        </div>
       </div>
-      <form method="POST" action="employee_settings.php" onsubmit="return confirm('Apply these settings to ALL employees in <?= htmlspecialchars($adminBranchName) ?> branch?')">
+      <form method="POST" action="employee_settings.php" onsubmit="return confirm('Apply these 12-hour shift timings and settings to ALL employees in <?= htmlspecialchars($adminBranchName) ?> branch?')">
         <input type="hidden" name="action" value="update_bulk">
+        <input type="hidden" name="bulk_shift_start" id="bulkShiftStart" value="<?= htmlspecialchars($branchStdStart) ?>">
+        <input type="hidden" name="bulk_shift_end" id="bulkShiftEnd" value="<?= htmlspecialchars($branchStdEnd) ?>">
         <input type="hidden" name="bulk_check_in_days" id="bulkCheckInDaysInput" value="Mon,Tue,Wed,Thu,Fri,Sat">
         <div class="bulk-form-grid">
+          <!-- 12-hr Shift Start -->
           <div class="form-group">
-            <label>Daily Working Hours (hrs)</label>
-            <input type="number" name="bulk_working_hours" value="8.0" step="0.5" min="1" max="24" required>
+            <label><i class="bi bi-sunrise"></i> Shift Start Time (12-hr)</label>
+            <div class="time-picker-12hr">
+              <select id="bulkStartHour" onchange="syncBulkStartTime()" aria-label="Start Hour">
+                <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $hStr ?>" <?= $hStr === $bStartParts['hour'] ? 'selected' : '' ?>><?= $hStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <span class="time-colon">:</span>
+              <select id="bulkStartMin" onchange="syncBulkStartTime()" aria-label="Start Minute">
+                <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $mStr ?>" <?= $mStr === $bStartParts['minute'] ? 'selected' : '' ?>><?= $mStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <select id="bulkStartPeriod" class="ampm-select" onchange="syncBulkStartTime()" aria-label="Start AM/PM">
+                <option value="AM" <?= $bStartParts['ampm'] === 'AM' ? 'selected' : '' ?>>AM</option>
+                <option value="PM" <?= $bStartParts['ampm'] === 'PM' ? 'selected' : '' ?>>PM</option>
+              </select>
+            </div>
           </div>
+
+          <!-- 12-hr Shift End -->
           <div class="form-group">
-            <label>Monthly CL Allowance (days)</label>
+            <label><i class="bi bi-sunset"></i> Shift End Time (12-hr)</label>
+            <div class="time-picker-12hr">
+              <select id="bulkEndHour" onchange="syncBulkEndTime()" aria-label="End Hour">
+                <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $hStr ?>" <?= $hStr === $bEndParts['hour'] ? 'selected' : '' ?>><?= $hStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <span class="time-colon">:</span>
+              <select id="bulkEndMin" onchange="syncBulkEndTime()" aria-label="End Minute">
+                <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $mStr ?>" <?= $mStr === $bEndParts['minute'] ? 'selected' : '' ?>><?= $mStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <select id="bulkEndPeriod" class="ampm-select" onchange="syncBulkEndTime()" aria-label="End AM/PM">
+                <option value="AM" <?= $bEndParts['ampm'] === 'AM' ? 'selected' : '' ?>>AM</option>
+                <option value="PM" <?= $bEndParts['ampm'] === 'PM' ? 'selected' : '' ?>>PM</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label><i class="bi bi-clock"></i> Daily Working Hours (hrs)</label>
+            <input type="number" name="bulk_working_hours" id="bulkWorkingHours" value="10.5" step="0.5" min="1" max="24" required>
+            <span class="form-hint" id="bulkDurationHint" style="font-size:11px; color:#6366f1;">Shift Span: 10 hrs 30 mins (09:30 AM – 08:00 PM)</span>
+          </div>
+
+          <div class="form-group">
+            <label><i class="bi bi-calendar-check"></i> Monthly CL (days)</label>
             <input type="number" name="bulk_monthly_cl" value="2.0" step="0.5" min="0" max="31" required>
           </div>
-          <div class="form-group" style="grid-column: span 2;">
-            <label>Specific Check-in Days</label>
+
+          <!-- 12-hr Presets -->
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <div class="quick-presets" style="margin-top:-6px; margin-bottom:4px;">
+              <span style="font-size:11.5px; color:#6b7280; margin-right:4px; font-weight:600;">Shift Presets:</span>
+              <button type="button" class="btn-preset active" onclick="setBulkShift('09:30 AM', '08:00 PM', 10.5, this)"><i class="bi bi-check2"></i> 9:30 AM – 8:00 PM (10.5 hrs)</button>
+              <button type="button" class="btn-preset" onclick="setBulkShift('09:30 AM', '05:30 PM', 8.0, this)">9:30 AM – 5:30 PM (8.0 hrs)</button>
+              <button type="button" class="btn-preset" onclick="setBulkShift('10:00 AM', '08:00 PM', 10.0, this)">10:00 AM – 8:00 PM (10.0 hrs)</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="grid-column: 1 / -2;">
+            <label><i class="bi bi-calendar-week"></i> Specific Check-in Days</label>
             <div class="days-selector" id="bulkDaysSelector">
               <?php foreach ($validDaysList as $day): ?>
                 <div class="day-pill <?= in_array($day, ['Mon','Tue','Wed','Thu','Fri','Sat']) ? 'selected' : '' ?>" data-day="<?= $day ?>" onclick="toggleBulkDay(this)">
@@ -444,14 +623,14 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
               <?php endforeach; ?>
             </div>
             <div class="quick-presets">
-              <span style="font-size:11.5px; color:#6b7280; margin-right:4px;">Presets:</span>
+              <span style="font-size:11.5px; color:#6b7280; margin-right:4px;">Day Presets:</span>
               <button type="button" class="btn-preset" onclick="setBulkPreset('mon-sat')">Mon - Sat (6 Days)</button>
               <button type="button" class="btn-preset" onclick="setBulkPreset('mon-fri')">Mon - Fri (5 Days)</button>
               <button type="button" class="btn-preset" onclick="setBulkPreset('all')">All Days (Mon - Sun)</button>
             </div>
           </div>
-          <div>
-            <button type="submit" class="btn-bulk-apply"><i class="bi bi-check2-all"></i> Apply to All</button>
+          <div style="display:flex; align-items:flex-end;">
+            <button type="submit" class="btn-bulk-apply" style="width:100%; justify-content:center;"><i class="bi bi-check2-all"></i> Apply to All</button>
           </div>
         </div>
       </form>
@@ -473,6 +652,7 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
             <tr>
               <th>Employee</th>
               <th>Employee ID</th>
+              <th>Shift Timings (12-hr)</th>
               <th>Working Hours / Day</th>
               <th>Monthly CL</th>
               <th>Specific Check-in Days</th>
@@ -482,14 +662,17 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
           <tbody>
             <?php if ($totalEmps === 0): ?>
               <tr>
-                <td colspan="6" style="text-align:center; padding:30px; color:#6b7280;">
+                <td colspan="7" style="text-align:center; padding:30px; color:#6b7280;">
                   No employees found in this branch yet. <a href="create_employee.php" style="color:#667eea; font-weight:600;">Create one now</a>.
                 </td>
               </tr>
             <?php else: ?>
               <?php while ($emp = $employeesList->fetch_assoc()): 
                 $initial = strtoupper(substr($emp['name'], 0, 1));
-                $hours = isset($emp['working_hours']) ? (float)$emp['working_hours'] : 8.00;
+                $shiftStart = !empty($emp['shift_start']) ? $emp['shift_start'] : '09:30:00';
+                $shiftEnd = !empty($emp['shift_end']) ? $emp['shift_end'] : '20:00:00';
+                $timingDisplay = formatShiftTimingDisplay($shiftStart, $shiftEnd);
+                $hours = isset($emp['working_hours']) ? (float)$emp['working_hours'] : 10.50;
                 $cl = isset($emp['monthly_cl']) ? (float)$emp['monthly_cl'] : 2.00;
                 $checkInDays = !empty($emp['check_in_days']) ? $emp['check_in_days'] : 'Mon,Tue,Wed,Thu,Fri,Sat';
                 $daysDisplay = formatCheckInDaysDisplay($checkInDays, $adminBranchName);
@@ -505,6 +688,11 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
                     </div>
                   </td>
                   <td><strong><?= htmlspecialchars($emp['employee_id']) ?></strong></td>
+                  <td>
+                    <span class="badge badge-timing" id="display-timing-<?= $emp['id'] ?>">
+                      <i class="bi bi-clock-history"></i> <?= htmlspecialchars($timingDisplay) ?>
+                    </span>
+                  </td>
                   <td>
                     <span class="badge badge-hours" id="display-hours-<?= $emp['id'] ?>">
                       <i class="bi bi-clock"></i> <?= number_format($hours, 1) ?> hrs/day
@@ -539,12 +727,14 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
 <div id="settingsModal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3><i class="bi bi-sliders"></i> Edit Employee Settings</h3>
+      <h3><i class="bi bi-sliders"></i> Edit Employee Shift & Settings</h3>
       <button type="button" class="modal-close" onclick="closeSettingsModal()">&times;</button>
     </div>
     <form id="settingsForm" onsubmit="handleSettingsSubmit(event)">
       <input type="hidden" name="action" value="update_single">
       <input type="hidden" name="id" id="modalEmpId">
+      <input type="hidden" name="shift_start" id="modalShiftStart" value="09:30:00">
+      <input type="hidden" name="shift_end" id="modalShiftEnd" value="20:00:00">
       <input type="hidden" name="check_in_days" id="modalCheckInDaysInput">
 
       <div class="modal-body">
@@ -556,10 +746,61 @@ $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
           <span style="font-size:12px; background:#e0e7ff; color:#3730a3; padding:4px 10px; border-radius:12px; font-weight:600;">Employee</span>
         </div>
 
+        <!-- 12-hr Shift Timings in Modal -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px;">
+          <div class="form-group">
+            <label><i class="bi bi-sunrise"></i> Shift Start (12-hr)</label>
+            <div class="time-picker-12hr">
+              <select id="modalStartHour" onchange="syncModalStartTime()" aria-label="Modal Start Hour">
+                <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $hStr ?>"><?= $hStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <span class="time-colon">:</span>
+              <select id="modalStartMin" onchange="syncModalStartTime()" aria-label="Modal Start Minute">
+                <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $mStr ?>"><?= $mStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <select id="modalStartPeriod" class="ampm-select" onchange="syncModalStartTime()" aria-label="Modal Start AM/PM">
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label><i class="bi bi-sunset"></i> Shift End (12-hr)</label>
+            <div class="time-picker-12hr">
+              <select id="modalEndHour" onchange="syncModalEndTime()" aria-label="Modal End Hour">
+                <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $hStr ?>"><?= $hStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <span class="time-colon">:</span>
+              <select id="modalEndMin" onchange="syncModalEndTime()" aria-label="Modal End Minute">
+                <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $mStr ?>"><?= $mStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <select id="modalEndPeriod" class="ampm-select" onchange="syncModalEndTime()" aria-label="Modal End AM/PM">
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="quick-presets" style="margin-top:-6px; margin-bottom:16px;">
+          <span style="font-size:11.5px; color:#6b7280; margin-right:4px;">Presets:</span>
+          <button type="button" class="btn-preset" onclick="setModalShift('09:30 AM', '08:00 PM', 10.5, this)">9:30 AM – 8:00 PM (10.5h)</button>
+          <button type="button" class="btn-preset" onclick="setModalShift('09:30 AM', '05:30 PM', 8.0, this)">9:30 AM – 5:30 PM (8h)</button>
+          <button type="button" class="btn-preset" onclick="setModalShift('10:00 AM', '08:00 PM', 10.0, this)">10:00 AM – 8:00 PM (10h)</button>
+        </div>
+
         <div class="form-group" style="margin-bottom:18px;">
-          <label><i class="bi bi-clock"></i> Daily Working Hours</label>
+          <label><i class="bi bi-clock"></i> Daily Working Hours (hrs)</label>
           <input type="number" name="working_hours" id="modalWorkingHours" step="0.5" min="1" max="24" required>
-          <div class="form-hint">Standard daily shift duration (e.g., 8.0, 9.0 hours).</div>
+          <div class="form-hint" id="modalDurationHint">Standard shift duration: 10 hrs 30 mins (suggested working hours: 10.5 hrs).</div>
         </div>
 
         <div class="form-group" style="margin-bottom:18px;">
@@ -627,6 +868,182 @@ function filterEmployees() {
   });
 }
 
+// 12-Hour Parser & Converter Helpers
+function get12HrFromTimeStr(timeStr) {
+  if (!timeStr) return { hour: '09', minute: '30', ampm: 'AM' };
+  
+  if (timeStr.includes('AM') || timeStr.includes('PM')) {
+    const parts = timeStr.trim().split(/[: ]+/);
+    return {
+      hour: String(parseInt(parts[0], 10)).padStart(2, '0'),
+      minute: String(parseInt(parts[1], 10)).padStart(2, '0'),
+      ampm: parts[2].toUpperCase()
+    };
+  }
+
+  // 24hr string: "HH:mm" or "HH:mm:ss"
+  const pieces = timeStr.split(':');
+  let h = parseInt(pieces[0], 10);
+  const m = String(parseInt(pieces[1] || '0', 10)).padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return {
+    hour: String(h).padStart(2, '0'),
+    minute: m,
+    ampm: ampm
+  };
+}
+
+function partsTo24Hr(hour, minute, ampm) {
+  let h = parseInt(hour, 10);
+  const m = String(parseInt(minute, 10)).padStart(2, '0');
+  if (ampm === 'PM' && h < 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return String(h).padStart(2, '0') + ':' + m + ':00';
+}
+
+function partsTo12Hr(hour, minute, ampm) {
+  let h = parseInt(hour, 10);
+  const m = String(parseInt(minute, 10)).padStart(2, '0');
+  return String(h).padStart(2, '0') + ':' + m + ' ' + ampm;
+}
+
+function calculateTimeDuration(startTime24, endTime24) {
+  if (!startTime24 || !endTime24) return { hours: 0, text: '', label12: '' };
+  const [h1, m1] = startTime24.split(':').map(Number);
+  const [h2, m2] = endTime24.split(':').map(Number);
+  let startMinutes = h1 * 60 + m1;
+  let endMinutes = h2 * 60 + m2;
+  if (endMinutes <= startMinutes) {
+    endMinutes += 24 * 60; // Overnight
+  }
+  const diffMinutes = endMinutes - startMinutes;
+  const hours = Math.floor(diffMinutes / 60);
+  const mins = diffMinutes % 60;
+  const decimalHours = parseFloat((diffMinutes / 60).toFixed(1));
+  let text = hours + ' hrs';
+  if (mins > 0) text += ' ' + mins + ' mins';
+
+  const s12 = get12HrFromTimeStr(startTime24);
+  const e12 = get12HrFromTimeStr(endTime24);
+  const label12 = partsTo12Hr(s12.hour, s12.minute, s12.ampm) + ' – ' + partsTo12Hr(e12.hour, e12.minute, e12.ampm);
+
+  return { hours: decimalHours, text, label12 };
+}
+
+// Bulk Sync Functions
+function syncBulkStartTime() {
+  const h = document.getElementById('bulkStartHour').value;
+  const m = document.getElementById('bulkStartMin').value;
+  const p = document.getElementById('bulkStartPeriod').value;
+  document.getElementById('bulkShiftStart').value = partsTo24Hr(h, m, p);
+  document.querySelectorAll('.bulk-card .btn-preset').forEach(b => b.classList.remove('active'));
+  calculateBulkDuration(true);
+}
+
+function syncBulkEndTime() {
+  const h = document.getElementById('bulkEndHour').value;
+  const m = document.getElementById('bulkEndMin').value;
+  const p = document.getElementById('bulkEndPeriod').value;
+  document.getElementById('bulkShiftEnd').value = partsTo24Hr(h, m, p);
+  document.querySelectorAll('.bulk-card .btn-preset').forEach(b => b.classList.remove('active'));
+  calculateBulkDuration(true);
+}
+
+function calculateBulkDuration(updateInput = true) {
+  const s = document.getElementById("bulkShiftStart").value;
+  const e = document.getElementById("bulkShiftEnd").value;
+  const dur = calculateTimeDuration(s, e);
+  if (updateInput && dur && dur.hours > 0) {
+    const input = document.getElementById("bulkWorkingHours");
+    if (input) input.value = dur.hours;
+  }
+  const hint = document.getElementById("bulkDurationHint");
+  if (hint && dur.text) {
+    hint.textContent = 'Shift Span: ' + dur.text + ' (' + dur.label12 + ')';
+  }
+}
+
+function setBulkShift(start12, end12, hours, btn) {
+  const sParts = get12HrFromTimeStr(start12);
+  const eParts = get12HrFromTimeStr(end12);
+
+  document.getElementById('bulkStartHour').value = sParts.hour;
+  document.getElementById('bulkStartMin').value = sParts.minute;
+  document.getElementById('bulkStartPeriod').value = sParts.ampm;
+  document.getElementById('bulkShiftStart').value = partsTo24Hr(sParts.hour, sParts.minute, sParts.ampm);
+
+  document.getElementById('bulkEndHour').value = eParts.hour;
+  document.getElementById('bulkEndMin').value = eParts.minute;
+  document.getElementById('bulkEndPeriod').value = eParts.ampm;
+  document.getElementById('bulkShiftEnd').value = partsTo24Hr(eParts.hour, eParts.minute, eParts.ampm);
+
+  document.getElementById("bulkWorkingHours").value = hours;
+  calculateBulkDuration(false);
+
+  if (btn) {
+    btn.parentElement.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+}
+
+// Modal Sync Functions
+function syncModalStartTime() {
+  const h = document.getElementById('modalStartHour').value;
+  const m = document.getElementById('modalStartMin').value;
+  const p = document.getElementById('modalStartPeriod').value;
+  document.getElementById('modalShiftStart').value = partsTo24Hr(h, m, p);
+  document.querySelectorAll('#settingsModal .btn-preset').forEach(b => b.classList.remove('active'));
+  calculateModalDuration(true);
+}
+
+function syncModalEndTime() {
+  const h = document.getElementById('modalEndHour').value;
+  const m = document.getElementById('modalEndMin').value;
+  const p = document.getElementById('modalEndPeriod').value;
+  document.getElementById('modalShiftEnd').value = partsTo24Hr(h, m, p);
+  document.querySelectorAll('#settingsModal .btn-preset').forEach(b => b.classList.remove('active'));
+  calculateModalDuration(true);
+}
+
+function calculateModalDuration(updateInput = true) {
+  const s = document.getElementById("modalShiftStart").value;
+  const e = document.getElementById("modalShiftEnd").value;
+  const dur = calculateTimeDuration(s, e);
+  if (updateInput && dur && dur.hours > 0) {
+    const input = document.getElementById("modalWorkingHours");
+    if (input) input.value = dur.hours;
+  }
+  const hint = document.getElementById("modalDurationHint");
+  if (hint && dur.text) {
+    hint.textContent = 'Shift Span: ' + dur.text + ' (' + dur.label12 + ') - suggested: ' + dur.hours + ' hrs';
+  }
+}
+
+function setModalShift(start12, end12, hours, btn) {
+  const sParts = get12HrFromTimeStr(start12);
+  const eParts = get12HrFromTimeStr(end12);
+
+  document.getElementById('modalStartHour').value = sParts.hour;
+  document.getElementById('modalStartMin').value = sParts.minute;
+  document.getElementById('modalStartPeriod').value = sParts.ampm;
+  document.getElementById('modalShiftStart').value = partsTo24Hr(sParts.hour, sParts.minute, sParts.ampm);
+
+  document.getElementById('modalEndHour').value = eParts.hour;
+  document.getElementById('modalEndMin').value = eParts.minute;
+  document.getElementById('modalEndPeriod').value = eParts.ampm;
+  document.getElementById('modalShiftEnd').value = partsTo24Hr(eParts.hour, eParts.minute, eParts.ampm);
+
+  document.getElementById("modalWorkingHours").value = hours;
+  calculateModalDuration(false);
+
+  if (btn) {
+    btn.parentElement.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+}
+
 // Bulk day toggling
 function toggleBulkDay(el) {
   el.classList.toggle('selected');
@@ -689,8 +1106,32 @@ function openSettingsModal(emp) {
   document.getElementById("modalEmpId").value = emp.id;
   document.getElementById("modalEmpName").textContent = emp.name || 'Employee';
   document.getElementById("modalEmpCode").textContent = 'ID: ' + (emp.employee_id || '-');
-  document.getElementById("modalWorkingHours").value = emp.working_hours !== null && emp.working_hours !== undefined ? parseFloat(emp.working_hours) : 8.0;
   document.getElementById("modalMonthlyCL").value = emp.monthly_cl !== null && emp.monthly_cl !== undefined ? parseFloat(emp.monthly_cl) : 2.0;
+
+  const sParts = get12HrFromTimeStr(emp.shift_start || '09:30:00');
+  const eParts = get12HrFromTimeStr(emp.shift_end || '20:00:00');
+
+  document.getElementById('modalStartHour').value = sParts.hour;
+  document.getElementById('modalStartMin').value = sParts.minute;
+  document.getElementById('modalStartPeriod').value = sParts.ampm;
+  document.getElementById('modalShiftStart').value = partsTo24Hr(sParts.hour, sParts.minute, sParts.ampm);
+
+  document.getElementById('modalEndHour').value = eParts.hour;
+  document.getElementById('modalEndMin').value = eParts.minute;
+  document.getElementById('modalEndPeriod').value = eParts.ampm;
+  document.getElementById('modalShiftEnd').value = partsTo24Hr(eParts.hour, eParts.minute, eParts.ampm);
+
+  const dur = calculateTimeDuration(document.getElementById('modalShiftStart').value, document.getElementById('modalShiftEnd').value);
+  if (emp.working_hours !== null && emp.working_hours !== undefined && parseFloat(emp.working_hours) > 0) {
+    document.getElementById("modalWorkingHours").value = parseFloat(emp.working_hours);
+  } else {
+    document.getElementById("modalWorkingHours").value = dur.hours > 0 ? dur.hours : 10.5;
+  }
+
+  // Clear active preset buttons on open
+  document.querySelectorAll('#settingsModal .btn-preset').forEach(b => b.classList.remove('active'));
+
+  calculateModalDuration(false);
 
   // Selected days
   let daysStr = emp.check_in_days || 'Mon,Tue,Wed,Thu,Fri,Sat';
@@ -749,10 +1190,12 @@ function handleSettingsSubmit(e) {
       closeSettingsModal();
 
       // Update row in table immediately
+      const tBadge = document.getElementById("display-timing-" + empId);
       const hBadge = document.getElementById("display-hours-" + empId);
       const clBadge = document.getElementById("display-cl-" + empId);
       const dBadge = document.getElementById("display-days-" + empId);
 
+      if (tBadge) tBadge.innerHTML = '<i class="bi bi-clock-history"></i> ' + data.shift_timing_display;
       if (hBadge) hBadge.innerHTML = '<i class="bi bi-clock"></i> ' + data.working_hours + ' hrs/day';
       if (clBadge) clBadge.innerHTML = '<i class="bi bi-calendar-check"></i> ' + data.monthly_cl + ' days';
       if (dBadge) dBadge.innerHTML = '<i class="bi bi-calendar-week"></i> ' + data.check_in_days_display;
@@ -765,6 +1208,8 @@ function handleSettingsSubmit(e) {
             id: empId,
             name: document.getElementById("modalEmpName").textContent,
             employee_id: document.getElementById("modalEmpCode").textContent.replace('ID: ', ''),
+            shift_start: data.shift_start,
+            shift_end: data.shift_end,
             working_hours: data.working_hours,
             monthly_cl: data.monthly_cl,
             check_in_days: data.check_in_days
@@ -783,6 +1228,11 @@ function handleSettingsSubmit(e) {
     showToast("An error occurred while saving.", true);
   });
 }
+
+// Initial calculation on load
+window.addEventListener('DOMContentLoaded', () => {
+  calculateBulkDuration();
+});
 </script>
 
 <?php if (isset($_SESSION['flash_success'])): ?>

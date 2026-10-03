@@ -45,6 +45,10 @@ if ($id > 0 && !empty($status)) {
             }
         }
     }
+
+    // 3. Dispatch email notification to the employee
+    require_once __DIR__ . '/../config/mail_helper.php';
+    sendLeaveApprovalNotification($conn, $id, $status);
 }
 
 if (isset($_GET['ajax']) || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')) {

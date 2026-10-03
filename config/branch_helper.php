@@ -51,7 +51,9 @@ if (!function_exists('ensureEmployeeSettingsColumns')) {
                 'working_hours' => "DECIMAL(4,2) NOT NULL DEFAULT 8.00",
                 'monthly_cl' => "DECIMAL(4,2) NOT NULL DEFAULT 2.00",
                 'check_in_days' => "VARCHAR(100) NOT NULL DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat'",
-                'working_days_per_month' => "INT(11) DEFAULT 26"
+                'working_days_per_month' => "INT(11) DEFAULT 26",
+                'shift_start' => "TIME NOT NULL DEFAULT '09:30:00'",
+                'shift_end' => "TIME NOT NULL DEFAULT '20:00:00'"
             ];
 
             foreach ($columnsNeeded as $col => $definition) {
@@ -63,6 +65,14 @@ if (!function_exists('ensureEmployeeSettingsColumns')) {
         }
 
         $checked = true;
+    }
+}
+
+if (!function_exists('formatShiftTimingDisplay')) {
+    function formatShiftTimingDisplay($shiftStart, $shiftEnd) {
+        $start = !empty($shiftStart) ? date('h:i A', strtotime($shiftStart)) : '09:30 AM';
+        $end = !empty($shiftEnd) ? date('h:i A', strtotime($shiftEnd)) : '08:00 PM';
+        return $start . ' - ' . $end;
     }
 }
 

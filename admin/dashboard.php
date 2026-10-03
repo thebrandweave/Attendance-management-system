@@ -4,6 +4,7 @@ session_set_cookie_params($lifetime);
 session_start();
 include("../config/db.php");
 require_once "../config/branch_helper.php";
+require_once "../config/mail_helper.php";
 
 ensureEmployeeSettingsColumns($conn);
 
@@ -18,7 +19,7 @@ $adminBranchId = $_SESSION['user']['branch_id'] ?? 0;
 $adminBranch = $_SESSION['user']['branch'] ?? '';
 
 // Fetch dynamic branch details from DB if available
-$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt = $conn->prepare("SELECT branch_name, standard_check_in, standard_check_out FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
 $bStmt->bind_param("is", $adminBranchId, $adminBranch);
 $bStmt->execute();
 $bRes = $bStmt->get_result()->fetch_assoc();
@@ -36,23 +37,10 @@ $sundayIsWorking = (
     strtolower(trim($adminBranch)) === "mudipu"
 );
 
-if ($isThirthahalliBranch) {
-
-    // Thirthahalli working hours
-    $officeStartTime = "10:00:00";
-    $officeEndTime   = "20:00:00";
-
-    // Mark absent only later in the working day
-    $absentMarkTime  = "18:00:00";
-
-} else {
-
-    // Existing branch timings
-    $officeStartTime = "09:30:00";
-    $officeEndTime   = "17:30:00";
-
-    $absentMarkTime  = "16:00:00";
-}
+// Branch timings (uses database branch settings if configured, fallback to 09:30 to 20:00)
+$officeStartTime = !empty($bRes['standard_check_in']) ? $bRes['standard_check_in'] : ($isThirthahalliBranch ? "10:00:00" : "09:30:00");
+$officeEndTime   = !empty($bRes['standard_check_out']) ? $bRes['standard_check_out'] : "20:00:00";
+$absentMarkTime  = "18:00:00";
 
 // 1. Process Missed Checkouts for historical logs safely before reading view data
 $fixCheckout = $conn->query("
@@ -207,6 +195,13 @@ $employees = $stmt->get_result();
       .sidebar-close-btn { display: block; }
       .main { margin-left: 0; width: 100%; padding: 16px; }
       .filters input, .filters select { width: 100%; }
+      #editModal > div {
+        max-height: 92vh !important;
+        overflow-y: auto !important;
+      }
+      #editModal form > div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+      }
     }
   </style>
 </head>
@@ -291,6 +286,9 @@ $employees = $stmt->get_result();
 
           while ($emp = $employees->fetch_assoc()) {
               $empId = $emp['id'];
+              if (empty($emp['email'])) {
+                  $emp['email'] = resolveEmployeeEmail($conn, $empId, $emp['employee_id'] ?? '');
+              }
               $attStmt = $conn->prepare("SELECT * FROM `$attTable` WHERE user_id=? AND date=?");
               $attStmt->bind_param("is", $empId, $today);
               $attStmt->execute();
@@ -306,7 +304,11 @@ $employees = $stmt->get_result();
 if ($isCompanyLeave) {
     $status = "Company Leave";
 } elseif (!$isWorkingDayForEmp) {
-    $status = !empty($todayAtt['status']) ? $todayAtt['status'] : "Weekly Off";
+    if (!empty($todayAtt['check_in'])) {
+        $status = $todayAtt['status'] ?? "Overtime";
+    } else {
+        $status = "Weekly Off";
+    }
 } elseif (
     empty($todayAtt['check_in']) &&
     $currentTime >= $absentMarkTime
@@ -382,57 +384,115 @@ if ($isCompanyLeave) {
   </div>
 </div>
 
-<div id="editModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); justify-content:center; align-items:center; z-index:999;">
-  <div style="background:white; padding:25px; border-radius:12px; width:420px; max-height:90vh; overflow:auto;">
-    <h3>Edit Employee Details</h3>
-    <form method="POST" action="update_employee.php">
+<!-- EDIT MODAL (Square Landscape, No Scroll Required) -->
+<div id="editModal" style="display:none; position:fixed; inset:0; width:100%; height:100%; background:rgba(15,23,42,0.65); backdrop-filter:blur(3px); justify-content:center; align-items:center; z-index:1100; padding:15px; box-sizing:border-box;">
+  <div style="background:#ffffff; border-radius:14px; width:820px; max-width:96vw; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); border:1px solid #e2e8f0; padding:18px 24px; box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden;">
+    
+    <!-- Modal Header -->
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding-bottom:10px; margin-bottom:12px;">
+      <h3 style="margin:0; font-size:16px; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:8px;">
+        <i class="bi bi-person-gear" style="color:#6366f1;"></i> Edit Employee & Attendance
+      </h3>
+      <button type="button" onclick="closeEditModal()" style="background:none; border:none; font-size:22px; color:#94a3b8; cursor:pointer; line-height:1; padding:2px 6px; border-radius:6px;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">&times;</button>
+    </div>
+
+    <form method="POST" action="update_employee.php" style="margin:0; display:flex; flex-direction:column; gap:12px;">
       <input type="hidden" name="branch" value="<?= htmlspecialchars($adminBranch) ?>">
       <input type="hidden" name="id" id="editId">
-      <label>Name</label>
-      <input type="text" name="name" id="editName" required style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
-      <label>Employee ID</label>
-      <input type="text" name="employee_id" id="editEmployeeId" required style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
-      <label>Status</label>
-      <select name="status" id="editStatus" style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
-          <option value="Present">Present</option>
-          <option value="Late">Late</option>
-          <option value="Half Day">Half Day</option>
-          <option value="Pending">Pending</option>
-          <option value="Absent">Absent</option>
-          <option value="Overtime">Overtime</option>
-      </select>
-      <label>Check In</label>
-      <input type="datetime-local" name="check_in" id="editCheckIn" style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
-      <label>Check Out</label>
-      <input type="datetime-local" name="check_out" id="editCheckOut" style="width:100%;padding:12px;margin-top:8px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;">
-      
-      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:15px; margin-bottom:15px;">
-        <div style="font-weight:600; font-size:13.5px; color:#4338ca; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
-          <i class="bi bi-sliders"></i> Employee Settings
-        </div>
-        <label style="font-size:12.5px; font-weight:500;">Daily Working Hours (hrs)</label>
-        <input type="number" step="0.5" min="1" max="24" name="working_hours" id="editWorkingHours" style="width:100%;padding:10px;margin-top:5px;margin-bottom:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
-        <label style="font-size:12.5px; font-weight:500;">Monthly CL (days)</label>
-        <input type="number" step="0.5" min="0" max="31" name="monthly_cl" id="editMonthlyCL" style="width:100%;padding:10px;margin-top:5px;margin-bottom:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
-        <label style="font-size:12.5px; font-weight:500;">Specific Check-in Days</label>
-        <input type="hidden" name="check_in_days" id="editCheckInDaysInput" value="Mon,Tue,Wed,Thu,Fri,Sat">
-        <div class="days-selector" id="editDaysSelector" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;">
-          <?php foreach (['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] as $d): ?>
-            <div class="day-pill" data-day="<?= $d ?>" onclick="toggleEditModalDay(this)" style="padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;border:1.5px solid #ddd;background:#f9fafb;cursor:pointer;user-select:none;">
-              <?= $d ?>
+
+      <!-- 2-Column Landscape Grid (No Scroll) -->
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px;">
+        
+        <!-- Left Column: Employee & Attendance -->
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div>
+            <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Employee Name</label>
+            <input type="text" name="name" id="editName" required placeholder="Full Name" style="width:100%; height:35px; padding:6px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box;">
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Employee ID</label>
+              <input type="text" name="employee_id" id="editEmployeeId" required placeholder="EMPxxxx" style="width:100%; height:35px; padding:6px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box;">
             </div>
-          <?php endforeach; ?>
+            <div>
+              <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Today's Status</label>
+              <select name="status" id="editStatus" style="width:100%; height:35px; padding:6px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box; background:#fff;">
+                <option value="Present">Present</option>
+                <option value="Late">Late</option>
+                <option value="Half Day">Half Day</option>
+                <option value="Pending">Pending</option>
+                <option value="Absent">Absent</option>
+                <option value="Overtime">Overtime</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Email Input Box -->
+          <div>
+            <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">
+              <i class="bi bi-envelope" style="color:#6366f1;"></i> Email Address
+            </label>
+            <input type="email" name="email" id="editEmail" placeholder="employee@example.com" style="width:100%; height:35px; padding:6px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; font-family:inherit; box-sizing:border-box;">
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Check In</label>
+              <input type="datetime-local" name="check_in" id="editCheckIn" style="width:100%; height:35px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:7px; font-size:12px; font-family:inherit; box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Check Out</label>
+              <input type="datetime-local" name="check_out" id="editCheckOut" style="width:100%; height:35px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:7px; font-size:12px; font-family:inherit; box-sizing:border-box;">
+            </div>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:6px;">
-          <button type="button" class="btn-preset" onclick="setEditModalPreset('mon-sat')" style="padding:2px 7px;font-size:11px;border-radius:4px;border:1px dashed #999;background:white;cursor:pointer;">Mon - Sat</button>
-          <button type="button" class="btn-preset" onclick="setEditModalPreset('mon-fri')" style="padding:2px 7px;font-size:11px;border-radius:4px;border:1px dashed #999;background:white;cursor:pointer;">Mon - Fri</button>
-          <button type="button" class="btn-preset" onclick="setEditModalPreset('all')" style="padding:2px 7px;font-size:11px;border-radius:4px;border:1px dashed #999;background:white;cursor:pointer;">All Days</button>
+
+        <!-- Right Column: Shift & Settings Card -->
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; justify-content:space-between; height:100%; box-sizing:border-box;">
+          <div style="font-weight:600; font-size:12.5px; color:#4338ca; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+            <i class="bi bi-sliders"></i> Shift & Leave Settings
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:6px;">
+            <div>
+              <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Daily Hours (hrs)</label>
+              <input type="number" step="0.5" min="1" max="24" name="working_hours" id="editWorkingHours" placeholder="e.g. 10.5" style="width:100%; height:34px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px; box-sizing:border-box; background:#fff;">
+            </div>
+            <div>
+              <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Monthly CL (days)</label>
+              <input type="number" step="0.5" min="0" max="31" name="monthly_cl" id="editMonthlyCL" placeholder="e.g. 2.0" style="width:100%; height:34px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px; box-sizing:border-box; background:#fff;">
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:11.5px; font-weight:600; color:#475569; display:block; margin-bottom:3px;">Specific Check-in Days</label>
+            <input type="hidden" name="check_in_days" id="editCheckInDaysInput" value="Mon,Tue,Wed,Thu,Fri,Sat">
+            <div class="days-selector" id="editDaysSelector" style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px;">
+              <?php foreach (['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] as $d): ?>
+                <div class="day-pill" data-day="<?= $d ?>" onclick="toggleEditModalDay(this)" style="padding:4px 8px; border-radius:6px; font-size:11px; font-weight:600; border:1.5px solid #cbd5e1; background:#ffffff; color:#475569; cursor:pointer; user-select:none; transition:0.2s;">
+                  <?= $d ?>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <div style="display:flex; gap:5px;">
+              <button type="button" class="btn-preset" onclick="setEditModalPreset('mon-sat')" style="padding:2px 7px; font-size:10.5px; border-radius:4px; border:1px dashed #94a3af; background:#ffffff; color:#475569; cursor:pointer;">Mon - Sat</button>
+              <button type="button" class="btn-preset" onclick="setEditModalPreset('mon-fri')" style="padding:2px 7px; font-size:10.5px; border-radius:4px; border:1px dashed #94a3af; background:#ffffff; color:#475569; cursor:pointer;">Mon - Fri</button>
+              <button type="button" class="btn-preset" onclick="setEditModalPreset('all')" style="padding:2px 7px; font-size:10.5px; border-radius:4px; border:1px dashed #94a3af; background:#ffffff; color:#475569; cursor:pointer;">All Days</button>
+            </div>
+          </div>
         </div>
+
       </div>
 
-      <div style="margin-top:20px; display:flex; gap:10px;">
-        <button type="submit" style="flex:1; padding:12px; border:none; border-radius:8px; background:#667eea; color:white; font-weight:600; cursor:pointer;">Update</button>
-        <button type="button" onclick="closeEditModal()" style="flex:1; padding:12px; border:none; border-radius:8px; background:#ef4444; color:white; font-weight:600; cursor:pointer;">Cancel</button>
+      <!-- Footer Buttons -->
+      <div style="display:flex; gap:10px; margin-top:2px;">
+        <button type="submit" style="flex:1; height:38px; border:none; border-radius:8px; background:linear-gradient(135deg, #6366f1, #4f46e5); color:#ffffff; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:0.2s; box-shadow:0 3px 8px rgba(99,102,241,0.25);">
+          <i class="bi bi-check2"></i> Update Employee Details
+        </button>
+        <button type="button" onclick="closeEditModal()" style="width:100px; height:38px; border:1px solid #e2e8f0; border-radius:8px; background:#f1f5f9; color:#475569; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:0.2s;">
+          Cancel
+        </button>
       </div>
     </form>
   </div>
@@ -495,6 +555,7 @@ function openEditModal(emp, attendance) {
     document.getElementById('editId').value = emp.id || '';
     document.getElementById('editName').value = emp.name || '';
     document.getElementById('editEmployeeId').value = emp.employee_id || '';
+    document.getElementById('editEmail').value = emp.email || '';
     document.getElementById('editStatus').value = attendance?.status || 'Pending';
     document.getElementById('editCheckIn').value = formatDateTime(attendance?.check_in);
     document.getElementById('editCheckOut').value = formatDateTime(attendance?.check_out);

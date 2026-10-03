@@ -45,15 +45,9 @@ $sundayHistoryFilter = $sundayIsWorking
     ? ""
     : "AND DAYOFWEEK(a.date) != 1";
 
-if ($isThirthahalliBranch) {
-    // Thirthahalli office timing
-    $officeStartTime = "10:00:00";
-    $officeEndTime   = "20:00:00";
-} else {
-    // Existing timing
-    $officeStartTime = "09:30:00";
-    $officeEndTime   = "17:30:00";
-}
+// Employee shift timing (uses employee user settings if configured, fallback to 09:30 - 20:00)
+$officeStartTime = !empty($user['shift_start']) ? $user['shift_start'] : ($isThirthahalliBranch ? "10:00:00" : "09:30:00");
+$officeEndTime   = !empty($user['shift_end']) ? $user['shift_end'] : "20:00:00";
 
 /* =======================
    MONTH FILTER

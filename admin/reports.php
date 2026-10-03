@@ -33,7 +33,7 @@ $status_filter = $_GET['status'] ?? '';
 $branchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
 $branch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
 
-$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt = $conn->prepare("SELECT branch_name, standard_check_in, standard_check_out FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
 $bStmt->bind_param("is", $branchId, $branch);
 $bStmt->execute();
 $bRes = $bStmt->get_result()->fetch_assoc();
@@ -60,18 +60,8 @@ BRANCH OFFICE TIMINGS
 =========================================
 */
 
-if ($isThirthahalliBranch) {
-
-    // Thirthahalli
-    $officeStartTime = "10:00:00"; // 10:00 AM
-    $officeEndTime   = "20:00:00"; // 8:00 PM
-
-} else {
-
-    // Other branches
-    $officeStartTime = "09:30:00";
-    $officeEndTime   = "17:30:00";
-}
+$officeStartTime = !empty($bRes['standard_check_in']) ? $bRes['standard_check_in'] : ($isThirthahalliBranch ? "10:00:00" : "09:30:00");
+$officeEndTime   = !empty($bRes['standard_check_out']) ? $bRes['standard_check_out'] : "20:00:00";
 
 
 /*

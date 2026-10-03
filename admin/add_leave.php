@@ -74,6 +74,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         if ($stmt->execute()) {
             $message = "Leave added successfully.";
+
+            // Send email notifications to employees
+            require_once __DIR__ . '/../config/mail_helper.php';
+            $mailSummary = sendCompanyLeaveNotification($conn, $leaveDate, $title, $description, $branchId, $branchName);
+            $sentCount = count($mailSummary['sent']);
+            if ($sentCount > 0) {
+                $message .= " 📧 Email notification sent to " . $sentCount . " employee(s).";
+            }
         }
     }
 }

@@ -130,13 +130,17 @@ if (isset($_POST['token'])) {
         $stmt->close();
 
 
-        /*
-        =========================================
-        ONLY CREATE ATTENDANCE IF NOT EXISTS
-        =========================================
-        */
+        $empCheckInDays = getEmployeeCheckInDaysArray($user['check_in_days'] ?? '', $userBranch);
+        $todayDayName = date("D");
 
-        if (!$attendance) {
+        if (!in_array($todayDayName, $empCheckInDays, true)) {
+
+            $toastMessage =
+                "Check-in Not Allowed: Today (" . date("l") . ") is your scheduled weekly off. Your working days are: " . formatCheckInDaysDisplay($user['check_in_days'] ?? '', $userBranch);
+
+            $toastColor = "#ef4444";
+
+        } elseif (!$attendance) {
 
             /*
             =========================================
@@ -144,59 +148,18 @@ if (isset($_POST['token'])) {
             =========================================
             */
 
-            if ($isThirthahalliBranch) {
+            $empShiftStart = !empty($user['shift_start']) ? $user['shift_start'] : ($isThirthahalliBranch ? "10:00:00" : "09:30:00");
+            $presentGrace = date("H:i:s", strtotime($empShiftStart) + 16 * 60);
+            $lateGrace = date("H:i:s", strtotime($empShiftStart) + 30 * 60);
 
-                /*
-                THIRTHAHALLI
-
-                Up to 10:00 AM = Present
-                After 10:00 AM = Late
-                From 1:00 PM = Half Day
-                */
-
-                if ($timeOnly >= "13:00:00") {
-
-                    $status = "Half Day";
-
-                } elseif ($timeOnly <= "10:00:00") {
-
-                    $status = "Present";
-
-                } else {
-
-                    $status = "Late";
-                }
-
+            if ($timeOnly >= "13:00:00") {
+                $status = "Half Day";
+            } elseif ($timeOnly <= $presentGrace) {
+                $status = "Present";
+            } elseif ($timeOnly <= $lateGrace) {
+                $status = "Late";
             } else {
-
-                /*
-                OTHER BRANCHES
-                Existing rules
-                */
-
-                if (
-                    $timeOnly >= "13:00:00" &&
-                    $timeOnly <= "14:00:00"
-                ) {
-
-                    $status = "Half Day";
-
-                } elseif (
-                    $timeOnly <= "09:46:00"
-                ) {
-
-                    $status = "Present";
-
-                } elseif (
-                    $timeOnly <= "10:00:00"
-                ) {
-
-                    $status = "Late";
-
-                } else {
-
-                    $status = "Half Day";
-                }
+                $status = "Half Day";
             }
 
 

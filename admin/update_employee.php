@@ -39,6 +39,8 @@ $status = trim($_POST['status']);
 $working_hours = isset($_POST['working_hours']) && $_POST['working_hours'] !== '' ? max(0, min(24, (float)$_POST['working_hours'])) : null;
 $monthly_cl = isset($_POST['monthly_cl']) && $_POST['monthly_cl'] !== '' ? max(0, min(31, (float)$_POST['monthly_cl'])) : null;
 $check_in_days = !empty($_POST['check_in_days']) ? (is_array($_POST['check_in_days']) ? implode(',', $_POST['check_in_days']) : trim($_POST['check_in_days'])) : null;
+$shift_start = !empty($_POST['shift_start']) ? date("H:i:s", strtotime($_POST['shift_start'])) : null;
+$shift_end = !empty($_POST['shift_end']) ? date("H:i:s", strtotime($_POST['shift_end'])) : null;
 
 $check_in = !empty($_POST['check_in'])
     ? date("Y-m-d H:i:s", strtotime($_POST['check_in']))
@@ -78,6 +80,8 @@ if ($branchResult->num_rows == 0) {
     die("Unauthorized Access");
 }
 
+$email = isset($_POST['email']) ? trim($_POST['email']) : '';
+
 /* =========================
    UPDATE USER
 ========================= */
@@ -88,25 +92,27 @@ if ($working_hours !== null && $monthly_cl !== null && $check_in_days !== null) 
             SET
                 name = ?,
                 employee_id = ?,
+                email = ?,
                 status = ?,
                 working_hours = ?,
                 monthly_cl = ?,
                 check_in_days = ?
             WHERE id = ?
         ");
-        $stmt->bind_param("sssddsi", $name, $employee_id, $status, $working_hours, $monthly_cl, $check_in_days, $id);
+        $stmt->bind_param("ssssddsi", $name, $employee_id, $email, $status, $working_hours, $monthly_cl, $check_in_days, $id);
     } else {
         $stmt = $conn->prepare("
             UPDATE users
             SET
                 name = ?,
                 employee_id = ?,
+                email = ?,
                 working_hours = ?,
                 monthly_cl = ?,
                 check_in_days = ?
             WHERE id = ?
         ");
-        $stmt->bind_param("ssddsi", $name, $employee_id, $working_hours, $monthly_cl, $check_in_days, $id);
+        $stmt->bind_param("sssddsi", $name, $employee_id, $email, $working_hours, $monthly_cl, $check_in_days, $id);
     }
 } else {
     if (!empty($status)) {
@@ -115,20 +121,29 @@ if ($working_hours !== null && $monthly_cl !== null && $check_in_days !== null) 
             SET
                 name = ?,
                 employee_id = ?,
+                email = ?,
                 status = ?
             WHERE id = ?
         ");
-        $stmt->bind_param("sssi", $name, $employee_id, $status, $id);
+        $stmt->bind_param("ssssi", $name, $employee_id, $email, $status, $id);
     } else {
         $stmt = $conn->prepare("
             UPDATE users
             SET
                 name = ?,
-                employee_id = ?
+                employee_id = ?,
+                email = ?
             WHERE id = ?
         ");
-        $stmt->bind_param("ssi", $name, $employee_id, $id);
+        $stmt->bind_param("sssi", $name, $employee_id, $email, $id);
     }
+}
+
+if ($shift_start !== null && $shift_end !== null) {
+    $shiftStmt = $conn->prepare("UPDATE users SET shift_start = ?, shift_end = ? WHERE id = ?");
+    $shiftStmt->bind_param("ssi", $shift_start, $shift_end, $id);
+    $shiftStmt->execute();
+    $shiftStmt->close();
 }
 $stmt->execute();
 $stmt->close();

@@ -37,7 +37,9 @@ if (isset($_POST['create'])) {
   $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 
 
-  $working_hours = isset($_POST['working_hours']) && $_POST['working_hours'] !== '' ? max(0, min(24, (float)$_POST['working_hours'])) : 8.00;
+  $shift_start = !empty($_POST['shift_start']) ? date("H:i:s", strtotime($_POST['shift_start'])) : '09:30:00';
+  $shift_end = !empty($_POST['shift_end']) ? date("H:i:s", strtotime($_POST['shift_end'])) : '20:00:00';
+  $working_hours = isset($_POST['working_hours']) && $_POST['working_hours'] !== '' ? max(0, min(24, (float)$_POST['working_hours'])) : 10.50;
   $monthly_cl = isset($_POST['monthly_cl']) && $_POST['monthly_cl'] !== '' ? max(0, min(31, (float)$_POST['monthly_cl'])) : 2.00;
   $check_in_days = !empty($_POST['check_in_days']) ? (is_array($_POST['check_in_days']) ? implode(',', $_POST['check_in_days']) : trim($_POST['check_in_days'])) : 'Mon,Tue,Wed,Thu,Fri,Sat';
 
@@ -47,11 +49,11 @@ if (isset($_POST['create'])) {
   $token = bin2hex(random_bytes(32));
 
   $stmt = $conn->prepare("
-    INSERT INTO users (name, employee_id, password, role, qr_token, branch, branch_id, working_hours, monthly_cl, check_in_days)
-    VALUES (?, ?, ?, 'employee', ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (name, employee_id, password, role, qr_token, branch, branch_id, shift_start, shift_end, working_hours, monthly_cl, check_in_days)
+    VALUES (?, ?, ?, 'employee', ?, ?, ?, ?, ?, ?, ?, ?)
   ");
 
-  $stmt->bind_param("sssssidds", $name, $empId, $hashedPassword, $token, $branch, $branch_id, $working_hours, $monthly_cl, $check_in_days);
+  $stmt->bind_param("sssssidssdds", $name, $empId, $hashedPassword, $token, $branch, $branch_id, $shift_start, $shift_end, $working_hours, $monthly_cl, $check_in_days);
   $stmt->execute();
 
 $_SESSION['success'] = [
@@ -333,6 +335,51 @@ async function downloadQR() {
           >
         </div>
 
+        <div style="display:flex; gap:12px; margin-top:12px; text-align:left;">
+          <div style="flex:1;">
+            <label style="font-size:12px; font-weight:600; color:#374151;">Shift Start Time (12-hr)</label>
+            <div style="display:flex; align-items:center; background:#f9fafb; border:1px solid #d1d5db; border-radius:8px; padding:2px 8px; margin-top:5px; height:42px;">
+              <select id="createStartHour" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
+                <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $hStr ?>" <?= $hStr === '09' ? 'selected' : '' ?>><?= $hStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <span style="font-weight:700; color:#9ca3af; margin:0 2px;">:</span>
+              <select id="createStartMin" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
+                <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $mStr ?>" <?= $mStr === '30' ? 'selected' : '' ?>><?= $mStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <select id="createStartPeriod" onchange="syncCreateTimes()" style="border:none; background:#eff6ff; color:#1d4ed8; font-weight:700; font-size:13px; border-radius:6px; padding:3px 6px; margin-left:auto; outline:none; cursor:pointer;">
+                <option value="AM" selected>AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+            <input type="hidden" name="shift_start" id="createShiftStart" value="09:30:00">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:12px; font-weight:600; color:#374151;">Shift End Time (12-hr)</label>
+            <div style="display:flex; align-items:center; background:#f9fafb; border:1px solid #d1d5db; border-radius:8px; padding:2px 8px; margin-top:5px; height:42px;">
+              <select id="createEndHour" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
+                <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $hStr ?>" <?= $hStr === '08' ? 'selected' : '' ?>><?= $hStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <span style="font-weight:700; color:#9ca3af; margin:0 2px;">:</span>
+              <select id="createEndMin" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
+                <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                  <option value="<?= $mStr ?>" <?= $mStr === '00' ? 'selected' : '' ?>><?= $mStr ?></option>
+                <?php endfor; ?>
+              </select>
+              <select id="createEndPeriod" onchange="syncCreateTimes()" style="border:none; background:#eff6ff; color:#1d4ed8; font-weight:700; font-size:13px; border-radius:6px; padding:3px 6px; margin-left:auto; outline:none; cursor:pointer;">
+                <option value="AM">AM</option>
+                <option value="PM" selected>PM</option>
+              </select>
+            </div>
+            <input type="hidden" name="shift_end" id="createShiftEnd" value="20:00:00">
+          </div>
+        </div>
+
         <div style="text-align:left; margin-top:12px;">
           <label style="font-size:12px; font-weight:600; color:#374151;">Daily Working Hours</label>
           <input 
@@ -341,8 +388,9 @@ async function downloadQR() {
             min="1" 
             max="24" 
             name="working_hours" 
-            value="8.0" 
-            placeholder="e.g. 8.0" 
+            id="createWorkingHours"
+            value="10.5" 
+            placeholder="e.g. 10.5" 
             required
             style="margin-top:5px;"
           >
@@ -518,6 +566,42 @@ function checkAutoRedirect() {
 <?php } ?>
 
 <script>
+function syncCreateTimes() {
+  function partsTo24Hr(h, m, p) {
+    let hour = parseInt(h, 10);
+    const minute = String(parseInt(m, 10)).padStart(2, '0');
+    if (p === 'PM' && hour < 12) hour += 12;
+    if (p === 'AM' && hour === 12) hour = 0;
+    return String(hour).padStart(2, '0') + ':' + minute + ':00';
+  }
+  const sH = document.getElementById('createStartHour').value;
+  const sM = document.getElementById('createStartMin').value;
+  const sP = document.getElementById('createStartPeriod').value;
+  const s24 = partsTo24Hr(sH, sM, sP);
+  document.getElementById('createShiftStart').value = s24;
+
+  const eH = document.getElementById('createEndHour').value;
+  const eM = document.getElementById('createEndMin').value;
+  const eP = document.getElementById('createEndPeriod').value;
+  const e24 = partsTo24Hr(eH, eM, eP);
+  document.getElementById('createShiftEnd').value = e24;
+
+  // Auto-calculate daily working hours
+  const [h1, m1] = s24.split(':').map(Number);
+  const [h2, m2] = e24.split(':').map(Number);
+  let startMinutes = h1 * 60 + m1;
+  let endMinutes = h2 * 60 + m2;
+  if (endMinutes <= startMinutes) {
+    endMinutes += 24 * 60;
+  }
+  const diffMinutes = endMinutes - startMinutes;
+  const decimalHours = parseFloat((diffMinutes / 60).toFixed(1));
+  const whInput = document.getElementById('createWorkingHours');
+  if (whInput && decimalHours > 0) {
+    whInput.value = decimalHours;
+  }
+}
+
 function toggleCreateDay(el) {
   el.classList.toggle('selected');
   updateCreateDays();

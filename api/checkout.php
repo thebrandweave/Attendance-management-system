@@ -23,7 +23,7 @@ if ($currentTimeOnly >= "21:00") {
 
     while ($row = $autoCheckoutQuery->fetch_assoc()) {
         $attendanceId = $row['id'];
-        $autoCheckoutTime = $today . " 17:30:00";
+        $autoCheckoutTime = $today . " 20:00:00";
 
         $checkIn = strtotime($row['check_in']);
         $checkOut = strtotime($autoCheckoutTime);
@@ -138,6 +138,9 @@ $checkInTimeOnly = date(
     "H:i:s",
     strtotime($attendance['check_in'])
 );
+$checkoutTimeOnly = date("H:i", strtotime($currentTime));
+$userShiftEnd = !empty($user['shift_end']) ? $user['shift_end'] : ($isThirthahalliBranch ? "20:00:00" : "20:00:00");
+$otThreshold = date("H:i", strtotime($userShiftEnd) + 5 * 60);
 
 if ($totalHours < 6.75) {
 
@@ -145,7 +148,7 @@ if ($totalHours < 6.75) {
 
 } elseif (
     $isThirthahalliBranch &&
-    $checkoutTimeOnly > "20:05"
+    $checkoutTimeOnly > $otThreshold
 ) {
 
     // Manager must approve this
@@ -153,18 +156,18 @@ if ($totalHours < 6.75) {
 
 } elseif (
     !$isThirthahalliBranch &&
-    $checkoutTimeOnly >= "17:35"
+    $checkoutTimeOnly >= $otThreshold
 ) {
 
-    // Keep existing behavior for other branches
+    // Overtime if checked out after shift end threshold
     $status = "Overtime";
 
 } else {
 
     // Do not destroy Late status during checkout
+    $lateStart = !empty($user['shift_start']) ? date("H:i:s", strtotime($user['shift_start']) + 30 * 60) : "10:00:00";
     if (
-        $isThirthahalliBranch &&
-        $checkInTimeOnly > "10:00:00"
+        $checkInTimeOnly > $lateStart
     ) {
         $status = "Late";
     } else {
