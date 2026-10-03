@@ -31,12 +31,12 @@ function getCompanyLeaveEmailTemplate($data) {
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 6px 20px rgba(0,0,0,0.07); border:1px solid #e5e7eb;">
           
           <!-- Header -->
-          <tr>
+          <!-- <tr>
             <td style="background:linear-gradient(135deg, #111827 0%, #1f2937 100%); padding:28px 30px; text-align:center;">
               <div style="font-size:22px; font-weight:700; color:#ffffff; letter-spacing:0.5px;">{$companyName}</div>
               <div style="font-size:12px; font-weight:500; color:#9ca3af; margin-top:4px; text-transform:uppercase; letter-spacing:1px;">Attendance & Leave Management</div>
             </td>
-          </tr>
+          </tr> -->
 
           <!-- Banner -->
           <tr>
@@ -69,25 +69,22 @@ function getCompanyLeaveEmailTemplate($data) {
                       🗓️ {$leaveDate}
                     </div>
 
-                    <div style="font-size:12px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Applicable Branch</div>
+                    <!-- <div style="font-size:12px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Applicable Branch</div>
                     <div style="font-size:14px; font-weight:600; color:#334155; margin-bottom:16px;">
                       🏢 {$branchName}
-                    </div>
+                    </div> -->
 
-                    <div style="font-size:12px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Details & Notes</div>
-                    <div style="font-size:14px; color:#475569; line-height:1.5;">
-                      {$description}
-                    </div>
+                   
                   </td>
                 </tr>
               </table>
 
               <p style="font-size:14px; line-height:1.6; color:#4b5563; margin-bottom:10px;">
-                Work will not be scheduled on this day. Please plan your deliverables accordingly. Normal office shifts will resume on the subsequent working day.
+              Wishing you a Happy Holiday
               </p>
               <p style="font-size:14px; line-height:1.6; color:#4b5563; margin-bottom:0;">
                 Warm regards,<br>
-                <strong>HR & Administration Team</strong><br>
+                <strong>GD EDU TECH Management</strong><br>
                 {$companyName}
               </p>
             </td>
