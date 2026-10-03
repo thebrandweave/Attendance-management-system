@@ -195,25 +195,44 @@ function sendAppEmail($toEmail, $toName, $subject, $htmlBody, $altBody = '', $br
  * Send Employee Leave Request Approval / Rejection Notification
  */
 function sendLeaveApprovalNotification($conn, $leaveRequestId, $status) {
-    $id = (int)$leaveRequestId;
-    if ($id <= 0) return ['status' => 'error', 'message' => 'Invalid leave ID'];
+    $ids = [];
+    if (is_array($leaveRequestId)) {
+        $ids = array_map('intval', $leaveRequestId);
+    } elseif (is_string($leaveRequestId) && strpos($leaveRequestId, ',') !== false) {
+        $ids = array_map('intval', explode(',', $leaveRequestId));
+    } else {
+        $id = (int)$leaveRequestId;
+        if ($id > 0) $ids = [$id];
+    }
+    $ids = array_values(array_unique(array_filter($ids)));
+    if (empty($ids)) return ['status' => 'error', 'message' => 'Invalid leave ID(s)'];
 
+    $idList = implode(',', $ids);
     $q = $conn->query("
         SELECT lr.*, u.name AS employee_name, u.employee_id AS employee_code, u.email, u.branch
         FROM leave_requests lr
         JOIN users u ON lr.employee_id = u.id
-        WHERE lr.id = $id
+        WHERE lr.id IN ($idList)
+        ORDER BY lr.date ASC
     ");
 
     if (!$q || $q->num_rows === 0) {
-        return ['status' => 'error', 'message' => 'Leave request record not found'];
+        return ['status' => 'error', 'message' => 'Leave request record(s) not found'];
     }
 
-    $row       = $q->fetch_assoc();
-    $empName   = $row['employee_name'] ?? 'Employee';
-    $empCode   = $row['employee_code'] ?? '';
-    $userId    = (int)$row['employee_id'];
-    $empBranch = $row['branch'] ?? 'gdedutech';
+    $dates = [];
+    $firstRow = null;
+    while ($r = $q->fetch_assoc()) {
+        if (!$firstRow) $firstRow = $r;
+        $dates[] = $r['date'];
+    }
+    $dates = array_values(array_unique($dates));
+    sort($dates);
+
+    $empName   = $firstRow['employee_name'] ?? 'Employee';
+    $empCode   = $firstRow['employee_code'] ?? '';
+    $userId    = (int)$firstRow['employee_id'];
+    $empBranch = $firstRow['branch'] ?? 'gdedutech';
 
     // Resolve email
     $toEmail = resolveEmployeeEmail($conn, $userId, $empCode);
@@ -232,20 +251,29 @@ function sendLeaveApprovalNotification($conn, $leaveRequestId, $status) {
     }
 
     $companyName = $config['company_name'] ?? 'GD Edu Tech (Mangalore)';
+    $statusText  = (strtolower($status) === 'approved' || strtolower($status) === 'approve') ? 'Approved' : 'Rejected';
+
+    $formattedDates = array_map(function($d) { return date('d M Y', strtotime($d)); }, $dates);
+    if (count($dates) === 1) {
+        $leaveDateDisplay = date('l, d F Y', strtotime($dates[0]));
+        $dateSubjectText  = date('d M Y', strtotime($dates[0]));
+    } else {
+        $leaveDateDisplay = implode(', ', $formattedDates) . " (" . count($dates) . " Days)";
+        $dateSubjectText  = count($dates) . " Days (" . reset($formattedDates) . " - " . end($formattedDates) . ")";
+    }
 
     $templateData = [
         'employee_name' => $empName,
         'employee_code' => $empCode,
-        'leave_date'    => $row['date'],
-        'leave_type'    => $row['type'],
-        'reason'        => $row['reason'],
+        'leave_date'    => $leaveDateDisplay,
+        'leave_type'    => $firstRow['type'],
+        'reason'        => $firstRow['reason'],
         'status'        => $status,
         'company_name'  => $companyName
     ];
 
     $htmlBody = getLeaveStatusEmailTemplate($templateData);
-    $statusText = (strtolower($status) === 'approved' || strtolower($status) === 'approve') ? 'Approved' : 'Rejected';
-    $subject = sprintf("[%s] Your Leave Request for %s has been %s", $companyName, date('d M Y', strtotime($row['date'])), $statusText);
+    $subject = sprintf("[%s] Your Leave Request for %s has been %s", $companyName, $dateSubjectText, $statusText);
 
     $res = sendAppEmail($toEmail, $empName, $subject, $htmlBody, '', $empBranch);
     return $res;

@@ -1,6 +1,9 @@
 <?php
 session_start();
 include("../config/db.php");
+require_once "../config/branch_helper.php";
+
+ensureLeaveRequestColumns($conn);
 
 if (
     !isset($_SESSION['user']) ||
@@ -18,11 +21,127 @@ $bStmt->bind_param("is", $branchId, $branch);
 $bStmt->execute();
 $bRes = $bStmt->get_result()->fetch_assoc();
 $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
+
+// Fetch all leave requests for this branch
+$res = $conn->query("
+    SELECT 
+        lr.*,
+        u.name AS employee_name,
+        u.employee_id AS employee_code
+    FROM leave_requests lr
+    LEFT JOIN users u ON lr.employee_id = u.id
+    WHERE (u.branch_id = '$branchId' OR u.branch = '$branch')
+    ORDER BY lr.id DESC
+");
+
+$rawRows = [];
+if ($res) {
+    while ($r = $res->fetch_assoc()) {
+        $rawRows[] = $r;
+    }
+}
+
+// Group multiple leaves requested by an employee into a single row
+$groupedRequests = [];
+$groupIndexMap = [];
+
+foreach ($rawRows as $row) {
+    $empId = (int)$row['employee_id'];
+    $gid = !empty($row['group_id']) ? trim($row['group_id']) : null;
+    $date = $row['date'];
+    $reasonKey = strtolower(trim($row['reason'] ?? ''));
+    $typeKey = trim($row['type'] ?? '');
+    $statusKey = strtolower(trim($row['status'] ?? ''));
+
+    $matchedIdx = null;
+
+    if ($gid !== null && $gid !== '') {
+        $key = 'gid_' . $gid;
+        if (isset($groupIndexMap[$key])) {
+            $matchedIdx = $groupIndexMap[$key];
+        } else {
+            $matchedIdx = count($groupedRequests);
+            $groupIndexMap[$key] = $matchedIdx;
+            $groupedRequests[$matchedIdx] = [
+                'id' => (int)$row['id'],
+                'group_id' => $gid,
+                'employee_id' => $empId,
+                'employee_name' => $row['employee_name'] ?? 'Unknown',
+                'employee_code' => $row['employee_code'] ?? '-',
+                'type' => $row['type'],
+                'reason' => $row['reason'],
+                'status' => $row['status'],
+                'ids' => [(int)$row['id']],
+                'dates' => [$date]
+            ];
+            continue;
+        }
+    } else {
+        // Fallback for un-grouped or legacy records:
+        // Group if same employee, type, reason, status where dates are within 7 days
+        foreach ($groupedRequests as $idx => $grp) {
+            if (!empty($grp['group_id'])) continue;
+            if ($grp['employee_id'] === $empId 
+                && strtolower(trim($grp['type'])) === strtolower($typeKey)
+                && strtolower(trim($grp['reason'] ?? '')) === $reasonKey
+                && strtolower(trim($grp['status'])) === $statusKey) {
+                
+                $rowTs = strtotime($date);
+                $isClose = false;
+                foreach ($grp['dates'] as $gd) {
+                    if (abs($rowTs - strtotime($gd)) <= (7 * 86400)) {
+                        $isClose = true;
+                        break;
+                    }
+                }
+                if ($isClose) {
+                    $matchedIdx = $idx;
+                    break;
+                }
+            }
+        }
+    }
+
+    if ($matchedIdx !== null) {
+        $groupedRequests[$matchedIdx]['ids'][] = (int)$row['id'];
+        if (!in_array($date, $groupedRequests[$matchedIdx]['dates'])) {
+            $groupedRequests[$matchedIdx]['dates'][] = $date;
+        }
+    } else {
+        $newIdx = count($groupedRequests);
+        $groupedRequests[$newIdx] = [
+            'id' => (int)$row['id'],
+            'group_id' => null,
+            'employee_id' => $empId,
+            'employee_name' => $row['employee_name'] ?? 'Unknown',
+            'employee_code' => $row['employee_code'] ?? '-',
+            'type' => $row['type'],
+            'reason' => $row['reason'],
+            'status' => $row['status'],
+            'ids' => [(int)$row['id']],
+            'dates' => [$date]
+        ];
+    }
+}
+
+// Calculate pending requests count for badge
+$pendingCount = 0;
+foreach ($groupedRequests as &$item) {
+    sort($item['dates']);
+    $item['total_days'] = count($item['dates']);
+    $item['ids_csv'] = implode(',', $item['ids']);
+    if (strtolower($item['status']) === 'pending') {
+        $pendingCount++;
+    }
+}
+unset($item);
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Leave Requests</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -57,12 +176,13 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
       font-weight: 600;
       margin-bottom: 20px;
       box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+      font-size: 18px;
     }
 
     /* ===== CARD ===== */
     .card {
       background: white;
-      padding: 20px;
+      padding: 24px;
       border-radius: 12px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.08);
     }
@@ -81,48 +201,62 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
       color: white;
       padding: 12px;
       font-size: 13px;
+      font-weight: 600;
+      text-align: center;
     }
 
     td {
-      padding: 12px;
+      padding: 14px 12px;
       text-align: center;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid #f1f5f9;
       font-size: 13px;
+      vertical-align: middle;
     }
 
     tr:hover {
-      background: #f9fafb;
+      background: #f8fafc;
     }
 
     /* ===== STATUS ===== */
-   .status {
-  font-weight: 600;
-  font-size: 13px;
-}
+    .status {
+      font-weight: 600;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: inline-block;
+    }
 
-.status-pending {
-  color: orange;
-}
+    .status-pending {
+      background: #fef3c7;
+      color: #d97706;
+    }
 
-.status-approved {
-  color: #22c55e;
-}
+    .status-approved {
+      background: #dcfce7;
+      color: #15803d;
+    }
 
-.status-rejected {
-  color: #ef4444;
-}
+    .status-rejected {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
 
     /* ===== BUTTONS ===== */
     .btn {
-      padding: 6px 10px;
+      padding: 6px 12px;
       border-radius: 6px;
       text-decoration: none;
       color: white;
       font-size: 12px;
+      font-weight: 500;
       margin: 2px;
-      display: inline-block; 
-      border:none;
-      outline:none;
+      display: inline-flex; 
+      align-items: center;
+      gap: 4px;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      transition: 0.2s;
     }
 
     .btn-green { background: #22c55e; }
@@ -131,6 +265,54 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
     .btn-red { background: #ef4444; }
     .btn-red:hover { background: #dc2626; }
 
+    /* ===== MULTI-DATE STYLES ===== */
+    .date-summary-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .date-summary-title {
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .days-count-badge {
+      background: #e0e7ff;
+      color: #4338ca;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+
+    .date-tag-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: center;
+      max-width: 280px;
+      margin-top: 3px;
+    }
+
+    .date-mini-tag {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      padding: 1px 7px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
   </style>
 </head>
 
@@ -147,13 +329,7 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
     <a href="../api/checkin.php">🟢 Check In- Morning</a>
     <a href="../api/lunch.php">🍽️ Lunch Break</a>
     <a href="../api/checkout.php">🔴 Check Out- Evening</a>
-    <?php
-      $adminBranchId = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
-      $adminBranch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
-      $leaveCountQuery = $conn->query("SELECT COUNT(*) as total FROM leave_requests lr LEFT JOIN users u ON lr.employee_id = u.id WHERE (u.branch_id='$adminBranchId' OR u.branch='$adminBranch') AND lr.status='pending'");
-      $leaveCount = $leaveCountQuery ? $leaveCountQuery->fetch_assoc()['total'] : 0;
-    ?>
-    <a href="leave_requests.php" class="active">📩 Manage Leaves <?php if($leaveCount > 0) { ?><span style="background:#ef4444; color:white; padding:2px 8px; border-radius:50px; font-size:12px; margin-left:8px; font-weight:600;"><?= $leaveCount ?></span><?php } ?></a>
+    <a href="leave_requests.php" class="active">📩 Manage Leaves <?php if($pendingCount > 0) { ?><span style="background:#ef4444; color:white; padding:2px 8px; border-radius:50px; font-size:12px; margin-left:8px; font-weight:600;"><?= $pendingCount ?></span><?php } ?></a>
     <a href="add_leave.php">📅 Company Leaves</a>
     <a href="reports.php">📊 Reports</a>
     <a href="employee_settings.php">⚙️ Employee Settings</a>
@@ -168,14 +344,19 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
     </div>
 
     <div class="card">
-      <h3>All Leave Requests</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size:17px; font-weight:600; color:#1e293b;">All Leave Requests</h3>
+        <span style="font-size:13px; color:#64748b;">
+          Total Applications: <strong><?= count($groupedRequests) ?></strong>
+        </span>
+      </div>
 
     <table>
     <thead>
         <tr>
           <th>Employee Name</th>
           <th>Employee ID</th>
-          <th>Date</th>
+          <th>Date(s)</th>
           <th>Type</th>
           <th>Reason</th>
           <th>Status</th>
@@ -186,75 +367,94 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 
     <tbody id="leaveTableBody">
 
-        <?php
-      $res = $conn->query("
-    SELECT 
-        lr.*,
-        u.name AS employee_name,
-        u.employee_id AS employee_code
+        <?php if (empty($groupedRequests)): ?>
+        <tr>
+          <td colspan="8" style="padding: 30px; color: #94a3b8; font-size: 14px;">
+            No leave requests found.
+          </td>
+        </tr>
+        <?php else: ?>
+        <?php 
+        foreach ($groupedRequests as $item) { 
+            $dates = $item['dates'];
+            $count = $item['total_days'];
+            $primaryId = $item['id'];
+            $idsCsv = $item['ids_csv'];
+            $statusLower = strtolower($item['status']);
 
-    FROM leave_requests lr
-
-    LEFT JOIN users u
-    ON lr.employee_id = u.id
-
-    WHERE (u.branch_id = '$branchId' OR u.branch = '$branch')
-
-    ORDER BY lr.id DESC
-");
-
-        while ($row = $res->fetch_assoc()) {
+            $isConsecutive = true;
+            for ($i = 0; $i < $count - 1; $i++) {
+                if ((strtotime($dates[$i + 1]) - strtotime($dates[$i])) !== 86400) {
+                    $isConsecutive = false;
+                    break;
+                }
+            }
         ?>
 
-        <tr>
-          <td><?= $row['employee_name'] ?? 'Unknown' ?></td>
-          <td><?= $row['employee_code'] ?? '-' ?></td>
-          <td><?= $row['date'] ?></td>
-          <td><?= $row['type'] ?></td>
-          <td><?= $row['reason'] ?></td>
+        <tr id="row-<?= $primaryId ?>">
+          <td style="font-weight: 500; text-align: left; padding-left: 16px;"><?= htmlspecialchars($item['employee_name'] ?? 'Unknown') ?></td>
+          <td><?= htmlspecialchars($item['employee_code'] ?? '-') ?></td>
+          <td>
+            <?php if ($count === 1): ?>
+              <div style="font-weight: 500;"><?= date('d M Y', strtotime($dates[0])) ?></div>
+            <?php else: ?>
+              <div class="date-summary-box">
+                <div class="date-summary-title">
+                  <?php if ($isConsecutive): ?>
+                    <span><?= date('d M Y', strtotime($dates[0])) ?> – <?= date('d M Y', strtotime($dates[$count - 1])) ?></span>
+                  <?php else: ?>
+                    <span><?= $count ?> Days Selected</span>
+                  <?php endif; ?>
+                  <span class="days-count-badge"><?= $count ?> Days</span>
+                </div>
+                <div class="date-tag-wrap">
+                  <?php foreach ($dates as $d): ?>
+                    <span class="date-mini-tag"><?= date('d M', strtotime($d)) ?></span>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+          </td>
+          <td><?= htmlspecialchars($item['type']) ?></td>
+          <td style="max-width: 220px; word-break: break-word;"><?= !empty($item['reason']) ? htmlspecialchars($item['reason']) : '-' ?></td>
 
-          <td id="status-<?= $row['id'] ?>">
-            <span class="status status-<?= $row['status'] ?>">
-              <?= ucfirst($row['status']) ?>
+          <td id="status-<?= $primaryId ?>">
+            <span class="status status-<?= $statusLower ?>">
+              <?= ucfirst($item['status']) ?>
             </span>
           </td>
 
-          <td id="actions-<?= $row['id'] ?>">
+          <td id="actions-<?= $primaryId ?>">
+            <?php if ($statusLower === 'pending') { ?>
+              <button
+                class="btn btn-green"
+                onclick="updateLeaveStatus('<?= $idsCsv ?>', 'approved', <?= $primaryId ?>, <?= $count ?>)">
+                Approve<?= $count > 1 ? " ($count)" : "" ?>
+              </button>
 
-          <?php if (strtolower($row['status']) == 'pending') { ?>
-
-            <button
-              class="btn btn-green"
-              onclick="updateLeaveStatus(<?= $row['id'] ?>, 'approved')">
-              Approve
-            </button>
-
-            <button
-              class="btn btn-red"
-              onclick="updateLeaveStatus(<?= $row['id'] ?>, 'rejected')">
-              Reject
-            </button>
-
-          <?php } else { ?>
-
-            <span class="status status-<?= $row['status'] ?>">
-              <?= ucfirst($row['status']) ?>
-            </span>
-
-          <?php } ?>
-
+              <button
+                class="btn btn-red"
+                onclick="updateLeaveStatus('<?= $idsCsv ?>', 'rejected', <?= $primaryId ?>, <?= $count ?>)">
+                Reject<?= $count > 1 ? " ($count)" : "" ?>
+              </button>
+            <?php } else { ?>
+              <span class="status status-<?= $statusLower ?>">
+                <?= ucfirst($item['status']) ?>
+              </span>
+            <?php } ?>
           </td>
 
           <td>
             <a class="btn btn-red"
-              onclick="return confirm('Delete this leave request?')"
-              href="delete_leave.php?id=<?= $row['id'] ?>">
+              onclick="return confirm('Delete this leave request<?= $count > 1 ? " ($count days)" : "" ?>?')"
+              href="delete_leave.php?ids=<?= $idsCsv ?>">
               Delete
             </a>
           </td>
         </tr>
 
         <?php } ?>
+        <?php endif; ?>
 
     </tbody>
 </table>
@@ -265,40 +465,52 @@ $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
 </div>
 <script>
 
-function updateLeaveStatus(id, status) {
+function updateLeaveStatus(ids, status, rowId, count = 1) {
+    const statusCap = status.charAt(0).toUpperCase() + status.slice(1);
+    const actionsCell = document.getElementById(`actions-${rowId}`);
+    const originalActionsHtml = actionsCell ? actionsCell.innerHTML : '';
 
-    fetch(`../api/leave_action.php?id=${id}&status=${status}&ajax=1`)
+    if (actionsCell) {
+        actionsCell.innerHTML = `<span style="font-size:12px; color:#64748b;"><i class="bi bi-hourglass-split"></i> Updating...</span>`;
+    }
+
+    fetch(`../api/leave_action.php?ids=${ids}&status=${status}&ajax=1`)
     .then(res => res.json())
-    .then(() => {
-
+    .then(data => {
         // Update status badge
-        document.getElementById(`status-${id}`).innerHTML = `
-            <span class="status status-${status}">
-                ${status.charAt(0).toUpperCase() + status.slice(1)}
-            </span>
-        `;
+        const statusCell = document.getElementById(`status-${rowId}`);
+        if (statusCell) {
+            statusCell.innerHTML = `
+                <span class="status status-${status}">
+                    ${statusCap}
+                </span>
+            `;
+        }
 
-        // Remove buttons
-        document.getElementById(`actions-${id}`).innerHTML = `
-            <span class="status status-${status}">
-                ${status.charAt(0).toUpperCase() + status.slice(1)}
-            </span>
-        `;
+        // Remove buttons and show final status
+        if (actionsCell) {
+            actionsCell.innerHTML = `
+                <span class="status status-${status}">
+                    ${statusCap}
+                </span>
+            `;
+        }
 
-        showToast(`Leave ${status} successfully`);
-
+        const daysText = count > 1 ? ` for ${count} days` : '';
+        showToast(`Leave ${status}${daysText} successfully ✅`);
     })
-    .catch(() => {
+    .catch(err => {
+        console.error(err);
         showToast("Something went wrong", true);
+        if (actionsCell) {
+            actionsCell.innerHTML = originalActionsHtml;
+        }
     });
 }
 
 function showToast(message, error = false) {
-
     const toast = document.createElement("div");
-
     toast.innerText = message;
-
     toast.style.position = "fixed";
     toast.style.top = "20px";
     toast.style.right = "20px";
@@ -309,24 +521,25 @@ function showToast(message, error = false) {
     toast.style.zIndex = "9999";
     toast.style.background = error ? "#ef4444" : "#22c55e";
     toast.style.boxShadow = "0 5px 15px rgba(0,0,0,0.15)";
+    toast.style.transition = "opacity 0.3s ease";
 
     document.body.appendChild(toast);
 
     setTimeout(() => {
-        toast.remove();
+        toast.style.opacity = "0";
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
     }, 2500);
 }
 
-
 function checkAutoRedirect() {
-
     const now = new Date();
     const hours = now.getHours();
     const minutes = now.getMinutes();
 
     // 9:30 AM to 9:40 AM CHECK-IN (ONLY ONCE)
     if (hours === 9 && minutes >= 30 && minutes <= 40) {
-
         if (!localStorage.getItem("auto_checkin_done")) {
             localStorage.setItem("auto_checkin_done", "1");
             window.location.href = "../api/checkin.php";
@@ -335,7 +548,6 @@ function checkAutoRedirect() {
 
     // 5:24 PM CHECK-OUT (ONLY ONCE)
     if (hours === 17 && minutes === 24) {
-
         if (!localStorage.getItem("auto_checkout_done")) {
             localStorage.setItem("auto_checkout_done", "1");
             window.location.href = "../api/checkout.php";

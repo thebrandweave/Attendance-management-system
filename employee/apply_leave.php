@@ -1,5 +1,7 @@
 <?php
 include("../config/db.php");
+require_once "../config/branch_helper.php";
+ensureLeaveRequestColumns($conn);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -80,14 +82,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
         exit();
     }
 
+    $groupId = 'grp_' . time() . '_' . $employee_id . '_' . bin2hex(random_bytes(3));
+
     $stmt = $conn->prepare("
-        INSERT INTO leave_requests (employee_id, date, type, reason, status)
-        VALUES (?, ?, ?, ?, 'pending')
+        INSERT INTO leave_requests (employee_id, date, type, reason, status, group_id)
+        VALUES (?, ?, ?, ?, 'pending', ?)
     ");
 
     $insertedCount = 0;
     foreach ($datesToInsert as $d) {
-        $stmt->bind_param("isss", $employee_id, $d, $type, $reason);
+        $stmt->bind_param("issss", $employee_id, $d, $type, $reason, $groupId);
         if ($stmt->execute()) {
             $insertedCount++;
         }

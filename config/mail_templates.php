@@ -111,8 +111,8 @@ HTML;
  */
 function getLeaveStatusEmailTemplate($data) {
     $empName     = htmlspecialchars($data['employee_name'] ?? 'Employee');
-    $empCode     = htmlspecialchars($data['employee_code'] ?? '-');
-    $leaveDate   = !empty($data['leave_date']) ? date('l, d F Y', strtotime($data['leave_date'])) : 'Requested Date';
+    $rawDateVal  = $data['leave_date'] ?? '';
+    $leaveDate   = !empty($rawDateVal) ? (strtotime($rawDateVal) ? date('l, d F Y', strtotime($rawDateVal)) : htmlspecialchars($rawDateVal)) : 'Requested Date';
     $leaveType   = htmlspecialchars($data['leave_type'] ?? 'Leave');
     $reason      = !empty($data['reason']) ? nl2br(htmlspecialchars($data['reason'])) : 'N/A';
     $statusRaw   = strtolower($data['status'] ?? 'pending');

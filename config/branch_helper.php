@@ -68,6 +68,27 @@ if (!function_exists('ensureEmployeeSettingsColumns')) {
     }
 }
 
+if (!function_exists('ensureLeaveRequestColumns')) {
+    function ensureLeaveRequestColumns($conn) {
+        static $leaveChecked = false;
+        if ($leaveChecked) return;
+
+        $tableCheck = $conn->query("SHOW TABLES LIKE 'leave_requests'");
+        if ($tableCheck && $tableCheck->num_rows > 0) {
+            $colCheck = $conn->query("SHOW COLUMNS FROM `leave_requests` LIKE 'group_id'");
+            if ($colCheck && $colCheck->num_rows == 0) {
+                @$conn->query("ALTER TABLE `leave_requests` ADD COLUMN `group_id` VARCHAR(64) NULL AFTER `employee_id`");
+            }
+            $colCheck2 = $conn->query("SHOW COLUMNS FROM `leave_requests` LIKE 'applied_at'");
+            if ($colCheck2 && $colCheck2->num_rows == 0) {
+                @$conn->query("ALTER TABLE `leave_requests` ADD COLUMN `applied_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `status`");
+            }
+        }
+
+        $leaveChecked = true;
+    }
+}
+
 if (!function_exists('formatShiftTimingDisplay')) {
     function formatShiftTimingDisplay($shiftStart, $shiftEnd) {
         $start = !empty($shiftStart) ? date('h:i A', strtotime($shiftStart)) : '09:30 AM';
