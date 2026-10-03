@@ -82,7 +82,7 @@ We’re pleased to share the upcoming company holiday schedule approved for <str
               Wishing you a Happy Holiday
               </p>
               <p style="font-size:14px; line-height:1.6; color:#4b5563; margin-bottom:0;">
-                Warm regards,<br>
+                Warm regards,
                 <!-- <strong>GD EDU TECH Management</strong> -->
                 {$companyName}
               </p>
