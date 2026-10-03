@@ -54,8 +54,7 @@ function getCompanyLeaveEmailTemplate($data) {
                 Dear Team Member,
               </p>
               <p style="font-size:15px; line-height:1.6; color:#374151; margin-bottom:24px;">
-                Please be advised of an upcoming company holiday schedule approved for <strong>{$branchName}</strong>:
-              </p>
+We’re pleased to share the upcoming company holiday schedule approved for <strong>{$branchName}</strong>:              </p>
 
               <!-- Holiday Highlight Card -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f8fafc; border-left:4px solid #3b82f6; border-radius:8px; padding:20px; margin-bottom:24px; border:1px solid #e2e8f0; border-left-width:4px;">
