@@ -126,7 +126,7 @@ function getLeaveStatusEmailTemplate($data) {
     $statusBorder= $isApproved ? '#a7f3d0' : '#fecaca';
 
     $actionMsg   = $isApproved
-        ? 'Your leave request has been <strong>approved</strong> by management. This day has been logged as <strong>Paid Leave (PL)</strong> on your attendance record.'
+        ? 'Your leave request has been <strong>approved</strong> by management.'
         : 'Your leave request was <strong>not approved</strong> at this time. If you require further clarification, please get in touch with your branch manager or HR.';
 
     return <<<HTML
