@@ -79,9 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             require_once __DIR__ . '/../config/mail_helper.php';
             $mailSummary = sendCompanyLeaveNotification($conn, $leaveDate, $title, $description, $branchId, $branchName);
             $sentCount = count($mailSummary['sent']);
-            if ($sentCount > 0) {
-                $message .= " 📧 Email notification sent to " . $sentCount . " employee(s).";
-            }
+            
         }
     }
 }
