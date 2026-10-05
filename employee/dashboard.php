@@ -109,6 +109,22 @@ $totalCLDays        = (float)($monthlySummary['total_cl'] ?? 0);
 $totalOvertimeDays  = (float)($monthlySummary['total_overtime'] ?? 0);
 $totalOTPendingDays = (float)($monthlySummary['total_overtime_pending'] ?? 0);
 
+// Cap Monthly CL at limit (default 2.0) and transfer excess to Absent
+$empMonthlyCLLimit = (isset($user['monthly_cl']) && $user['monthly_cl'] !== null)
+    ? (float)$user['monthly_cl']
+    : 2.0;
+
+if ($totalPLDays > $empMonthlyCLLimit) {
+    $excessPL = $totalPLDays - $empMonthlyCLLimit;
+    $totalAbsentDays += $excessPL;
+    $totalPLDays = $empMonthlyCLLimit;
+} else {
+    $remainingCL = $empMonthlyCLLimit - $totalPLDays;
+    $clCovered = min($remainingCL, $totalAbsentDays);
+    $totalPLDays += $clCovered;
+    $totalAbsentDays -= $clCovered;
+}
+
 /* =======================
    TODAY ATTENDANCE
 ======================= */

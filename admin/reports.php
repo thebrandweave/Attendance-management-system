@@ -794,54 +794,40 @@ $history = $conn->query("
     $empCheckInDays = getEmployeeCheckInDaysArray($emp['check_in_days'] ?? '', $branchName);
     $empWorkingDays = calculateEmployeeWorkingDaysInCycle($startDate, $endDate, $empCheckInDays, $companyLeaves);
 
-    // Remaining Monthly CL
-    $remainingCL = max(
-        0,
-        $monthlyCLLimit - $monthlyCLUsed
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | USE REMAINING MONTHLY CL AGAINST ANY LEAVE
-    |--------------------------------------------------------------------------
-    |
-    | Example:
-    |
-    | Monthly CL used = 1.5
-    | Remaining CL    = 0.5
-    | Full absent     = 1
-    |
-    | Result:
-    | Monthly CL      = 2
-    | Absent          = 0.5
-    |
-    */
-
-
-    // First calculate actual absent leave units
+    // First calculate actual absent leave units from attendance
     $absentUnits =
         $fullAbsent +
         ($halfDayAbsent * 0.5);
 
-
-    // Use whatever Monthly CL is still available
-    $clTakenFromLeave = min(
-        $remainingCL,
-        $absentUnits
-    );
-
-
-    // Add consumed balance to Monthly CL
-    $monthlyCLDisplay =
-        $monthlyCLUsed +
-        $clTakenFromLeave;
-
-
-    // Whatever is not covered by Monthly CL remains absent
-    $absentDisplay =
-        $absentUnits -
-        $clTakenFromLeave;
+    /*
+    |--------------------------------------------------------------------------
+    | MONTHLY CL & ABSENT ADJUSTMENT
+    |--------------------------------------------------------------------------
+    |
+    | Monthly CL cannot exceed the employee's monthly allowance ($monthlyCLLimit, default 2.0).
+    | - If Monthly CL used > limit: cap Monthly CL at limit, and any excess
+    |   leaves beyond the limit come under Absent.
+    | - If Monthly CL used <= limit: remaining allowance covers any absent days
+    |   up to the limit.
+    |
+    */
+    if ($monthlyCLUsed > $monthlyCLLimit) {
+        $excessCL = $monthlyCLUsed - $monthlyCLLimit;
+        $monthlyCLDisplay = $monthlyCLLimit;
+        $absentDisplay = $absentUnits + $excessCL;
+    } else {
+        $remainingCL = $monthlyCLLimit - $monthlyCLUsed;
+        $clTakenFromLeave = min(
+            $remainingCL,
+            $absentUnits
+        );
+        $monthlyCLDisplay =
+            $monthlyCLUsed +
+            $clTakenFromLeave;
+        $absentDisplay =
+            $absentUnits -
+            $clTakenFromLeave;
+    }
 
 
     /*

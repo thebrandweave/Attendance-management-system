@@ -50,11 +50,12 @@ if (!empty($ids) && !empty($status)) {
                 $userBranch = $lrRow['branch'] ?? 'gdedutech';
                 $attTable = getBranchTableNameOnly($conn, $userBranch);
 
+                $leaveStatus = (strcasecmp($lrRow['type'] ?? '', 'Half Day') === 0) ? 'Half Day PL' : 'PL';
                 $chk = $conn->query("SELECT id FROM `$attTable` WHERE user_id = $empId AND date = '$leaveDate'");
                 if ($chk && $chk->num_rows > 0) {
-                    $conn->query("UPDATE `$attTable` SET status = 'PL' WHERE user_id = $empId AND date = '$leaveDate'");
+                    $conn->query("UPDATE `$attTable` SET status = '$leaveStatus' WHERE user_id = $empId AND date = '$leaveDate'");
                 } else {
-                    $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ($empId, '$leaveDate', 'PL')");
+                    $conn->query("INSERT INTO `$attTable` (user_id, date, status) VALUES ($empId, '$leaveDate', '$leaveStatus')");
                 }
             }
         }
