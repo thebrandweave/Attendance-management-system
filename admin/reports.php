@@ -133,6 +133,17 @@ if ($isThirthahalliBranch) {
     );
 }
 
+// Full month's days count of current residing month (e.g. 30 for Sep, 31 for Oct)
+$currentMonthDaysCount = (int) date("t", strtotime($month . "-01"));
+
+// Determine if today is on or after one day before month/cycle end (or if month has ended)
+$todayDate = date('Y-m-d');
+$oneDayBeforeCycleEnd = date('Y-m-d', strtotime('-1 day', strtotime($endDate)));
+$calendarMonthEnd = date('Y-m-t', strtotime($month . '-01'));
+$oneDayBeforeCalendarEnd = date('Y-m-d', strtotime('-1 day', strtotime($calendarMonthEnd)));
+
+$isOneDayBeforeMonthEnd = ($todayDate >= $oneDayBeforeCycleEnd || $todayDate >= $oneDayBeforeCalendarEnd);
+
 
 
 /* =========================
@@ -773,6 +784,7 @@ $history = $conn->query("
               <?php while($emp = $employees->fetch_assoc()):
 
     $presentCount = (float)($emp['present_count'] ?? 0);
+    
 
     $fullAbsent = (float)($emp['absent_count'] ?? 0);
 
@@ -843,12 +855,21 @@ $history = $conn->query("
     |--------------------------------------------------------------------------
     | TOTAL ATTENDANCE
     |--------------------------------------------------------------------------
+    | One day before month end, add the 4 Sundays on to total attendance.
     */
 
-    $finalAttendance =
+    $rawAttendance =
         $presentCount +
         $monthlyCLDisplay +
         ($halfDayCount * 0.5);
+
+    // Add 4 Sundays if at or past one day before month end (for active employees with attendance)
+    $sundayCredit = ($isOneDayBeforeMonthEnd && ($rawAttendance > 0 || ($emp['cl_count'] ?? 0) > 0)) ? 4 : 0;
+
+    $finalAttendance = $rawAttendance + $sundayCredit;
+    if ($finalAttendance > $currentMonthDaysCount) {
+        $finalAttendance = (float)$currentMonthDaysCount;
+    }
 
 ?>
                 <tr>
@@ -879,8 +900,8 @@ $history = $conn->query("
 </td>
 
 <td style="font-weight:600;">
-    <?= $finalAttendance ?>
-    / <?= $empWorkingDays ?> Days
+    <?= $finalAttendance == floor($finalAttendance) ? number_format($finalAttendance, 0) : number_format($finalAttendance, 1) ?>
+    / <?= $currentMonthDaysCount ?> Days
     <small style="display:block; color:#6b7280; font-size:11px; font-weight:normal;"><?= htmlspecialchars(formatCheckInDaysDisplay($emp['check_in_days'] ?? '', $branchName)) ?></small>
 </td>
                 </tr>
