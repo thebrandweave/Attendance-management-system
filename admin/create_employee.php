@@ -1,6 +1,7 @@
 <?php 
 include("../config/db.php");
 require_once "../config/branch_helper.php";
+require_once "../config/mail_helper.php";
 
 if (session_status() === PHP_SESSION_NONE) {
   session_start();
@@ -17,6 +18,46 @@ if (!isset($_SESSION['form_token'])) {
   $_SESSION['form_token'] = bin2hex(random_bytes(16));
 }
 
+$adminBranchId = (int)($_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0);
+$adminBranch = trim($_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '');
+
+$bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
+$bStmt->bind_param("is", $adminBranchId, $adminBranch);
+$bStmt->execute();
+$bRes = $bStmt->get_result()->fetch_assoc();
+$branchName = $bRes ? $bRes['branch_name'] : ($adminBranch !== '' ? ucfirst($adminBranch) : 'Main');
+
+// Determine branch-specific default timings:
+// Thirthahalli: 10:00 AM to 08:00 PM (10 hrs)
+// Other branches: 09:30 AM to 05:30 PM (8 hrs)
+$isThirthahalli = (stripos($branchName, 'thirthahalli') !== false || stripos($adminBranch, 'thirthahalli') !== false || $adminBranchId === 6);
+
+if ($isThirthahalli) {
+  $defaultStartHour = '10';
+  $defaultStartMin = '00';
+  $defaultStartPeriod = 'AM';
+  $defaultShiftStart = '10:00:00';
+
+  $defaultEndHour = '08';
+  $defaultEndMin = '00';
+  $defaultEndPeriod = 'PM';
+  $defaultShiftEnd = '20:00:00';
+
+  $defaultWorkingHours = 10.00;
+} else {
+  $defaultStartHour = '09';
+  $defaultStartMin = '30';
+  $defaultStartPeriod = 'AM';
+  $defaultShiftStart = '09:30:00';
+
+  $defaultEndHour = '05';
+  $defaultEndMin = '30';
+  $defaultEndPeriod = 'PM';
+  $defaultShiftEnd = '17:30:00';
+
+  $defaultWorkingHours = 8.00;
+}
+
 if (isset($_POST['create'])) {
 
   if (
@@ -26,20 +67,14 @@ if (isset($_POST['create'])) {
     die("Invalid request ❌");
   }
 
-  $name = $_POST['name'];
-  $branch_id = $_SESSION['user']['branch_id'] ?? $_SESSION['branch_id'] ?? 0;
-  $branch = $_SESSION['user']['branch'] ?? $_SESSION['branch'] ?? '';
+  $name = trim($_POST['name'] ?? '');
+  $email = !empty($_POST['email']) ? trim($_POST['email']) : null;
+  $branch_id = $adminBranchId;
+  $branch = !empty($branchName) ? $branchName : $adminBranch;
 
-  $bStmt = $conn->prepare("SELECT branch_name FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?)");
-  $bStmt->bind_param("is", $branch_id, $branch);
-  $bStmt->execute();
-  $bRes = $bStmt->get_result()->fetch_assoc();
-  $branchName = $bRes ? $bRes['branch_name'] : ucfirst($branch);
-
-
-  $shift_start = !empty($_POST['shift_start']) ? date("H:i:s", strtotime($_POST['shift_start'])) : '09:30:00';
-  $shift_end = !empty($_POST['shift_end']) ? date("H:i:s", strtotime($_POST['shift_end'])) : '20:00:00';
-  $working_hours = isset($_POST['working_hours']) && $_POST['working_hours'] !== '' ? max(0, min(24, (float)$_POST['working_hours'])) : 10.50;
+  $shift_start = !empty($_POST['shift_start']) ? date("H:i:s", strtotime($_POST['shift_start'])) : $defaultShiftStart;
+  $shift_end = !empty($_POST['shift_end']) ? date("H:i:s", strtotime($_POST['shift_end'])) : $defaultShiftEnd;
+  $working_hours = isset($_POST['working_hours']) && $_POST['working_hours'] !== '' ? max(0, min(24, (float)$_POST['working_hours'])) : $defaultWorkingHours;
   $monthly_cl = isset($_POST['monthly_cl']) && $_POST['monthly_cl'] !== '' ? max(0, min(31, (float)$_POST['monthly_cl'])) : 2.00;
   $check_in_days = !empty($_POST['check_in_days']) ? (is_array($_POST['check_in_days']) ? implode(',', $_POST['check_in_days']) : trim($_POST['check_in_days'])) : 'Mon,Tue,Wed,Thu,Fri,Sat';
 
@@ -49,19 +84,45 @@ if (isset($_POST['create'])) {
   $token = bin2hex(random_bytes(32));
 
   $stmt = $conn->prepare("
-    INSERT INTO users (name, employee_id, password, role, qr_token, branch, branch_id, shift_start, shift_end, working_hours, monthly_cl, check_in_days)
-    VALUES (?, ?, ?, 'employee', ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (name, email, employee_id, password, role, qr_token, branch, branch_id, shift_start, shift_end, working_hours, monthly_cl, check_in_days)
+    VALUES (?, ?, ?, ?, 'employee', ?, ?, ?, ?, ?, ?, ?, ?)
   ");
 
-  $stmt->bind_param("sssssissdds", $name, $empId, $hashedPassword, $token, $branch, $branch_id, $shift_start, $shift_end, $working_hours, $monthly_cl, $check_in_days);
+  $stmt->bind_param("ssssssissdds", $name, $email, $empId, $hashedPassword, $token, $branch, $branch_id, $shift_start, $shift_end, $working_hours, $monthly_cl, $check_in_days);
   $stmt->execute();
 
-$_SESSION['success'] = [
-  "name" => $name,
-  "id" => $empId,
-  "pass" => $plainPassword,
-  "qr" => $token
-];
+  // Send credentials, schedule & QR code to employee email
+  $mailStatus = null;
+  if (!empty($email)) {
+    try {
+      $mailStatus = sendNewEmployeeWelcomeEmail([
+        'name'          => $name,
+        'email'         => $email,
+        'employee_id'   => $empId,
+        'password'      => $plainPassword,
+        'branch'        => $branch,
+        'branch_name'   => $branchName,
+        'shift_start'   => $shift_start,
+        'shift_end'     => $shift_end,
+        'working_hours' => $working_hours,
+        'monthly_cl'    => $monthly_cl,
+        'check_in_days' => $check_in_days,
+        'qr_token'      => $token
+      ]);
+    } catch (\Throwable $e) {
+      $mailStatus = ['success' => false, 'error' => $e->getMessage()];
+    }
+  }
+
+  $_SESSION['success'] = [
+    "name"       => $name,
+    "email"      => $email,
+    "id"         => $empId,
+    "pass"       => $plainPassword,
+    "qr"         => $token,
+    "mail_sent"  => ($mailStatus && !empty($mailStatus['success'])),
+    "mail_error" => ($mailStatus && empty($mailStatus['success'])) ? ($mailStatus['error'] ?? 'Could not deliver email') : null
+  ];
 
   $_SESSION['form_token'] = bin2hex(random_bytes(32));
 
@@ -104,7 +165,8 @@ $_SESSION['success'] = [
 
 /* ===== CARD ===== */
 .card {
-  width: 100vh;
+  width: 100%;
+  max-width: 100vh;
   background: white;
   padding: 30px;
   border-radius: 16px;
@@ -335,48 +397,59 @@ async function downloadQR() {
           >
         </div>
 
+        <div style="text-align:left; margin-top:12px;">
+          <label style="font-size:12px; font-weight:600; color:#374151;">Email Address</label>
+          <input 
+            type="email"
+            name="email" 
+            placeholder="Enter Employee Email" 
+            required
+            style="margin-top:5px;"
+          >
+        </div>
+
         <div style="display:flex; gap:12px; margin-top:12px; text-align:left;">
           <div style="flex:1;">
             <label style="font-size:12px; font-weight:600; color:#374151;">Shift Start Time (12-hr)</label>
             <div style="display:flex; align-items:center; background:#f9fafb; border:1px solid #d1d5db; border-radius:8px; padding:2px 8px; margin-top:5px; height:42px;">
               <select id="createStartHour" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
                 <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
-                  <option value="<?= $hStr ?>" <?= $hStr === '09' ? 'selected' : '' ?>><?= $hStr ?></option>
+                  <option value="<?= $hStr ?>" <?= $hStr === $defaultStartHour ? 'selected' : '' ?>><?= $hStr ?></option>
                 <?php endfor; ?>
               </select>
               <span style="font-weight:700; color:#9ca3af; margin:0 2px;">:</span>
               <select id="createStartMin" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
                 <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
-                  <option value="<?= $mStr ?>" <?= $mStr === '30' ? 'selected' : '' ?>><?= $mStr ?></option>
+                  <option value="<?= $mStr ?>" <?= $mStr === $defaultStartMin ? 'selected' : '' ?>><?= $mStr ?></option>
                 <?php endfor; ?>
               </select>
               <select id="createStartPeriod" onchange="syncCreateTimes()" style="border:none; background:#eff6ff; color:#1d4ed8; font-weight:700; font-size:13px; border-radius:6px; padding:3px 6px; margin-left:auto; outline:none; cursor:pointer;">
-                <option value="AM" selected>AM</option>
-                <option value="PM">PM</option>
+                <option value="AM" <?= $defaultStartPeriod === 'AM' ? 'selected' : '' ?>>AM</option>
+                <option value="PM" <?= $defaultStartPeriod === 'PM' ? 'selected' : '' ?>>PM</option>
               </select>
             </div>
-            <input type="hidden" name="shift_start" id="createShiftStart" value="09:30:00">
+            <input type="hidden" name="shift_start" id="createShiftStart" value="<?= htmlspecialchars($defaultShiftStart) ?>">
           </div>
           <div style="flex:1;">
             <label style="font-size:12px; font-weight:600; color:#374151;">Shift End Time (12-hr)</label>
             <div style="display:flex; align-items:center; background:#f9fafb; border:1px solid #d1d5db; border-radius:8px; padding:2px 8px; margin-top:5px; height:42px;">
               <select id="createEndHour" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
                 <?php for ($h = 1; $h <= 12; $h++): $hStr = str_pad($h, 2, '0', STR_PAD_LEFT); ?>
-                  <option value="<?= $hStr ?>" <?= $hStr === '08' ? 'selected' : '' ?>><?= $hStr ?></option>
+                  <option value="<?= $hStr ?>" <?= $hStr === $defaultEndHour ? 'selected' : '' ?>><?= $hStr ?></option>
                 <?php endfor; ?>
               </select>
               <span style="font-weight:700; color:#9ca3af; margin:0 2px;">:</span>
               <select id="createEndMin" onchange="syncCreateTimes()" style="border:none; background:transparent; font-weight:600; font-size:14px; outline:none; cursor:pointer;">
                 <?php for ($m = 0; $m < 60; $m++): $mStr = str_pad($m, 2, '0', STR_PAD_LEFT); ?>
-                  <option value="<?= $mStr ?>" <?= $mStr === '00' ? 'selected' : '' ?>><?= $mStr ?></option>
+                  <option value="<?= $mStr ?>" <?= $mStr === $defaultEndMin ? 'selected' : '' ?>><?= $mStr ?></option>
                 <?php endfor; ?>
               </select>
               <select id="createEndPeriod" onchange="syncCreateTimes()" style="border:none; background:#eff6ff; color:#1d4ed8; font-weight:700; font-size:13px; border-radius:6px; padding:3px 6px; margin-left:auto; outline:none; cursor:pointer;">
-                <option value="AM">AM</option>
-                <option value="PM" selected>PM</option>
+                <option value="AM" <?= $defaultEndPeriod === 'AM' ? 'selected' : '' ?>>AM</option>
+                <option value="PM" <?= $defaultEndPeriod === 'PM' ? 'selected' : '' ?>>PM</option>
               </select>
             </div>
-            <input type="hidden" name="shift_end" id="createShiftEnd" value="20:00:00">
+            <input type="hidden" name="shift_end" id="createShiftEnd" value="<?= htmlspecialchars($defaultShiftEnd) ?>">
           </div>
         </div>
 
@@ -389,8 +462,8 @@ async function downloadQR() {
             max="24" 
             name="working_hours" 
             id="createWorkingHours"
-            value="10.5" 
-            placeholder="e.g. 10.5" 
+            value="<?= htmlspecialchars($defaultWorkingHours) ?>" 
+            placeholder="e.g. <?= htmlspecialchars($defaultWorkingHours) ?>" 
             required
             style="margin-top:5px;"
           >
@@ -450,9 +523,22 @@ async function downloadQR() {
           Employee Created Successfully ✅
         </div>
 
-     <div class="info">
-  <b>Password:</b> <?= $_SESSION['success']['pass'] ?>
-</div>
+        <?php if (!empty($_SESSION['success']['mail_sent'])): ?>
+         
+        <?php elseif (!empty($_SESSION['success']['mail_error'])): ?>
+          <div style="background:#fffbeb; color:#92400e; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; margin-top:12px; font-size:12.5px; text-align:left; display:flex; align-items:center; gap:8px;">
+            <i class="bi bi-exclamation-triangle-fill" style="font-size:16px; color:#f59e0b; flex-shrink:0;"></i>
+            <div>Account created, but email delivery issue: <?= htmlspecialchars($_SESSION['success']['mail_error']) ?></div>
+          </div>
+        <?php endif; ?>
+
+     <div class="info" style="line-height:1.6; margin-top:12px;">
+       <div><b>Employee ID:</b> <?= htmlspecialchars($_SESSION['success']['id']) ?></div>
+       <?php if (!empty($_SESSION['success']['email'])): ?>
+         <div><b>Email:</b> <?= htmlspecialchars($_SESSION['success']['email']) ?></div>
+       <?php endif; ?>
+       <div><b>Password:</b> <?= htmlspecialchars($_SESSION['success']['pass']) ?></div>
+     </div>
 <!-- QR CODE -->
 <div style="margin-top:15px; text-align:center;">
 

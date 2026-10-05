@@ -409,9 +409,9 @@ $bEndParts = parseTimeTo12Hr($branchStdEnd, '08', '00', 'PM');
       cursor: pointer;
     }
     .sidebar-nav {
-      display: flex;
+      /* display: flex; */
       flex-direction: column;
-      gap: 4px;
+      
       flex: 1;
     }
     .sidebar-overlay {

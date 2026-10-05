@@ -237,8 +237,9 @@ $employees = $stmt->get_result();
       <a href="add_leave.php">📅 Company Leaves</a>
       <a href="reports.php">📊 Reports</a>
       <a href="employee_settings.php">⚙️ Employee Settings</a>
+      <a href="../auth/logout.php" class="logout">🚪 Logout</a>
     </div>
-    <a href="../auth/logout.php" class="logout">🚪 Logout</a>
+    
   </div>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>

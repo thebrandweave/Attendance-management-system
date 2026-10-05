@@ -82,9 +82,9 @@ We’re pleased to share the upcoming company holiday schedule approved for <str
               Wishing you a Happy Holiday
               </p>
               <p style="font-size:14px; line-height:1.6; color:#4b5563; margin-bottom:0;">
-                Warm regards,
-                <!-- <strong>GD EDU TECH Management</strong> -->
-                {$companyName}
+                Warm regards,<br>
+                <strong>{$companyName}</strong>
+                
               </p>
             </td>
           </tr>
@@ -218,6 +218,164 @@ function getLeaveStatusEmailTemplate($data) {
           <tr>
             <td style="background-color:#f9fafb; padding:20px 30px; text-align:center; border-top:1px solid #f3f4f6; font-size:12px; color:#9ca3af; line-height:1.5;">
               This is an automated notification from the {$companyName} Employee Attendance System.<br>
+              &copy; {$year} {$companyName}. All rights reserved.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+HTML;
+}
+
+/**
+ * Generate Welcome Email HTML for Newly Created Employee
+ * Includes: Name, ID, Password, Shift Time, Working Hours, Monthly CL, Work Days, and Check-in QR Code
+ */
+function getNewEmployeeWelcomeEmailTemplate($data) {
+    $empName      = htmlspecialchars($data['name'] ?? 'Team Member');
+    $empId        = htmlspecialchars($data['employee_id'] ?? '');
+    $password     = htmlspecialchars($data['password'] ?? '');
+    $branchName   = htmlspecialchars($data['branch_name'] ?? 'Office Branch');
+    $shiftTime    = htmlspecialchars($data['shift_time'] ?? '09:30 AM – 05:30 PM');
+    $workingHours = htmlspecialchars($data['working_hours'] ?? '8.0');
+    $monthlyCL    = htmlspecialchars($data['monthly_cl'] ?? '2.0');
+    $checkInDays  = htmlspecialchars($data['check_in_days'] ?? 'Mon - Sat');
+    $qrCidOrUrl   = htmlspecialchars($data['qr_cid'] ?? $data['qr_image_url'] ?? '');
+    $qrCheckinLink= htmlspecialchars($data['qr_checkin_link'] ?? '#');
+    $companyName  = htmlspecialchars($data['company_name'] ?? 'The Brand Weave');
+    $portalUrl    = "https://thebrandweave.com/attendance/index.php";
+    $year         = date('Y');
+
+    return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to {$companyName} - Your Account & Attendance QR</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f1f5f9; font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#334155; -webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9; padding:35px 12px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.06); border:1px solid #e2e8f0;">
+          
+        
+
+          <!-- Welcome Sub-banner -->
+          <tr>
+            <td style="background-color:#eff6ff; padding:15px 32px; border-bottom:1px solid #dbeafe; text-align:center;">
+              <span style="display:inline-block; font-size:14px; font-weight:700; color:#1d4ed8; text-transform:uppercase; letter-spacing:0.6px;">
+                🎉 Welcome to the Team, {$empName}!
+              </span>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding:32px 30px;">
+              <p style="font-size:15px; line-height:1.6; color:#334155; margin-top:0; margin-bottom:16px;">
+                Dear <strong>{$empName}</strong>,
+              </p>
+              <p style="font-size:14.5px; line-height:1.6; color:#475569; margin-bottom:22px;">
+                Your employee account has been created successfully for the <strong>{$branchName}</strong> branch. Below are your official login credentials, work schedule details, and attendance QR code.
+              </p>
+
+              <!-- Credentials Box -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:10px; margin-bottom:24px; overflow:hidden;">
+                <tr>
+                  <td colspan="2" style="background:#f1f5f9; padding:10px 18px; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.5px;">
+                    🔑 Account Credentials & Profile
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; width:40%; font-size:13px; font-weight:600; color:#64748b;">Employee Name</td>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13.5px; font-weight:700; color:#0f172a;">{$empName}</td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#64748b;">Employee ID</td>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13.5px; font-weight:700; color:#2563eb; font-family:monospace;">{$empId}</td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#64748b;">Password</td>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13.5px; font-weight:700; color:#0f172a; font-family:monospace; background:#fef9c3;">{$password}</td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#64748b;">Assigned Branch</td>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#0f172a;">{$branchName}</td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#64748b;">Shift Timing</td>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#0f172a;">{$shiftTime}</td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#64748b;">Daily Working Hours</td>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#0f172a;">{$workingHours} Hours/Day</td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#64748b;">Monthly Casual Leave (CL)</td>
+                  <td style="padding:11px 18px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#0f172a;">{$monthlyCL} Days/Month</td>
+                </tr>
+                <tr>
+                  <td style="padding:11px 18px; font-size:13px; font-weight:600; color:#64748b;">Working Days</td>
+                  <td style="padding:11px 18px; font-size:13px; font-weight:600; color:#0f172a;">{$checkInDays}</td>
+                </tr>
+              </table>
+
+              <!-- QR Code Spotlight Card -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#ffffff; border:2px dashed #cbd5e1; border-radius:12px; padding:24px 20px; margin-bottom:24px; text-align:center;">
+                <tr>
+                  <td align="center">
+                 
+                    <div style="font-size:12.5px; color:#64748b; margin-bottom:16px;">
+                      Use this QR code daily for Morning Check-in, Lunch Break, and Evening Check-out
+                    </div>
+
+                    <div style="background:#ffffff; padding:12px; display:inline-block; border-radius:12px; border:1px solid #e2e8f0; box-shadow:0 4px 12px rgba(0,0,0,0.06); margin-bottom:14px;">
+                      <img src="{$qrCidOrUrl}" alt="Check-in QR Code" width="200" height="200" style="display:block; width:200px; height:200px; margin:0 auto; border-radius:6px;">
+                    </div>
+
+                    <div style="font-size:13px; font-weight:700; color:#1e293b;">{$empName}</div>
+                    <div style="font-size:12px; color:#64748b; margin-top:2px; font-family:monospace;">ID: {$empId}</div>
+
+               
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Action Button to Portal -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:24px; text-align:center;">
+                <tr>
+                  <td align="center">
+                    <a href="{$portalUrl}" target="_blank" style="display:inline-block; background:#0f172a; color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; padding:12px 28px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                      🚀 Login to Employee Dashboard
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security Reminder Notice -->
+              <div style="background-color:#fffbeb; border-left:4px solid #f59e0b; padding:12px 16px; border-radius:6px; margin-bottom:20px; font-size:13px; line-height:1.5; color:#92400e;">
+                <strong>Security Reminder:</strong> Please keep your login credentials and QR code confidential. You can also view or download your QR code anytime from the top banner of your employee dashboard.
+              </div>
+
+              <p style="font-size:14px; line-height:1.6; color:#475569; margin-bottom:0;">
+                Warm regards,<br>
+                <strong>{$companyName}</strong>
+                
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f8fafc; padding:20px 30px; text-align:center; border-top:1px solid #e2e8f0; font-size:12px; color:#94a3b8; line-height:1.5;">
+              This is an automated system email sent to {$empName}. Please do not reply directly to this email.<br>
               &copy; {$year} {$companyName}. All rights reserved.
             </td>
           </tr>

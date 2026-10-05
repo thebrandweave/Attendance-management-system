@@ -33,14 +33,35 @@ function getMailConfig($branch = '') {
 
     if (!empty($branch)) {
         $cleanBranch = strtolower(trim($branch));
+        $matchedBranch = null;
+
         if (isset($allConfig['branches'][$cleanBranch])) {
-            return array_merge($default, $allConfig['branches'][$cleanBranch]);
+            $matchedBranch = $allConfig['branches'][$cleanBranch];
+        } elseif (strpos($cleanBranch, 'mangalore') !== false || strpos($cleanBranch, 'gdedu') !== false) {
+            $matchedBranch = $allConfig['branches']['gdedutech'] ?? null;
+        } elseif (strpos($cleanBranch, 'thirthahalli') !== false) {
+            $matchedBranch = $allConfig['branches']['thirthahalli'] ?? null;
+        } elseif (strpos($cleanBranch, 'mudipu') !== false) {
+            $matchedBranch = $allConfig['branches']['mudipu'] ?? null;
         }
-        // Alias check: "mangalore" maps to "gdedutech"
-        if (strpos($cleanBranch, 'mangalore') !== false || strpos($cleanBranch, 'gdedu') !== false) {
-            if (isset($allConfig['branches']['gdedutech'])) {
-                return array_merge($default, $allConfig['branches']['gdedutech']);
+
+        if ($matchedBranch) {
+            $branchCfg = array_merge($default, $matchedBranch);
+            // If branch has its own active SMTP, return it
+            if (!empty($branchCfg['smtp_enabled']) && !empty($branchCfg['smtp_pass'])) {
+                return $branchCfg;
             }
+            // If branch does not have active SMTP credentials, inherit active transport from gdedutech
+            if (!empty($allConfig['branches']['gdedutech']['smtp_enabled']) && !empty($allConfig['branches']['gdedutech']['smtp_pass'])) {
+                $activeSmtp = $allConfig['branches']['gdedutech'];
+                $branchCfg['smtp_enabled'] = true;
+                $branchCfg['smtp_host']    = $activeSmtp['smtp_host'];
+                $branchCfg['smtp_port']    = $activeSmtp['smtp_port'];
+                $branchCfg['smtp_secure']  = $activeSmtp['smtp_secure'];
+                $branchCfg['smtp_user']    = $activeSmtp['smtp_user'];
+                $branchCfg['smtp_pass']    = $activeSmtp['smtp_pass'];
+            }
+            return $branchCfg;
         }
     }
 
@@ -122,7 +143,7 @@ function resolveEmployeeEmail($conn, $userId, $employeeCode = '') {
 /**
  * Core Send Email Function using PHPMailer (Branch-Specific SMTP or mail() fallback)
  */
-function sendAppEmail($toEmail, $toName, $subject, $htmlBody, $altBody = '', $branch = 'gdedutech') {
+function sendAppEmail($toEmail, $toName, $subject, $htmlBody, $altBody = '', $branch = 'gdedutech', $attachments = []) {
     $toEmail = trim($toEmail);
     if (empty($toEmail) || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
         logEmailActivity('FAILED', $toEmail ?: 'EMPTY', $subject, 'Invalid or empty email address', $branch);
@@ -179,6 +200,23 @@ function sendAppEmail($toEmail, $toName, $subject, $htmlBody, $altBody = '', $br
         $mail->Subject = $subject;
         $mail->Body    = $htmlBody;
         $mail->AltBody = !empty($altBody) ? $altBody : strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $htmlBody));
+
+        // Attachments & Inline Embedded Images
+        if (!empty($attachments) && is_array($attachments)) {
+            foreach ($attachments as $att) {
+                if (!empty($att['data'])) {
+                    $attName = $att['name'] ?? 'attachment.png';
+                    $attType = $att['type'] ?? 'application/octet-stream';
+                    if (!empty($att['cid'])) {
+                        $mail->addStringEmbeddedImage($att['data'], $att['cid'], $attName, 'base64', $attType);
+                    }
+                    $mail->addStringAttachment($att['data'], $attName, 'base64', $attType);
+                } elseif (!empty($att['path']) && file_exists($att['path'])) {
+                    $attName = $att['name'] ?? basename($att['path']);
+                    $mail->addAttachment($att['path'], $attName);
+                }
+            }
+        }
 
         $mail->send();
         logEmailActivity('SUCCESS', $toEmail, $subject, $smtpEnabled ? 'Sent via SMTP (' . $config['from_email'] . ')' : 'Sent via PHP mail()', $branch);
@@ -363,5 +401,77 @@ function sendCompanyLeaveNotification($conn, $leaveDate, $title, $description, $
         'skipped' => $skipped,
         'failed'  => $failed
     ];
+}
+
+/**
+ * Send Welcome Email to newly created employee with credentials and Check-in QR code
+ */
+function sendNewEmployeeWelcomeEmail($employeeData) {
+    $email = trim($employeeData['email'] ?? '');
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return ['success' => false, 'error' => 'No valid email address provided'];
+    }
+
+    $name         = trim($employeeData['name'] ?? 'Employee');
+    $empId        = trim($employeeData['employee_id'] ?? '');
+    $password     = $employeeData['password'] ?? '';
+    $branch       = trim($employeeData['branch'] ?? 'gdedutech');
+    $branchName   = trim($employeeData['branch_name'] ?? ucfirst($branch));
+    $shiftStart   = $employeeData['shift_start'] ?? '09:30:00';
+    $shiftEnd     = $employeeData['shift_end'] ?? '17:30:00';
+    $workingHours = $employeeData['working_hours'] ?? 8.0;
+    $monthlyCL    = $employeeData['monthly_cl'] ?? 2.0;
+    $checkInDays  = $employeeData['check_in_days'] ?? 'Mon,Tue,Wed,Thu,Fri,Sat';
+    $qrToken      = $employeeData['qr_token'] ?? '';
+
+    // Format human-readable shift times (e.g. "10:00 AM – 08:00 PM")
+    $shiftTimeFormatted = date("h:i A", strtotime($shiftStart)) . " – " . date("h:i A", strtotime($shiftEnd));
+
+    // Generate Check-in QR Link & QuickChart URL
+    $qrCheckinLink = "https://thebrandweave.com/attendance/api/checkin.php?token=" . urlencode($qrToken);
+    $qrImageUrl    = "https://quickchart.io/qr?size=260&text=" . urlencode($qrCheckinLink);
+
+    // Fetch QR PNG bytes for email attachment & inline CID
+    $ctx = stream_context_create([
+        'http' => ['timeout' => 6],
+        'ssl'  => ['verify_peer' => false, 'verify_peer_name' => false]
+    ]);
+    $qrBytes = @file_get_contents($qrImageUrl, false, $ctx);
+
+    $attachments = [];
+    $cidQr = 'employee_qr';
+    $useCid = false;
+
+    if ($qrBytes && strlen($qrBytes) > 100) {
+        $filename = (!empty($empId) ? $empId : 'Employee') . '_CheckIn_QR.png';
+        $attachments[] = [
+            'data' => $qrBytes,
+            'name' => $filename,
+            'cid'  => $cidQr,
+            'type' => 'image/png'
+        ];
+        $useCid = true;
+    }
+
+    $templateData = [
+        'name'                => $name,
+        'employee_id'         => $empId,
+        'password'            => $password,
+        'branch'              => $branch,
+        'branch_name'         => $branchName,
+        'shift_time'          => $shiftTimeFormatted,
+        'working_hours'       => $workingHours,
+        'monthly_cl'          => $monthlyCL,
+        'check_in_days'       => $checkInDays,
+        'qr_checkin_link'     => $qrCheckinLink,
+        'qr_image_url'        => $qrImageUrl,
+        'qr_cid'              => $useCid ? 'cid:' . $cidQr : $qrImageUrl,
+        'company_name'        => !empty($branchName) ? $branchName : 'The Brand Weave'
+    ];
+
+    $subject = "Welcome to " . $templateData['company_name'] . " - Account Details & Attendance QR Code";
+    $htmlBody = getNewEmployeeWelcomeEmailTemplate($templateData);
+
+    return sendAppEmail($email, $name, $subject, $htmlBody, '', $branch, $attachments);
 }
 
