@@ -53,7 +53,8 @@ if (!function_exists('ensureEmployeeSettingsColumns')) {
                 'check_in_days' => "VARCHAR(100) NOT NULL DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat'",
                 'working_days_per_month' => "INT(11) DEFAULT 26",
                 'shift_start' => "TIME NOT NULL DEFAULT '09:30:00'",
-                'shift_end' => "TIME NOT NULL DEFAULT '20:00:00'"
+                'shift_end' => "TIME NOT NULL DEFAULT '20:00:00'",
+                'qr_code_image' => "VARCHAR(255) NULL DEFAULT NULL"
             ];
 
             foreach ($columnsNeeded as $col => $definition) {

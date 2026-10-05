@@ -26,6 +26,127 @@ if ($freshUser) {
 }
 $uStmt->close();
 
+/* =======================
+   QR CODE SETUP & UPLOAD HANDLER
+======================= */
+// Ensure employee has a valid qr_token in DB
+if (empty($user['qr_token'])) {
+    $newToken = bin2hex(random_bytes(32));
+    $conn->query("UPDATE users SET qr_token = '$newToken' WHERE id = $userId");
+    $user['qr_token'] = $newToken;
+    $_SESSION['user']['qr_token'] = $newToken;
+}
+
+// Handle QR Code Upload (AJAX or form POST)
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (isset($_POST['upload_qr_action']) || isset($_FILES['qr_image_file']))) {
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+    if (!isset($_FILES['qr_image_file']) || $_FILES['qr_image_file']['error'] !== UPLOAD_ERR_OK) {
+        $errMsg = "Please select a valid image file to upload.";
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $errMsg]);
+            exit();
+        }
+        $_SESSION['flash_error'] = $errMsg;
+        header("Location: dashboard.php");
+        exit();
+    }
+
+    $file = $_FILES['qr_image_file'];
+    $allowedExts = ['png', 'jpg', 'jpeg', 'webp', 'svg'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+    if (!in_array($ext, $allowedExts)) {
+        $errMsg = "Invalid file type. Allowed formats: PNG, JPG, JPEG, WEBP, SVG.";
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $errMsg]);
+            exit();
+        }
+        $_SESSION['flash_error'] = $errMsg;
+        header("Location: dashboard.php");
+        exit();
+    }
+
+    if ($file['size'] > 5 * 1024 * 1024) {
+        $errMsg = "File is too large. Maximum size is 5MB.";
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $errMsg]);
+            exit();
+        }
+        $_SESSION['flash_error'] = $errMsg;
+        header("Location: dashboard.php");
+        exit();
+    }
+
+    $targetDir = __DIR__ . '/../uploads/qr_codes/';
+    if (!is_dir($targetDir)) {
+        mkdir($targetDir, 0777, true);
+    }
+
+    $cleanEmpCode = preg_replace('/[^a-zA-Z0-9_-]/', '', $user['employee_id'] ?? ('user_' . $userId));
+    $fileName = $cleanEmpCode . '_qr_' . time() . '.' . $ext;
+    $targetPath = $targetDir . $fileName;
+    $dbRelativePath = 'uploads/qr_codes/' . $fileName;
+
+    if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+        // Remove old custom file if it exists
+        if (!empty($user['qr_code_image'])) {
+            $oldFilePath = __DIR__ . '/../' . ltrim($user['qr_code_image'], '/');
+            if (file_exists($oldFilePath) && is_file($oldFilePath)) {
+                @unlink($oldFilePath);
+            }
+        }
+
+        $upStmt = $conn->prepare("UPDATE users SET qr_code_image = ? WHERE id = ?");
+        $upStmt->bind_param("si", $dbRelativePath, $userId);
+        $upStmt->execute();
+        $upStmt->close();
+
+        $user['qr_code_image'] = $dbRelativePath;
+        $_SESSION['user']['qr_code_image'] = $dbRelativePath;
+
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'QR Code uploaded successfully! ✅',
+                'qr_url' => '../' . $dbRelativePath
+            ]);
+            exit();
+        }
+        $_SESSION['flash_success'] = "QR Code uploaded successfully! ✅";
+        header("Location: dashboard.php");
+        exit();
+    } else {
+        $errMsg = "Failed to save uploaded file. Please check server permissions.";
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $errMsg]);
+            exit();
+        }
+        $_SESSION['flash_error'] = $errMsg;
+        header("Location: dashboard.php");
+        exit();
+    }
+}
+
+// Compute QR image source
+$qrCheckinLink = "https://thebrandweave.com/attendance/api/checkin.php?token=" . urlencode($user['qr_token'] ?? '');
+$customQrPath = !empty($user['qr_code_image']) ? $user['qr_code_image'] : null;
+$hasCustomQr = false;
+$qrDisplaySrc = "";
+
+if ($customQrPath && file_exists(__DIR__ . '/../' . ltrim($customQrPath, '/'))) {
+    $qrDisplaySrc = '../' . ltrim($customQrPath, '/');
+    $hasCustomQr = true;
+} else {
+    // Standard Auto-generated Check-in QR for future new employees & existing ones
+    $qrDisplaySrc = "https://quickchart.io/qr?size=220&text=" . urlencode($qrCheckinLink);
+}
+
 $userBranch = $user['branch'] ?? 'gdedutech';
 $attTable = getBranchTableNameOnly($conn, $userBranch);
 $today = date("Y-m-d");
@@ -420,21 +541,52 @@ $companyLeaves = $conn->query("
       min-width: 0;
     }
 
-    .welcome-header {
+    /* =========================
+       WELCOME BANNER WITH QR CODE
+    ========================= */
+    .welcome-banner-card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px 28px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+      border: 1px solid #eef2f6;
       margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
     }
 
-    .welcome-header h1 {
+    .welcome-banner-main {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .welcome-role-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #eff6ff;
+      color: #3b82f6;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+    }
+
+    .welcome-banner-main h1 {
       margin-bottom: 6px;
       color: #111827;
-      font-size: 26px;
+      font-size: 22px;
       font-weight: 700;
       letter-spacing: -0.3px;
     }
 
     .emp-id-text {
       color: #64748b;
-      font-size: 14px;
+      font-size: 13.5px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -448,6 +600,260 @@ $companyLeaves = $conn->query("
       border-radius: 6px;
       font-size: 12.5px;
       font-weight: 600;
+    }
+
+    /* QR CARD WIDGET */
+    .welcome-qr-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 18px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      flex-shrink: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      transition: all 0.25s ease;
+    }
+
+    .qr-image-frame {
+      width: 95px;
+      height: 95px;
+      flex-shrink: 0;
+      background: white;
+      border-radius: 10px;
+      padding: 6px;
+      border: 1px solid #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .qr-image-frame:hover {
+      transform: scale(1.03);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+    }
+
+    .qr-image-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      border-radius: 6px;
+    }
+
+    .qr-hover-zoom {
+      position: absolute;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.45);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      border-radius: 6px;
+    }
+
+    .qr-image-frame:hover .qr-hover-zoom {
+      opacity: 1;
+    }
+
+    .qr-info-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .qr-meta-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .qr-meta-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .qr-type-badge {
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-auto {
+      background: #e0e7ff;
+      color: #4338ca;
+    }
+
+    .badge-custom {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .qr-meta-desc {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0;
+    }
+
+    .qr-btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .btn-qr-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      font-family: inherit;
+      text-decoration: none;
+      line-height: 1.2;
+    }
+
+    .btn-upload {
+      background: #4f46e5;
+      color: white;
+    }
+
+    .btn-upload:hover {
+      background: #4338ca;
+      transform: translateY(-1px);
+    }
+
+    .btn-download {
+      background: #f1f5f9;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+    }
+
+    .btn-download:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+      transform: translateY(-1px);
+    }
+
+    /* QR MODAL STYLES */
+    .qr-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .qr-modal-overlay.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .qr-modal-dialog {
+      background: white;
+      border-radius: 20px;
+      max-width: 380px;
+      width: 100%;
+      padding: 28px 24px;
+      text-align: center;
+      position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      transform: scale(0.95);
+      transition: transform 0.25s ease;
+    }
+
+    .qr-modal-overlay.active .qr-modal-dialog {
+      transform: scale(1);
+    }
+
+    .qr-modal-close {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      background: none;
+      border: none;
+      font-size: 26px;
+      color: #94a3b8;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color 0.2s;
+    }
+
+    .qr-modal-close:hover {
+      color: #0f172a;
+    }
+
+    .qr-modal-header h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 4px 0;
+    }
+
+    .qr-modal-header p {
+      font-size: 12.5px;
+      color: #64748b;
+      margin: 0 0 16px 0;
+    }
+
+    .qr-modal-img-wrap {
+      background: white;
+      border: 2px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px;
+      display: inline-block;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .qr-modal-img-wrap img {
+      width: 220px;
+      height: 220px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .qr-modal-hint {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0 0 18px 0;
+    }
+
+    .qr-modal-footer {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
     }
 
     /* =========================
@@ -748,12 +1154,52 @@ $companyLeaves = $conn->query("
         padding: 20px 16px;
       }
 
-      .welcome-header h1 {
+      .welcome-banner-card {
+        padding: 20px 22px;
+        gap: 18px;
+      }
+
+      .welcome-banner-main h1 {
         font-size: 22px;
       }
     }
 
     @media (max-width: 768px) {
+      .welcome-banner-card {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 18px 16px;
+        gap: 16px;
+        border-radius: 14px;
+      }
+
+      .welcome-qr-card {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 14px 16px;
+        gap: 14px;
+      }
+
+      .qr-info-meta {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .qr-btn-group {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+        flex-wrap: wrap;
+      }
+
+      .btn-qr-pill {
+        flex: 1;
+        min-width: 110px;
+        justify-content: center;
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
       .card {
         padding: 16px;
         border-radius: 12px;
@@ -856,6 +1302,62 @@ $companyLeaves = $conn->query("
     }
 
     @media (max-width: 580px) {
+      .welcome-banner-card {
+        padding: 16px 14px;
+        gap: 14px;
+      }
+
+      .welcome-banner-main h1 {
+        font-size: 20px;
+      }
+
+      .emp-id-text {
+        font-size: 12.5px;
+        gap: 6px;
+      }
+
+      .welcome-qr-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 16px 12px;
+        gap: 12px;
+      }
+
+      .qr-image-frame {
+        width: 110px;
+        height: 110px;
+      }
+
+      .qr-info-meta {
+        align-items: center;
+        width: 100%;
+        text-align: center;
+      }
+
+      .qr-meta-top {
+        justify-content: center;
+      }
+
+      .qr-meta-desc {
+        text-align: center;
+        font-size: 11.5px;
+      }
+
+      .qr-btn-group {
+        width: 100%;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .btn-qr-pill {
+        flex: 1;
+        min-width: 100px;
+        justify-content: center;
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+
       .stats-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 10px;
@@ -884,6 +1386,15 @@ $companyLeaves = $conn->query("
     @media (max-width: 360px) {
       .stats-grid {
         grid-template-columns: 1fr;
+      }
+
+      .qr-btn-group {
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .btn-qr-pill {
+        width: 100%;
       }
     }
   </style>
@@ -924,13 +1435,56 @@ $companyLeaves = $conn->query("
   <!-- MAIN CONTENT CONTAINER -->
   <div class="main">
 
-    <div class="welcome-header">
-      <h1>Welcome back, <?= htmlspecialchars($user['name']) ?> 👋</h1>
-      <div class="emp-id-text">
-        <span>Employee ID:</span>
-        <span class="emp-badge-tag"><?= htmlspecialchars($user['employee_id']) ?></span>
-        <span>•</span>
-        <span>Branch: <strong><?= htmlspecialchars(ucfirst($userBranch)) ?></strong></span>
+    <!-- TOP WELCOME BANNER WITH QR CODE -->
+    <div class="welcome-banner-card">
+      <div class="welcome-banner-main">
+        <div class="welcome-role-pill">
+          <i class="bi bi-person-badge"></i> Employee Portal
+        </div>
+        <h1>Welcome back, <?= htmlspecialchars($user['name']) ?> 👋</h1>
+        <div class="emp-id-text">
+          <span>Employee ID:</span>
+          <span class="emp-badge-tag"><?= htmlspecialchars($user['employee_id']) ?></span>
+          <span>•</span>
+          <span>Branch: <strong><?= htmlspecialchars(ucfirst($userBranch)) ?></strong></span>
+          <span>•</span>
+          <span>Shift: <strong><?= date("h:i A", strtotime($officeStartTime)) ?> – <?= date("h:i A", strtotime($officeEndTime)) ?></strong></span>
+        </div>
+      </div>
+
+      <!-- QR CODE SECTION -->
+      <div class="welcome-qr-card">
+        <div class="qr-image-frame" onclick="openQrModal()" title="Click to view full size">
+          <img 
+            id="dashboardQrImg" 
+            src="<?= htmlspecialchars($qrDisplaySrc) ?>" 
+            alt="Check-in QR Code"
+            crossorigin="anonymous"
+          >
+          <div class="qr-hover-zoom">
+            <i class="bi bi-arrows-fullscreen"></i>
+          </div>
+        </div>
+
+        <div class="qr-info-meta">
+          <div class="qr-meta-top">
+            <span id="qrBadge" class="qr-type-badge <?= $hasCustomQr ? 'badge-custom' : 'badge-auto' ?>">
+              <?= $hasCustomQr ? 'Custom' : 'Official QR' ?>
+            </span>
+          </div>
+       
+
+          <div class="qr-btn-group">
+            <label for="qrFileInput" class="btn-qr-pill btn-upload" id="uploadLabel">
+              <i class="bi bi-cloud-arrow-up-fill"></i> <span id="uploadBtnText"><?= $hasCustomQr ? 'Change QR' : 'Upload QR' ?></span>
+            </label>
+            <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="handleQrUpload(event)">
+
+            <button type="button" class="btn-qr-pill btn-download" onclick="downloadQrCode()" title="Download QR Image">
+              <i class="bi bi-download"></i> Download
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1286,6 +1840,180 @@ $companyLeaves = $conn->query("
       }
     });
   });
+</script>
+
+<!-- ENLARGED QR MODAL -->
+<div id="qrEnlargeModal" class="qr-modal-overlay" onclick="closeQrModal(event)">
+  <div class="qr-modal-dialog" onclick="event.stopPropagation()">
+    <button type="button" class="qr-modal-close" onclick="closeQrModal()">&times;</button>
+    <div class="qr-modal-header">
+      <h3><?= htmlspecialchars($user['name']) ?></h3>
+      <p>Employee ID: <strong><?= htmlspecialchars($user['employee_id']) ?></strong> • <?= htmlspecialchars(ucfirst($userBranch)) ?></p>
+    </div>
+    <div class="qr-modal-body">
+      <div class="qr-modal-img-wrap">
+        <img id="modalQrImg" src="<?= htmlspecialchars($qrDisplaySrc) ?>" alt="QR Code Full Size" crossorigin="anonymous">
+      </div>
+      <p class="qr-modal-hint">Present this QR code to the scanner for Check-in & Check-out</p>
+    </div>
+    <div class="qr-modal-footer">
+      <label for="qrFileInputModal" class="btn-qr-pill btn-upload">
+        <i class="bi bi-cloud-arrow-up-fill"></i> Change QR
+      </label>
+      <input type="file" id="qrFileInputModal" accept="image/*" style="display:none;" onchange="handleQrUpload(event)">
+      <button type="button" class="btn-qr-pill btn-download" onclick="downloadQrCode()">
+        <i class="bi bi-download"></i> Download QR
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function showToast(message, error = false) {
+  const toast = document.createElement("div");
+  toast.innerText = message;
+  toast.style.position = "fixed";
+  toast.style.top = "20px";
+  toast.style.right = "20px";
+  toast.style.maxWidth = "380px";
+  toast.style.whiteSpace = "pre-line";
+  toast.style.padding = "14px 20px";
+  toast.style.borderRadius = "10px";
+  toast.style.color = "white";
+  toast.style.fontWeight = "600";
+  toast.style.fontSize = "14px";
+  toast.style.lineHeight = "1.4";
+  toast.style.zIndex = "99999";
+  toast.style.background = error ? "#ef4444" : "#16a34a";
+  toast.style.boxShadow = "0 8px 25px rgba(0,0,0,0.2)";
+  toast.style.animation = "slideIn 0.3s ease";
+  toast.style.transition = "opacity 0.3s ease";
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 3500);
+}
+
+function openQrModal() {
+  const modal = document.getElementById("qrEnlargeModal");
+  if (modal) modal.classList.add("active");
+  document.body.style.overflow = "hidden";
+}
+
+function closeQrModal(e) {
+  if (e && e.target && e.target !== e.currentTarget && !e.target.classList.contains("qr-modal-close")) return;
+  const modal = document.getElementById("qrEnlargeModal");
+  if (modal) modal.classList.remove("active");
+  document.body.style.overflow = "";
+}
+
+async function handleQrUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+  if (!validTypes.includes(file.type)) {
+    showToast("Please select a valid image file (PNG, JPG, JPEG, WEBP, SVG)", true);
+    event.target.value = '';
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    showToast("File size exceeds 5MB limit", true);
+    event.target.value = '';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('qr_image_file', file);
+  formData.append('upload_qr_action', '1');
+
+  const uploadBtnText = document.getElementById("uploadBtnText");
+  const origText = uploadBtnText ? uploadBtnText.innerText : 'Upload QR';
+  if (uploadBtnText) uploadBtnText.innerText = 'Uploading...';
+
+  try {
+    const res = await fetch('dashboard.php', {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      const qrImg = document.getElementById("dashboardQrImg");
+      const modalImg = document.getElementById("modalQrImg");
+      const newUrl = data.qr_url + '?t=' + Date.now();
+      if (qrImg) qrImg.src = newUrl;
+      if (modalImg) modalImg.src = newUrl;
+
+      const badge = document.getElementById("qrBadge");
+      if (badge) {
+        badge.innerText = 'Custom';
+        badge.className = 'qr-type-badge badge-custom';
+      }
+
+      if (uploadBtnText) uploadBtnText.innerText = 'Change QR';
+      showToast("QR Code uploaded successfully! ✅");
+    } else {
+      showToast(data.message || "Upload failed", true);
+      if (uploadBtnText) uploadBtnText.innerText = origText;
+    }
+  } catch (err) {
+    console.error(err);
+    showToast("Error uploading QR code. Please try again.", true);
+    if (uploadBtnText) uploadBtnText.innerText = origText;
+  } finally {
+    event.target.value = '';
+  }
+}
+
+async function downloadQrCode() {
+  const img = document.getElementById("dashboardQrImg");
+  if (!img) return;
+
+  const empId = "<?= htmlspecialchars($user['employee_id']) ?>";
+  const fileName = empId + "_QR.png";
+
+  try {
+    const response = await fetch(img.src);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+    showToast("QR Code downloaded successfully! 📥");
+  } catch (e) {
+    const a = document.createElement("a");
+    a.href = img.src;
+    a.download = fileName;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
+
+<?php if (isset($_SESSION['flash_success'])): ?>
+  showToast(<?= json_encode($_SESSION['flash_success']) ?>);
+  <?php unset($_SESSION['flash_success']); ?>
+<?php endif; ?>
+
+<?php if (isset($_SESSION['flash_error'])): ?>
+  showToast(<?= json_encode($_SESSION['flash_error']) ?>, true);
+  <?php unset($_SESSION['flash_error']); ?>
+<?php endif; ?>
 </script>
 
 </body>

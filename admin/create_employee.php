@@ -53,7 +53,7 @@ if (isset($_POST['create'])) {
     VALUES (?, ?, ?, 'employee', ?, ?, ?, ?, ?, ?, ?, ?)
   ");
 
-  $stmt->bind_param("sssssidssdds", $name, $empId, $hashedPassword, $token, $branch, $branch_id, $shift_start, $shift_end, $working_hours, $monthly_cl, $check_in_days);
+  $stmt->bind_param("sssssissdds", $name, $empId, $hashedPassword, $token, $branch, $branch_id, $shift_start, $shift_end, $working_hours, $monthly_cl, $check_in_days);
   $stmt->execute();
 
 $_SESSION['success'] = [
@@ -104,7 +104,7 @@ $_SESSION['success'] = [
 
 /* ===== CARD ===== */
 .card {
-  width: 400px;
+  width: 100vh;
   background: white;
   padding: 30px;
   border-radius: 16px;
