@@ -9,7 +9,7 @@
  */
 function getCompanyLeaveEmailTemplate($data) {
     $title       = htmlspecialchars($data['title'] ?? 'Company Holiday');
-    // $leaveDate   = !empty($data['leave_date']) ? date('l, d F Y', strtotime($data['leave_date'])) : 'Scheduled Date';
+    $leaveDate   = !empty($data['leave_date']) ? date('l, d F Y', strtotime($data['leave_date'])) : 'Scheduled Date';
     $description = !empty($data['description']) ? nl2br(htmlspecialchars($data['description'])) : 'No additional notes provided.';
     $branchName  = htmlspecialchars($data['branch_name'] ?? 'All Branches');
     $companyName = htmlspecialchars($data['company_name'] ?? 'The Brand Weave');
