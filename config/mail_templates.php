@@ -64,7 +64,7 @@ We’re pleased to share the upcoming company holiday schedule approved for <str
                     <div style="font-size:20px; font-weight:700; color:#1e293b; margin-bottom:16px;">{$title}</div>
 
                     <div style="font-size:12px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Scheduled Date</div>
-                    <div style="font-size:16px; font-weight:600; color:#0f172a; margin-bottom:16px;">
+                    <div style="font-size:16px; font-weight:600; color:#1e293b; margin-bottom:16px;">
                       🗓️ {$leaveDate}
                     </div>
 
