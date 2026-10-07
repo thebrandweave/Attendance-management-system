@@ -138,8 +138,7 @@ $checkInTimeOnly = date(
     "H:i:s",
     strtotime($attendance['check_in'])
 );
-$checkoutTimeOnly = date("H:i", strtotime($currentTime));
-$userShiftEnd = !empty($user['shift_end']) ? $user['shift_end'] : ($isThirthahalliBranch ? "20:00:00" : "20:00:00");
+$userShiftEnd = !empty($user['shift_end']) ? $user['shift_end'] : ($isThirthahalliBranch || strtolower(trim($userBranch)) === 'mudipu' ? "20:00:00" : "17:30:00");
 $otThreshold = date("H:i", strtotime($userShiftEnd) + 5 * 60);
 
 if ($totalHours < 6.75) {

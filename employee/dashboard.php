@@ -147,15 +147,58 @@ if ($customQrPath && file_exists(__DIR__ . '/../' . ltrim($customQrPath, '/'))) 
     $qrDisplaySrc = "https://quickchart.io/qr?size=220&text=" . urlencode($qrCheckinLink);
 }
 
-$userBranch = $user['branch'] ?? 'gdedutech';
+$userBranchId = (int)($user['branch_id'] ?? 0);
+$userBranchStr = trim($user['branch'] ?? '');
+
+// Fetch dynamic branch configuration from branches table
+$bStmt = $conn->prepare("SELECT * FROM branches WHERE id = ? OR LOWER(branch_name) = LOWER(?) LIMIT 1");
+$bStmt->bind_param("is", $userBranchId, $userBranchStr);
+$bStmt->execute();
+$branchData = $bStmt->get_result()->fetch_assoc();
+$bStmt->close();
+
+$branchName = !empty($branchData['branch_name']) ? $branchData['branch_name'] : (!empty($userBranchStr) ? $userBranchStr : 'gdedutech');
+$userBranch = strtolower(trim($branchName));
 $attTable = getBranchTableNameOnly($conn, $userBranch);
 $today = date("Y-m-d");
 
 $isThirthahalliBranch = (
-    strtolower(trim($userBranch)) === "thirthahalli"
+    strtolower(trim($branchName)) === "thirthahalli" ||
+    $userBranchId === 6 ||
+    stripos($branchName, 'thirthahalli') !== false
 );
 
-$empCheckInDays = getEmployeeCheckInDaysArray($user['check_in_days'] ?? '', $userBranch);
+$isMudipuBranch = (
+    strtolower(trim($branchName)) === "mudipu" ||
+    $userBranchId === 2 ||
+    stripos($branchName, 'mudipu') !== false
+);
+
+// Determine Branch-level standard shift timings & defaults
+if ($isThirthahalliBranch) {
+    $branchStdStart = !empty($branchData['standard_check_in']) ? $branchData['standard_check_in'] : '10:00:00';
+    $branchStdEnd   = !empty($branchData['standard_check_out']) ? $branchData['standard_check_out'] : '20:00:00';
+    $branchStdHours = !empty($branchData['full_day_hours']) ? (float)$branchData['full_day_hours'] : 10.0;
+} elseif ($isMudipuBranch) {
+    $branchStdStart = !empty($branchData['standard_check_in']) ? $branchData['standard_check_in'] : '09:30:00';
+    $branchStdEnd   = !empty($branchData['standard_check_out']) ? $branchData['standard_check_out'] : '17:30:00';
+    $branchStdHours = !empty($branchData['full_day_hours']) ? (float)$branchData['full_day_hours'] : 8.0;
+} else {
+    // GD Edu Tech / Main
+    $branchStdStart = !empty($branchData['standard_check_in']) ? $branchData['standard_check_in'] : '09:30:00';
+    $branchStdEnd   = !empty($branchData['standard_check_out']) ? $branchData['standard_check_out'] : '17:30:00';
+    $branchStdHours = !empty($branchData['full_day_hours']) ? (float)$branchData['full_day_hours'] : 8.0;
+}
+
+// Effective shift timings:
+// Priority 1: Employee-specific settings in users table (if set and customized)
+// Priority 2: Branch standard settings
+$officeStartTime = !empty($user['shift_start']) ? $user['shift_start'] : $branchStdStart;
+$officeEndTime   = !empty($user['shift_end']) ? $user['shift_end'] : $branchStdEnd;
+
+// Effective employee settings:
+$empWorkingHours = !empty($user['working_hours']) ? (float)$user['working_hours'] : $branchStdHours;
+$empCheckInDays = getEmployeeCheckInDaysArray($user['check_in_days'] ?? '', $branchName);
 $sundayIsWorking = in_array('Sun', $empCheckInDays, true);
 
 $sundayDateFilter = $sundayIsWorking
@@ -165,10 +208,6 @@ $sundayDateFilter = $sundayIsWorking
 $sundayHistoryFilter = $sundayIsWorking
     ? ""
     : "AND DAYOFWEEK(a.date) != 1";
-
-// Employee shift timing (uses employee user settings if configured, fallback to 09:30 - 20:00)
-$officeStartTime = !empty($user['shift_start']) ? $user['shift_start'] : ($isThirthahalliBranch ? "10:00:00" : "09:30:00");
-$officeEndTime   = !empty($user['shift_end']) ? $user['shift_end'] : "20:00:00";
 
 /* =======================
    MONTH FILTER
@@ -230,10 +269,10 @@ $totalCLDays        = (float)($monthlySummary['total_cl'] ?? 0);
 $totalOvertimeDays  = (float)($monthlySummary['total_overtime'] ?? 0);
 $totalOTPendingDays = (float)($monthlySummary['total_overtime_pending'] ?? 0);
 
-// Cap Monthly CL at limit (default 2.0) and transfer excess to Absent
+// Cap Monthly CL at limit (employee settings -> branch monthly_leaves -> default 2.0) and transfer excess to Absent
 $empMonthlyCLLimit = (isset($user['monthly_cl']) && $user['monthly_cl'] !== null)
     ? (float)$user['monthly_cl']
-    : 2.0;
+    : (!empty($branchData['monthly_leaves']) ? (float)$branchData['monthly_leaves'] : 2.0);
 
 if ($totalPLDays > $empMonthlyCLLimit) {
     $excessPL = $totalPLDays - $empMonthlyCLLimit;
@@ -1446,9 +1485,11 @@ $companyLeaves = $conn->query("
           <span>Employee ID:</span>
           <span class="emp-badge-tag"><?= htmlspecialchars($user['employee_id']) ?></span>
           <span>•</span>
-          <span>Branch: <strong><?= htmlspecialchars(ucfirst($userBranch)) ?></strong></span>
+          <span>Branch: <strong><?= htmlspecialchars($branchData['branch_name'] ?? ucfirst($userBranch)) ?></strong></span>
           <span>•</span>
-          <span>Shift: <strong><?= date("h:i A", strtotime($officeStartTime)) ?> – <?= date("h:i A", strtotime($officeEndTime)) ?></strong></span>
+          <span>Shift: <strong><?= date("h:i A", strtotime($officeStartTime)) ?> – <?= date("h:i A", strtotime($officeEndTime)) ?></strong> (<?= number_format($empWorkingHours, 1) ?> hrs)</span>
+          <span>•</span>
+          <span>Work Days: <strong><?= htmlspecialchars(formatCheckInDaysDisplay($user['check_in_days'] ?? '', $branchName)) ?></strong></span>
         </div>
       </div>
 
@@ -1475,9 +1516,9 @@ $companyLeaves = $conn->query("
        
 
           <div class="qr-btn-group">
-            <label for="qrFileInput" class="btn-qr-pill btn-upload" id="uploadLabel">
+            <!-- <label for="qrFileInput" class="btn-qr-pill btn-upload" id="uploadLabel">
               <i class="bi bi-cloud-arrow-up-fill"></i> <span id="uploadBtnText"><?= $hasCustomQr ? 'Change QR' : 'Upload QR' ?></span>
-            </label>
+            </label> -->
             <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="handleQrUpload(event)">
 
             <button type="button" class="btn-qr-pill btn-download" onclick="downloadQrCode()" title="Download QR Image">
@@ -1848,7 +1889,7 @@ $companyLeaves = $conn->query("
     <button type="button" class="qr-modal-close" onclick="closeQrModal()">&times;</button>
     <div class="qr-modal-header">
       <h3><?= htmlspecialchars($user['name']) ?></h3>
-      <p>Employee ID: <strong><?= htmlspecialchars($user['employee_id']) ?></strong> • <?= htmlspecialchars(ucfirst($userBranch)) ?></p>
+      <p>Employee ID: <strong><?= htmlspecialchars($user['employee_id']) ?></strong> • <?= htmlspecialchars($branchData['branch_name'] ?? ucfirst($userBranch)) ?></p>
     </div>
     <div class="qr-modal-body">
       <div class="qr-modal-img-wrap">
@@ -1857,9 +1898,9 @@ $companyLeaves = $conn->query("
       <p class="qr-modal-hint">Present this QR code to the scanner for Check-in & Check-out</p>
     </div>
     <div class="qr-modal-footer">
-      <label for="qrFileInputModal" class="btn-qr-pill btn-upload">
+      <!-- <label for="qrFileInputModal" class="btn-qr-pill btn-upload">
         <i class="bi bi-cloud-arrow-up-fill"></i> Change QR
-      </label>
+      </label> -->
       <input type="file" id="qrFileInputModal" accept="image/*" style="display:none;" onchange="handleQrUpload(event)">
       <button type="button" class="btn-qr-pill btn-download" onclick="downloadQrCode()">
         <i class="bi bi-download"></i> Download QR

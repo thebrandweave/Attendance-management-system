@@ -101,9 +101,8 @@ $leaves = $leavesStmt->get_result();
 
 <title>Add Leave</title>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { margin: 0; font-family: 'Poppins', sans-serif; background: #eef2f7; color: #111827; }
@@ -212,7 +211,8 @@ th{
     <a href="../auth/logout.php" class="logout">🚪 Logout</a>
   </div>
 
-<div class="card">
+  <div class="main">
+    <div class="card">
 
 <h2>📅 Add Company Leave</h2>
 
@@ -325,9 +325,22 @@ if ($row['leave_date'] == $today) {
 </tr>
 <?php endwhile; ?>
 
-</table>
+    </div>
+  </div>
 
-</div>
-
+  <script>
+    const form = document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function() {
+        const btn = this.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = 'Adding Leave... ⏳';
+          btn.style.opacity = '0.75';
+          btn.style.cursor = 'not-allowed';
+        }
+      });
+    }
+  </script>
 </body>
 </html>

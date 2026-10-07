@@ -373,6 +373,7 @@ function sendCompanyLeaveNotification($conn, $leaveDate, $title, $description, $
     $sent = [];
     $skipped = [];
     $failed = [];
+    $recipients = [];
 
     while ($emp = $res->fetch_assoc()) {
         $userId  = (int)$emp['id'];
@@ -386,15 +387,78 @@ function sendCompanyLeaveNotification($conn, $leaveDate, $title, $description, $
             continue;
         }
 
-        $mailRes = sendAppEmail($toEmail, $empName, $subject, $htmlBody, '', $branchName);
-        if ($mailRes['success']) {
-            $sent[] = ['id' => $empCode, 'name' => $empName, 'email' => $toEmail];
-        } else {
-            $failed[] = ['id' => $empCode, 'name' => $empName, 'email' => $toEmail, 'error' => $mailRes['error']];
+        $recipients[] = ['id' => $empCode, 'name' => $empName, 'email' => $toEmail];
+    }
+    $stmt->close();
+
+    if (!empty($recipients)) {
+        $smtpEnabled = !empty($config['smtp_enabled']) && !empty($config['smtp_host']);
+        $fromEmail = !empty($config['from_email']) ? $config['from_email'] : 'noreply@thebrandweave.com';
+        $fromName  = !empty($config['from_name']) ? $config['from_name'] : 'GD Edu Tech HR';
+
+        // Chunk in batches of 25 to respect SMTP limits and send at lightning speed
+        $chunks = array_chunk($recipients, 25);
+        foreach ($chunks as $chunk) {
+            $mail = new PHPMailer(true);
+            try {
+                $mail->CharSet = 'UTF-8';
+                $mail->isHTML(true);
+
+                if ($smtpEnabled) {
+                    $mail->isSMTP();
+                    $mail->Host       = $config['smtp_host'];
+                    $mail->Port       = $config['smtp_port'] ?? 587;
+                    $mail->SMTPAuth   = !empty($config['smtp_user']) && !empty($config['smtp_pass']);
+                    $mail->Username   = $config['smtp_user'] ?? '';
+                    $mail->Password   = $config['smtp_pass'] ?? '';
+                    $mail->Timeout    = 6;
+
+                    $mail->SMTPOptions = [
+                        'ssl' => [
+                            'verify_peer' => false,
+                            'verify_peer_name' => false,
+                            'allow_self_signed' => true
+                        ]
+                    ];
+
+                    $sec = strtolower($config['smtp_secure'] ?? 'tls');
+                    if ($sec === 'ssl') {
+                        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+                    } elseif ($sec === 'tls') {
+                        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    } else {
+                        $mail->SMTPSecure = '';
+                        $mail->SMTPAutoTLS = false;
+                    }
+                } else {
+                    $mail->isMail();
+                }
+
+                $mail->setFrom($fromEmail, $fromName);
+                $mail->addAddress($fromEmail, $fromName . ' Team');
+
+                foreach ($chunk as $r) {
+                    $mail->addBCC($r['email'], $r['name']);
+                }
+
+                $mail->Subject = $subject;
+                $mail->Body    = $htmlBody;
+                $mail->AltBody = strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $htmlBody));
+
+                $mail->send();
+                foreach ($chunk as $r) {
+                    $sent[] = ['id' => $r['id'], 'name' => $r['name'], 'email' => $r['email']];
+                }
+                logEmailActivity('SUCCESS', count($chunk) . ' recipients (BCC Batch)', $subject, 'Sent via batch SMTP', $branchName);
+            } catch (Exception $e) {
+                $errMsg = $mail->ErrorInfo ?: $e->getMessage();
+                foreach ($chunk as $r) {
+                    $failed[] = ['id' => $r['id'], 'name' => $r['name'], 'email' => $r['email'], 'error' => $errMsg];
+                }
+                logEmailActivity('FAILED', count($chunk) . ' recipients', $subject, 'Batch Mailer Error: ' . $errMsg, $branchName);
+            }
         }
     }
-
-    $stmt->close();
 
     return [
         'sent'    => $sent,
