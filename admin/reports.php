@@ -48,6 +48,16 @@ $isThirthahalliBranch = (
     strtolower(trim($branch)) === "thirthahalli"
 );
 
+$currentAdminUser = $_SESSION['user'] ?? [];
+$currentAdminEmpId = strtoupper(trim($currentAdminUser['employee_id'] ?? ''));
+$adminCanEditSetting = isset($currentAdminUser['can_edit_reports']) ? (int)$currentAdminUser['can_edit_reports'] : null;
+
+// Only authorized Thirthahalli branch admin (e.g. ADMIN003) has edit capability in reports
+$canEditReports = (
+    $isThirthahalliBranch &&
+    ($adminCanEditSetting === 1 || ($adminCanEditSetting === null && $currentAdminEmpId === 'ADMIN003'))
+);
+
 $sundayIsWorking = (
     $isMudipuBranch ||
     $isThirthahalliBranch
@@ -159,12 +169,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $redirectUrl = "reports.php?" . http_build_query($redirectParams);
 
     // Permission check: Editing is only allowed for Thirthahalli branch
-    if (!$isThirthahalliBranch) {
+    if (!$canEditReports) {
         if ($isAjax) {
-            echo json_encode(['status' => 'error', 'message' => 'Editing attendance is only permitted for Thirthahalli branch.']);
+            echo json_encode(['status' => 'error', 'message' => 'Editing attendance is not permitted for your account.']);
             exit();
         }
-        $_SESSION['flash_msg'] = ['type' => 'error', 'text' => 'Editing attendance is only permitted for Thirthahalli branch.'];
+        $_SESSION['flash_msg'] = ['type' => 'error', 'text' => 'Editing attendance is not permitted for your account.'];
         header("Location: " . $redirectUrl);
         exit();
     }
@@ -1447,7 +1457,7 @@ if ($isThirthahalliBranch) {
                     <th>Lunch In</th>
                     <th>Check Out</th>
                     <th>Total Hours</th>
-                    <?php if ($isThirthahalliBranch): ?>
+                    <?php if ($canEditReports): ?>
                     <th class="no-print" style="width:100px;">Action</th>
                     <?php endif; ?>
                 </tr>
@@ -1513,7 +1523,7 @@ if ($isThirthahalliBranch) {
                         echo $workingHours;
                         ?>
                     </td>
-                    <?php if ($isThirthahalliBranch): ?>
+                    <?php if ($canEditReports): ?>
                     <td class="no-print">
                         <button type="button" class="btn-action edit" onclick='openEditAttendanceModal(<?= htmlspecialchars(json_encode([
                             "id" => (int)$row["attendance_id"],
@@ -1539,7 +1549,7 @@ if ($isThirthahalliBranch) {
     </div>
 </div>
 
-<?php if ($isThirthahalliBranch): ?>
+<?php if ($canEditReports): ?>
 <!-- =========================================
      MODAL: EDIT ATTENDANCE RECORD
 ========================================= -->
@@ -1865,7 +1875,7 @@ if ($isThirthahalliBranch) {
 <?php endif; ?>
 
 <script>
-<?php if ($isThirthahalliBranch): ?>
+<?php if ($canEditReports): ?>
 function parse12HrParts(dtStr) {
     if (!dtStr) return null;
     let m = String(dtStr).match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/);
