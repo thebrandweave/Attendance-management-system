@@ -913,9 +913,9 @@ if ($isThirthahalliBranch) {
         .btn-primary { background: #4f46e5; color: white; }
         .btn-print { background: #111827; color: white; }
         button:hover { opacity: 0.9; transform: translateY(-2px); }
-        .table-wrapper { background: white; border-radius: 18px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); margin-bottom: 30px; }
+        .table-wrapper { background: white; overflow-x: auto;  -webkit-overflow-scrolling: touch; border-radius: 18px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); margin-bottom: 30px; }
         .table-title { padding: 20px; font-size: 18px; font-weight: 600; border-bottom: 1px solid #eee; }
-        table { width: 100%; border-collapse: collapse; }
+        table {  min-width: 900px; width: 100%; border-collapse: collapse; }
         th { background: #111827; color: white; padding: 14px; font-size: 14px; position: sticky; top: 0; }
         td { padding: 14px; border: 1px solid #eee; text-align: center; font-size: 14px; }
         tr:hover { background: #f9fafb; }
